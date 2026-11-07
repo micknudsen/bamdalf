@@ -41,9 +41,7 @@ struct IntervalEntryTests {
     func editingAndEscapePreserveTheTargetWithoutValidatingDrafts() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("opening.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("opening.bam.bai"))
+        let session = try await files.openedSession()
         session.editInterval("tiny:10-1")
         session.submitInterval()
         #expect(session.presentation.intervalError == "Start must be at or before end.")
@@ -84,9 +82,7 @@ struct IntervalEntryTests {
     func rejectedSubmissionRetainsExactTextAndPreviousTarget(text: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("opening.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("opening.bam.bai"))
+        let session = try await files.openedSession()
         session.editInterval("tiny:100-200")
         session.submitInterval()
 
@@ -103,9 +99,7 @@ struct IntervalEntryTests {
     func validSubmissionUsesRealHeaderBoundsAndFormatsTheTarget(text: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("opening.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("opening.bam.bai"))
+        let session = try await files.openedSession()
 
         session.editInterval(text)
         session.submitInterval()

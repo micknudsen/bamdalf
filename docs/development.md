@@ -149,9 +149,5 @@ On 2026-11-07, native interval tests demonstrated valid, one-base, out-of-range,
 malformed-comma, and unfinished-edit cases using real BAM header lengths.
 They retain the target ruler across rejected/unfinished text, keep errors on
 focus loss, and use the actual menu/field-editor actions for focus and Escape.
-Optional PNG evidence comes from those same AppKit windows, not a mockup:
-
-```sh
-BAMDALF_NATIVE_CAPTURES="$PWD/.local/validation/native-intervals" \
-  swift test --disable-xctest --filter NativeIntervalTests
-```
+Native view captures were inspected for each case; the tests also verify
+full-coordinate labels remain in bounds and reduce density on resize.

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import BamdalfKit
 
 struct FixtureFiles {
     let directory: URL
@@ -12,4 +13,16 @@ struct FixtureFiles {
     }
 
     func remove() { try? FileManager.default.removeItem(at: directory) }
+
+    @MainActor
+    func openedSession(fixture: String = "opening", indexFormat: String = "bai") async throws -> ViewerSession {
+        let session = ViewerSession()
+        let bam = sources.appendingPathComponent("\(fixture).bam")
+        let index = bam.appendingPathExtension(indexFormat)
+        await session.openBAM(bam)
+        await session.chooseIndex(index)
+        try #require(session.presentation.bamURL == bam)
+        try #require(session.presentation.indexURL == index)
+        return session
+    }
 }

@@ -9,9 +9,7 @@ struct NativeIntervalTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("coordinates.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("coordinates.bam.csi"))
+        let session = try await files.openedSession(fixture: "coordinates", indexFormat: "csi")
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)
@@ -46,7 +44,6 @@ struct NativeIntervalTests {
         content.layoutSubtreeIfNeeded()
         let singleLabels = ruler.subviews.compactMap { ($0 as? NSTextField)?.stringValue }
         #expect(singleLabels.contains("150,000,000"))
-        try captureNativeWindow(window, name: "one-base")
     }
 
     @Test
@@ -115,9 +112,7 @@ struct NativeIntervalTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("opening.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("opening.bam.bai"))
+        let session = try await files.openedSession()
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)
@@ -131,7 +126,6 @@ struct NativeIntervalTests {
         #expect(field.stringValue == "tiny:1,000-2,000")
         #expect(session.presentation.target?.formatted == "tiny:1,000-2,000")
         if example == "valid" {
-            try captureNativeWindow(window, name: example)
             return
         }
 
@@ -149,7 +143,6 @@ struct NativeIntervalTests {
         #expect(session.presentation.intervalError != nil)
         #expect(session.presentation.target?.formatted == "tiny:1,000-2,000")
         if example == "out-of-range" {
-            try captureNativeWindow(window, name: example)
             return
         }
         window.makeFirstResponder(field)
@@ -159,31 +152,10 @@ struct NativeIntervalTests {
         #expect(session.presentation.intervalError != nil)
         #expect(session.presentation.target?.formatted == "tiny:1,000-2,000")
         if example == "malformed" {
-            try captureNativeWindow(window, name: example)
             return
         }
         resumedEditor.insertText("tiny:", replacementRange: NSRange(location: 0, length: resumedEditor.string.utf16.count))
         #expect(session.presentation.intervalError == nil)
         #expect(session.presentation.target?.formatted == "tiny:1,000-2,000")
-        try captureNativeWindow(window, name: example)
     }
-}
-
-/// Optional visual evidence from the same native window exercised by the tests.
-@MainActor
-private func captureNativeWindow(_ window: NSWindow, name: String) throws {
-    guard let directory = ProcessInfo.processInfo.environment["BAMDALF_NATIVE_CAPTURES"] else { return }
-    let content = try #require(window.contentView)
-    content.layoutSubtreeIfNeeded()
-    CATransaction.flush()
-    let image = try #require(NSBitmapImageRep(bitmapDataPlanes: nil,
-        pixelsWide: Int(content.bounds.width), pixelsHigh: Int(content.bounds.height),
-        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
-    let context = try #require(NSGraphicsContext(bitmapImageRep: image))
-    content.displayIgnoringOpacity(content.bounds, in: context)
-    let png = try #require(image.representation(using: .png, properties: [:]))
-    let output = URL(fileURLWithPath: directory, isDirectory: true)
-    try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-    try png.write(to: output.appendingPathComponent("\(name).png"))
 }

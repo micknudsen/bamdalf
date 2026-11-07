@@ -8,9 +8,7 @@ struct RulerTests {
     func rulerUsesFullCoordinatesAndReducesDensityWithoutAbbreviations() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
-        await session.openBAM(files.sources.appendingPathComponent("coordinates.bam"))
-        await session.chooseIndex(files.sources.appendingPathComponent("coordinates.bam.csi"))
+        let session = try await files.openedSession(fixture: "coordinates", indexFormat: "csi")
         #expect(session.presentation.rulerTicks(availableWidth: 1000).isEmpty)
         session.editInterval("large_reference:1-300000000")
         session.submitInterval()
