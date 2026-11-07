@@ -6,8 +6,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private var viewer: ViewerWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        installMenus()
         viewer = ViewerWindowController(session: ViewerSession())
+        installMenus()
         viewer?.showWindow(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
@@ -26,6 +26,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
 
         let fileItem = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
+        let openItem = fileMenu.addItem(withTitle: "Open BAM…", action: #selector(ViewerWindowController.openBAM(_:)), keyEquivalent: "o")
+        openItem.target = viewer
+        fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileItem.submenu = fileMenu
         menu.addItem(fileItem)
