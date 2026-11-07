@@ -6,6 +6,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let session: ViewerSession
     private let message = NSTextField(labelWithString: "")
     private let intervalField = NSTextField()
+    private let intervalError = NSTextField(wrappingLabelWithString: "")
+    private let ruler = GenomicRulerView(frame: .zero)
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
 
@@ -40,6 +42,24 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
             intervalField.widthAnchor.constraint(equalToConstant: 360),
         ])
+        intervalError.font = .systemFont(ofSize: 12)
+        intervalError.textColor = .systemRed
+        intervalError.setAccessibilityLabel("Interval validation")
+        intervalError.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(intervalError)
+        NSLayoutConstraint.activate([
+            intervalError.leadingAnchor.constraint(equalTo: intervalField.leadingAnchor),
+            intervalError.topAnchor.constraint(equalTo: intervalField.bottomAnchor, constant: 4),
+            intervalError.trailingAnchor.constraint(lessThanOrEqualTo: workspace.trailingAnchor, constant: -16),
+        ])
+        ruler.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(ruler)
+        NSLayoutConstraint.activate([
+            ruler.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
+            ruler.trailingAnchor.constraint(equalTo: workspace.trailingAnchor, constant: -16),
+            ruler.topAnchor.constraint(equalTo: intervalError.bottomAnchor, constant: 12),
+            ruler.heightAnchor.constraint(equalToConstant: 68),
+        ])
         window.contentView = workspace
         super.init(window: window)
         intervalField.delegate = self
@@ -56,10 +76,44 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         session.editInterval(intervalField.stringValue)
     }
 
+    public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        guard control === intervalField, window?.attachedSheet == nil,
+              session.presentation.intervalEntryAvailable else { return false }
+        switch commandSelector {
+        case #selector(NSResponder.insertNewline(_:)):
+            session.submitInterval()
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            session.resetIntervalEditor()
+            return true
+        default:
+            return false
+        }
+    }
+
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // Popup choices also reach this validator while their sheet is open.
-        guard menuItem.action == #selector(openBAM(_:)) else { return true }
-        return !session.presentation.isOpening && window?.attachedSheet == nil
+        switch menuItem.action {
+        case #selector(openBAM(_:)):
+            return !session.presentation.isOpening && window?.attachedSheet == nil
+        case #selector(goToInterval(_:)):
+            return session.presentation.intervalEntryAvailable && window?.attachedSheet == nil
+        default:
+            return true
+        }
+    }
+
+    public func makeGoMenu() -> NSMenu {
+        let menu = NSMenu(title: "Go")
+        let item = menu.addItem(withTitle: "Go to Interval", action: #selector(goToInterval(_:)), keyEquivalent: "l")
+        item.target = self
+        return menu
+    }
+
+    @objc public func goToInterval(_ sender: Any?) {
+        guard session.presentation.intervalEntryAvailable, window?.attachedSheet == nil else { return }
+        window?.makeFirstResponder(intervalField)
+        intervalField.selectText(sender)
     }
 
     @objc public func openBAM(_ sender: Any?) {
@@ -93,6 +147,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         if intervalField.stringValue != presentation.intervalText {
             intervalField.stringValue = presentation.intervalText
         }
+        intervalError.stringValue = presentation.intervalError ?? ""
+        intervalError.isHidden = presentation.intervalError == nil
+        ruler.presentation = presentation
+        ruler.isHidden = presentation.target == nil
         if presentation.sessionID != displayedSessionID {
             displayedSessionID = presentation.sessionID
             window?.makeFirstResponder(intervalField)

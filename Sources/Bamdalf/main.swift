@@ -46,6 +46,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         editItem.submenu = editMenu
         menu.addItem(editItem)
 
+        let goItem = NSMenuItem()
+        goItem.submenu = viewer?.makeGoMenu()
+        menu.addItem(goItem)
+
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

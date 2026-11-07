@@ -18,6 +18,8 @@ public struct ViewerPresentation {
     public var indexURL: URL?
     public var references: [ReferenceSequence] = []
     public var intervalText = ""
+    public var target: GenomicInterval?
+    public var intervalError: String?
     public var isOpening = false
     public var sessionID: UUID?
     public var intervalEntryAvailable: Bool { bamURL != nil }
@@ -42,7 +44,29 @@ public final class ViewerSession {
     }
 
     public func editInterval(_ text: String) {
+        guard text != presentation.intervalText else { return }
         presentation.intervalText = text
+        presentation.intervalError = nil
+    }
+
+    public func resetIntervalEditor() {
+        presentation.intervalText = presentation.target?.formatted ?? ""
+        presentation.intervalError = nil
+    }
+
+    public func submitInterval() {
+        guard presentation.intervalEntryAvailable else { return }
+        do {
+            let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
+            presentation.target = target
+            presentation.intervalText = target.formatted
+            presentation.intervalError = nil
+            presentation.message = "Alignment viewing is not available yet"
+        } catch let error as IntervalValidationError {
+            presentation.intervalError = error.message
+        } catch {
+            presentation.intervalError = "Enter a valid reference:start-end interval."
+        }
     }
 
     public func dismissOpenError() {
@@ -97,6 +121,8 @@ public final class ViewerSession {
             presentation.windowTitle = "\(url.lastPathComponent) — Bamdalf"
             presentation.message = "Enter a genomic interval"
             presentation.intervalText = ""
+            presentation.target = nil
+            presentation.intervalError = nil
             presentation.sessionID = UUID()
         } catch let error as FileOpenError {
             guard requestID == openingID else { return }
