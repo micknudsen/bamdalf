@@ -3,3 +3,7 @@
 
 # Documentation-check dependencies.
 /node_modules/
+
+# Native build products and local SwiftPM state.
+/.build/
+/.swiftpm/

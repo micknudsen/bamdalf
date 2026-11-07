@@ -37,9 +37,9 @@ fragments. HTTP links are not fetched, and HTML links are outside the local-link
 rule's scope. Long prose lines are allowed. `.local/` contains private working
 material and is excluded from Git and these checks.
 
-Node.js and the npm files support documentation validation only. The native app,
-its macOS build, and application tests will be added by the first implementation
-ticket; this bootstrap does not implement the viewer.
+Node.js and the npm files support documentation validation only. For native
+prerequisites and build/test/launch commands, see
+[Native development](docs/development.md).
 
 The dependency overrides select patched RE2JS and KaTeX releases while the
 upstream tools still select affected versions. Recheck these overrides when

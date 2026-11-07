@@ -33,10 +33,33 @@ jobs:
       - name: Check Markdown and local links
         run: npm run check:docs
 
+  native:
+    name: Native macOS
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Report native toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          swift --version
+      - name: Build native application
+        run: swift build
+      - name: Test viewer session and native workspace
+        run: swift test --disable-xctest
+      - name: Package native application
+        run: bash scripts/build-app.sh
+
   required-checks:
     name: Required checks
     if: ${{ always() }}
-    needs: [documentation]
+    needs: [documentation, native]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
