@@ -16,9 +16,7 @@ struct NativeContinuityTests {
             if target.end == 300 { await gate.pause(300) }
             return records
         })
-        let bam = files.sources.appendingPathComponent("rows.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension("bai"))
+        try await files.openedSession(fixture: "rows", indexFormat: "bai", session: session)
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)

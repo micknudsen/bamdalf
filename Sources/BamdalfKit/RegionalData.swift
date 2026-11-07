@@ -7,13 +7,25 @@ struct RegionalData {
     }
     private var entries: [Entry] = []
 
-    mutating func insert(_ records: [Alignment], for interval: GenomicInterval) {
+    mutating func insert(_ records: [Alignment], for interval: GenomicInterval, keeping activeTarget: GenomicInterval) {
         entries.removeAll {
             $0.interval.reference == interval.reference && $0.interval.start >= interval.start && $0.interval.end <= interval.end
         }
         entries.append(Entry(interval: interval, records: records))
-        // Bound historical query snapshots, not the number of eligible records.
-        if entries.count > 8 { entries.removeFirst(entries.count - 8) }
+        // Active coverage/candidates remain available independently of the
+        // bounded historical snapshots. Even a disjoint query may hold a long
+        // alignment eligible for the active target.
+        func isActive(_ entry: Entry) -> Bool {
+            guard entry.interval.reference == activeTarget.reference else { return false }
+            return (entry.interval.start <= activeTarget.end && entry.interval.end >= activeTarget.start)
+                || entry.records.contains { $0.referenceStart <= activeTarget.end && $0.referenceEnd >= activeTarget.start }
+        }
+        var historicalCount = entries.filter { !isActive($0) }.count
+        entries.removeAll { entry in
+            guard historicalCount > 8, !isActive(entry) else { return false }
+            historicalCount -= 1
+            return true
+        }
     }
 
     func available(for target: GenomicInterval) -> (records: [Alignment], missing: [GenomicInterval]) {
@@ -35,10 +47,11 @@ struct RegionalData {
     }
 
     static func eligible(_ records: [Alignment], for target: GenomicInterval) -> [Alignment] {
-        var unique: [UInt64: Alignment] = [:]
+        var seen: Set<UInt64> = []
+        var result: [Alignment] = []
         for record in records where record.referenceStart <= target.end && record.referenceEnd >= target.start {
-            unique[record.id] = record
+            if seen.insert(record.id).inserted { result.append(record) }
         }
-        return Array(unique.values)
+        return result
     }
 }

@@ -124,14 +124,14 @@ public final class ViewerSession {
                     for missing in available.missing {
                         let loaded = try await loadRegion(bam, missing)
                         guard regionalRequestID == requestID else { return }
-                        regionalData.insert(loaded, for: missing)
+                        regionalData.insert(loaded, for: missing, keeping: target)
                         records = RegionalData.eligible(records + loaded, for: target)
                         presentation.alignments = Self.pack(records, retaining: presentation.alignments)
                         let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
                         presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
                             ? max(presentation.rowCount, requiredRows) : requiredRows
                     }
-                    regionalData.insert(records, for: target)
+                    regionalData.insert(records, for: target, keeping: target)
                     presentation.isLoading = false
                     lastSuccessful = presentation
                 } catch let error as RegionalLoadError {
@@ -165,6 +165,22 @@ public final class ViewerSession {
         var result = records.sorted {
             $0.drawnStart == $1.drawnStart ? $0.id < $1.id : $0.drawnStart < $1.drawnStart
         }
+        if previous.isEmpty {
+            // With no fixed occupants, sorted newcomers only need each row's
+            // final endpoint. Retained layouts below must also search gaps.
+            var ends: [Int64] = []
+            for index in result.indices {
+                let start = result[index].drawnStart
+                if let row = ends.firstIndex(where: { $0 < start }) {
+                    result[index].row = row
+                    ends[row] = result[index].drawnEnd
+                } else {
+                    result[index].row = ends.count
+                    ends.append(result[index].drawnEnd)
+                }
+            }
+            return result
+        }
         let retained = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0.row) })
         var occupied: [[ClosedRange<Int64>]] = []
         for index in result.indices {
@@ -176,15 +192,34 @@ public final class ViewerSession {
         for index in result.indices {
             guard retained[result[index].id] == nil else { continue }
             let extent = result[index].drawnStart...result[index].drawnEnd
-            if let row = occupied.firstIndex(where: { ranges in !ranges.contains { $0.overlaps(extent) } }) {
+            if let row = occupied.firstIndex(where: { ranges in
+                // Sorted extents let the common append case use only the last
+                // bound; an earlier newcomer checks its two neighboring ranges.
+                let position = insertionPosition(of: extent.lowerBound, in: ranges)
+                return (position == 0 || ranges[position - 1].upperBound < extent.lowerBound)
+                    && (position == ranges.count || ranges[position].lowerBound > extent.upperBound)
+            }) {
                 result[index].row = row
-                occupied[row].append(extent)
+                let position = insertionPosition(of: extent.lowerBound, in: occupied[row])
+                occupied[row].insert(extent, at: position)
             } else {
                 result[index].row = occupied.count
                 occupied.append([extent])
             }
         }
         return result
+    }
+
+    private static func insertionPosition(of start: Int64, in ranges: [ClosedRange<Int64>]) -> Int {
+        if let last = ranges.last, last.lowerBound <= start { return ranges.count }
+        var low = 0
+        var high = ranges.count
+        while low < high {
+            let middle = low + (high - low) / 2
+            if ranges[middle].lowerBound < start { low = middle + 1 }
+            else { high = middle }
+        }
+        return low
     }
 
     private func restoreSuccessfulView(for error: RegionalLoadError, generation: UInt64) {
@@ -199,7 +234,7 @@ public final class ViewerSession {
         if let target = restored.target, !restored.isAlignmentSuppressed {
             // Restoration already holds a complete result, even if intervening
             // partial queries evicted its historical cache entries.
-            regionalData.insert(restored.alignments, for: target)
+            regionalData.insert(restored.alignments, for: target, keeping: target)
         }
         if draftGeneration == nil || draftGeneration! <= generation {
             restored.intervalText = restored.target?.formatted ?? ""

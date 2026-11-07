@@ -3,6 +3,55 @@ import Testing
 import BamdalfKit
 
 struct NavigationReuseTests {
+    @Test(arguments: [1, 12])
+    @MainActor
+    func historicalEvictionCannotDiscardCoverageBackingAnActiveProvisionalView(stages: Int) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let gate = RegionGate()
+        let session = ViewerSession(loadRegion: { file, target in
+            let records = try await file.alignments(in: target)
+            if (300..<400).contains(target.end) { await gate.pause(target.end) }
+            return records
+        })
+        try await files.openedSession(fixture: "rows", indexFormat: "bai", session: session)
+        session.editInterval("tiny:100-200")
+        await session.submitInterval()?.value
+        let saved = session.presentation.alignments
+        // Fill the documented historical snapshot budget, leaving this result
+        // oldest. Returning to it must make its coverage active again.
+        for start in stride(from: 2000, through: 8000, by: 1000) {
+            session.editInterval("tiny:\(start)-\(start + 99)")
+            await session.submitInterval()?.value
+        }
+        session.editInterval("tiny:100-200")
+        #expect(session.submitInterval() == nil)
+        var partial: Task<Void, Never>?
+        for stage in 0..<stages {
+            session.editInterval("tiny:\(50 - stage)-\(300 + stage)")
+            let next = session.submitInterval()
+            await gate.waitFor(Int64(300 + stage))
+            if stage > 0 {
+                await gate.release(Int64(299 + stage))
+                await partial?.value
+            }
+            partial = next
+            #expect(session.presentation.alignments == saved)
+        }
+        session.scrollVertically(to: 200)
+        session.editInterval("tiny:110-190")
+        let ready = session.submitInterval()
+        #expect(ready == nil, "Still-loaded complete coverage must survive historical cache admission")
+        #expect(session.presentation.alignments == saved)
+        #expect(session.presentation.verticalOffset == 200)
+        #expect(!session.presentation.isLoading)
+        await ready?.value
+        await gate.release(Int64(299 + stages))
+        await partial?.value
+        #expect(session.presentation.target?.formatted == "tiny:110-190")
+        #expect(session.presentation.alignments == saved)
+    }
+
     @Test
     @MainActor
     func newlyLoadedPartialRecordsStayProvisionalAndFileReplacementOwnsCoverage() async throws {
@@ -16,9 +65,7 @@ struct NavigationReuseTests {
             }
             return try await file.alignments(in: target)
         })
-        let bam = files.sources.appendingPathComponent("navigation.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension("bai"))
+        try await files.openedSession(fixture: "navigation", indexFormat: "bai", session: session)
         session.editInterval("tiny:150-155")
         await session.submitInterval()?.value
         let saved = session.presentation.alignments
@@ -35,6 +82,7 @@ struct NavigationReuseTests {
         session.dismissRegionalError(try #require(session.presentation.regionalError?.id))
 
         await session.openBAM(nil)
+        let bam = files.sources.appendingPathComponent("navigation.bam")
         await session.openBAM(bam)
         await session.chooseIndex(nil)
         await session.openBAM(files.directory.appendingPathComponent("absent.bam"))
@@ -72,9 +120,7 @@ struct NavigationReuseTests {
             }
             return records
         })
-        let bam = files.sources.appendingPathComponent("navigation.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension("bai"))
+        try await files.openedSession(fixture: "navigation", indexFormat: "bai", session: session)
         session.editInterval("tiny:100-120")
         await session.submitInterval()?.value
         session.editInterval("tiny:115-200")
@@ -137,9 +183,7 @@ struct NavigationReuseTests {
             }
             return try await file.alignments(in: target)
         })
-        let bam = files.sources.appendingPathComponent("rows.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension("bai"))
+        try await files.openedSession(fixture: "rows", indexFormat: "bai", session: session)
         session.editInterval("tiny:100-300")
         await session.submitInterval()?.value
         let saved = session.presentation.alignments
@@ -184,9 +228,7 @@ struct NavigationReuseTests {
             if target.end == 155 { await gate.pause(155) }
             return records
         })
-        let bam = files.sources.appendingPathComponent("navigation.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension("bai"))
+        try await files.openedSession(fixture: "navigation", indexFormat: "bai", session: session)
         let sessionID = session.presentation.sessionID
         session.editInterval("tiny:100-120")
         await session.submitInterval()?.value
@@ -290,9 +332,7 @@ struct NavigationReuseTests {
             if target.end == 180 { await gate.pause(180) }
             return records
         })
-        let bam = files.sources.appendingPathComponent("rows.bam")
-        await session.openBAM(bam)
-        await session.chooseIndex(bam.appendingPathExtension(indexFormat))
+        try await files.openedSession(fixture: "rows", indexFormat: indexFormat, session: session)
         session.editInterval("tiny:100-150")
         await session.submitInterval()?.value
         let original = session.presentation.alignments
@@ -301,7 +341,7 @@ struct NavigationReuseTests {
         let pending = session.submitInterval()
         #expect(session.presentation.alignments == original)
         #expect(session.presentation.verticalOffset == 400)
-        #expect(session.presentation.isLoading, "Reads reaching 250 do not establish coverage through 180")
+        #expect(session.presentation.isLoading, "Alignments reaching 250 do not establish coverage through 180")
         #expect(session.presentation.target?.formatted == "tiny:140-180")
         await gate.waitFor(180)
         session.scrollVertically(to: 200)

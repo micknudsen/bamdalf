@@ -175,14 +175,16 @@ successful recovery view only after all missing coverage completes. Failures
 restore the saved presentation without a query, preserving its adequate data
 for later reuse. Stale completions cannot update either the view or its cache.
 
-The session keeps at most eight historical completed-query snapshots, dropping
-the oldest when admitting another and replacing contained snapshots when a
-complete broader result is available. The active/provisional view and last
-successful recovery view also retain their records. This bounds historical
-snapshot count, not bytes or records in a dense region; no hard memory or latency
-limit is claimed. Wide views and fresh layouts do not clear this data; only a
-successful BAM replacement starts a new cache. Eviction permits a later reload,
-without promising historical row positions.
+The session keeps at most eight inactive historical completed-query snapshots,
+dropping the oldest when admitting another and replacing contained snapshots
+when a complete broader result is available. Snapshots supplying active query
+coverage or eligible candidates remain available independently of that historical
+limit. The active/provisional view and last successful recovery view also retain
+their records. This bounds inactive snapshot count, not active data, bytes, or
+records in a dense region; no hard memory or latency limit is claimed. Wide views
+and fresh layouts do not clear this data; only a successful BAM replacement
+starts a new cache. Eviction permits a later reload, without promising historical
+row positions.
 
 Navigation tests cover real BAI/CSI partial/complete/empty reuse, cache gaps and
 eviction, identical-record identity, earlier soft-tail newcomers, partial-load
@@ -191,6 +193,10 @@ uses the actual scroll view and spinner to verify preserved positions/extent
 during loading and empty reuse, then a top reset on a disjoint cached target.
 The numerical row/marker/letter choices and measurement method are documented
 with the visibility baseline.
+
+The [navigation regression check](performance/navigation-2026-11-07.md) records
+the retained-row implementation's fresh-load measurements and the correction of
+an occupied-range scanning regression, using the same public data and harness.
 
 The `Native macOS` CI job builds, runs the tests, and packages the application.
 `Required checks` depends on both native and documentation jobs and accepts
