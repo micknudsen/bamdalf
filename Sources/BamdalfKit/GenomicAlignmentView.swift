@@ -4,6 +4,12 @@ import AppKit
 final class GenomicAlignmentView: NSView {
     static let rowHeight: CGFloat = 18
     var presentation = ViewerPresentation() { didSet { needsDisplay = true } }
+    var canNavigate: (() -> Bool)?
+    var beginDrag: (() -> Void)?
+    var previewDrag: ((Double) -> Void)?
+    var endDrag: (() -> Void)?
+    var zoomAt: ((ZoomDirection, Double) -> Void)?
+    private var dragStart: CGFloat?
     override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
@@ -13,6 +19,34 @@ final class GenomicAlignmentView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("Use init(frame:)") }
+
+    override func mouseDown(with event: NSEvent) {
+        guard canNavigate?() == true, bounds.width > 0 else { return }
+        let x = convert(event.locationInWindow, from: nil).x
+        if event.modifierFlags.contains(.option) {
+            zoomAt?(.out, Double(x / bounds.width))
+            return
+        }
+        if event.clickCount == 2 {
+            zoomAt?(.in, Double(x / bounds.width))
+            return
+        }
+        dragStart = x
+        beginDrag?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard canNavigate?() == true, let start = dragStart, bounds.width > 0 else { return }
+        let x = convert(event.locationInWindow, from: nil).x
+        previewDrag?(Double((x - start) / bounds.width))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard dragStart != nil else { return }
+        mouseDragged(with: event)
+        dragStart = nil
+        endDrag?()
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.textBackgroundColor.setFill()
@@ -25,7 +59,7 @@ final class GenomicAlignmentView: NSView {
             let blocks = alignment.segments.filter { $0.kind == .aligned }
             let point = alignment.isReverse ? blocks.first : blocks.last
             for segment in alignment.segments {
-                let x = CGFloat(segment.start - target.start) * scale
+                let x = CGFloat(Double(segment.start - target.start) - presentation.previewOffsetInBases) * scale
                 let width = CGFloat(segment.end - segment.start) * scale
                 switch segment.kind {
                 case .aligned:
@@ -63,7 +97,7 @@ final class GenomicAlignmentView: NSView {
                     // Clip decoration to this record's full drawn extent. It
                     // cannot widen the genomic axis or force retained rows apart.
                     NSGraphicsContext.saveGraphicsState()
-                    NSBezierPath(rect: NSRect(x: CGFloat(alignment.drawnStart - target.start) * scale,
+                    NSBezierPath(rect: NSRect(x: CGFloat(Double(alignment.drawnStart - target.start) - presentation.previewOffsetInBases) * scale,
                                               y: y - 1, width: CGFloat(alignment.drawnEnd - alignment.drawnStart + 1) * scale,
                                               height: 14)).addClip()
                     NSColor.systemPurple.setStroke()

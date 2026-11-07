@@ -27,6 +27,7 @@ public struct ViewerPresentation {
     public var references: [ReferenceSequence] = []
     public var intervalText = ""
     public var target: GenomicInterval?
+    public var previewOffsetInBases = 0.0
     public var intervalError: String?
     public var isAlignmentSuppressed = false
     public var isLoading = false
@@ -55,6 +56,8 @@ public final class ViewerSession {
     private var draftGeneration: UInt64?
     private var regionalRequestID = UUID()
     private var regionalTask: Task<Void, Never>?
+    private var dragOrigin: ViewerPresentation?
+    private var deferredRegionalCompletion: (@MainActor () -> Void)?
     private var regionalData = RegionalData()
     private let alignmentVisibilityLimit: Int64
     private let loadRegion: @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment]
@@ -83,6 +86,61 @@ public final class ViewerSession {
         draftGeneration = nil
         presentation.intervalText = presentation.target?.formatted ?? ""
         presentation.intervalError = nil
+    }
+
+    public func beginAlignmentDrag() {
+        guard presentation.target != nil, !presentation.isOpening, dragOrigin == nil else { return }
+        dragOrigin = presentation
+    }
+
+    /// Pointer displacement as a fraction of the viewport width, from pointer-down.
+    public func previewAlignmentDrag(horizontalFraction: Double) {
+        guard horizontalFraction.isFinite, let origin = dragOrigin, let target = origin.target,
+              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return }
+        let minimum = 1 - target.start
+        let maximum = reference.length - target.end
+        let exactShift = min(Double(maximum), max(Double(minimum), -horizontalFraction * Double(target.end - target.start + 1)))
+        let displacement = exactShift.rounded(.toNearestOrAwayFromZero)
+        let shift = displacement <= Double(minimum) ? minimum
+            : displacement >= Double(maximum) ? maximum : Int64(displacement)
+        let preview = GenomicInterval(reference: target.reference, start: target.start + shift, end: target.end + shift)
+        let remainder = exactShift - Double(shift)
+        let visibleBases = GenomicInterval(reference: preview.reference,
+                                           start: remainder < 0 ? max(1, preview.start - 1) : preview.start,
+                                           end: remainder > 0 ? min(reference.length, preview.end + 1) : preview.end)
+        let available = regionalData.available(for: visibleBases)
+        var next = presentation
+        next.target = preview
+        next.previewOffsetInBases = remainder
+        next.alignments = origin.isAlignmentSuppressed ? [] : Self.pack(available.records, retaining: origin.alignments)
+        next.rowCount = max(origin.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
+        next.isLoading = false
+        presentation = next
+    }
+
+    @discardableResult
+    public func endAlignmentDrag() -> Task<Void, Never>? {
+        let target = presentation.target
+        guard let restored = restoreDragOrigin() else { return nil }
+        if let target, target != restored.origin.target {
+            presentation.intervalText = target.formatted
+            return submitInterval(preservingPanContinuity: true)
+        }
+        let task = regionalTask
+        restored.completion?()
+        return task
+    }
+
+    private func restoreDragOrigin() -> (origin: ViewerPresentation, completion: (@MainActor () -> Void)?)? {
+        guard var origin = dragOrigin else { return nil }
+        let completion = deferredRegionalCompletion
+        dragOrigin = nil
+        deferredRegionalCompletion = nil
+        origin.intervalText = presentation.intervalText
+        origin.intervalError = presentation.intervalError
+        origin.verticalOffset = presentation.verticalOffset
+        presentation = origin
+        return (origin, completion)
     }
 
     /// Pan by half the inclusive width, rounding an odd half up to a whole base.
@@ -123,6 +181,27 @@ public final class ViewerSession {
         return submitInterval()
     }
 
+    /// Center on the base hit in the viewport; even-width center ties go left.
+    @discardableResult
+    public func zoom(_ direction: ZoomDirection, atHorizontalFraction fraction: Double) -> Task<Void, Never>? {
+        guard fraction.isFinite, let target = presentation.target,
+              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+        let width = target.end - target.start + 1
+        let newWidth: Int64
+        switch direction {
+        case .in: newWidth = width / 2 + width % 2
+        case .out: newWidth = width > reference.length / 2 ? reference.length : width * 2
+        }
+        guard newWidth != width else { return nil }
+        let position = min(1, max(0, fraction)) * Double(width)
+        let offset = position >= Double(width - 1) ? width - 1 : Int64(position)
+        let locus = target.start + offset
+        let start = min(max(1, locus - newWidth / 2), reference.length - newWidth + 1)
+        presentation.intervalText = GenomicInterval(reference: target.reference,
+                                                    start: start, end: start + (newWidth - 1)).formatted
+        return submitInterval(preservingPanContinuity: true)
+    }
+
     @discardableResult
     public func submitInterval() -> Task<Void, Never>? {
         submitInterval(preservingPanContinuity: false)
@@ -132,6 +211,9 @@ public final class ViewerSession {
         guard let bam else { return nil }
         do {
             let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
+            if let restored = restoreDragOrigin(), target == restored.origin.target {
+                restored.completion?()
+            }
             draftGeneration = nil
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
@@ -171,28 +253,30 @@ public final class ViewerSession {
             regionalTask = Task {
                 do {
                     var records = available.records
-                    for missing in available.missing {
+                    for (index, missing) in available.missing.enumerated() {
                         let loaded = try await loadRegion(bam, missing)
                         guard regionalRequestID == requestID else { return }
                         regionalData.insert(loaded, for: missing, keeping: target)
                         records = RegionalData.eligible(records + loaded, for: target)
-                        presentation.alignments = Self.pack(records, retaining: presentation.alignments)
-                        let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
-                        presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
-                            ? max(presentation.rowCount, requiredRows) : requiredRows
+                        if dragOrigin == nil && index + 1 < available.missing.count {
+                            presentation.alignments = Self.pack(records, retaining: presentation.alignments)
+                            let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
+                            presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
+                                ? max(presentation.rowCount, requiredRows) : requiredRows
+                        }
                     }
                     regionalData.insert(records, for: target, keeping: target)
-                    presentation.isLoading = false
-                    lastSuccessful = presentation
+                    completeRegionalLoad(.success(records), requestID: requestID, generation: generation,
+                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
                 } catch let error as RegionalLoadError {
-                    guard regionalRequestID == requestID else { return }
-                    restoreSuccessfulView(for: RegionalLoadError(interval: target, message: error.message), generation: generation)
+                    completeRegionalLoad(.failure(RegionalLoadError(interval: target, message: error.message)),
+                                         requestID: requestID, generation: generation,
+                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
                 } catch {
-                    guard regionalRequestID == requestID else { return }
-                    restoreSuccessfulView(for: RegionalLoadError(interval: target, message: error.localizedDescription), generation: generation)
+                    completeRegionalLoad(.failure(RegionalLoadError(interval: target, message: error.localizedDescription)),
+                                         requestID: requestID, generation: generation,
+                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
                 }
-                presentation.isLoading = false
-                regionalTask = nil
             }
             return regionalTask
         } catch let error as IntervalValidationError {
@@ -201,6 +285,31 @@ public final class ViewerSession {
             presentation.intervalError = "Enter a valid reference:start-end interval."
         }
         return nil
+    }
+
+    private func completeRegionalLoad(_ result: Result<[Alignment], RegionalLoadError>, requestID: UUID,
+                                      generation: UInt64, initialScrollGeneration: UInt64, continuous: Bool) {
+        guard regionalRequestID == requestID else { return }
+        if dragOrigin != nil {
+            deferredRegionalCompletion = { [weak self] in
+                self?.completeRegionalLoad(result, requestID: requestID, generation: generation,
+                                           initialScrollGeneration: initialScrollGeneration, continuous: continuous)
+            }
+            return
+        }
+        switch result {
+        case .success(let records):
+            presentation.alignments = Self.pack(records, retaining: presentation.alignments)
+            let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
+            presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
+                ? max(presentation.rowCount, requiredRows) : requiredRows
+            presentation.isLoading = false
+            lastSuccessful = presentation
+        case .failure(let error):
+            restoreSuccessfulView(for: error, generation: generation)
+        }
+        presentation.isLoading = false
+        regionalTask = nil
     }
 
     public func scrollVertically(to offset: Double) {
@@ -348,6 +457,8 @@ public final class ViewerSession {
             bam = file
             regionalRequestID = UUID()
             regionalTask = nil
+            dragOrigin = nil
+            deferredRegionalCompletion = nil
             lastSuccessful = nil
             regionalData = RegionalData()
             draftGeneration = nil

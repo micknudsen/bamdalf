@@ -102,7 +102,7 @@ struct NativeZoomTests {
         minus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:50-249")
         #expect(session.submitInterval() == nil)
-        #expect(scroll.isHidden && spinner.isHidden)
+        #expect(session.presentation.isAlignmentSuppressed && spinner.isHidden)
         #expect(session.presentation.alignments.isEmpty)
         let messages = workspace.subviews.compactMap { $0 as? NSTextField }
         #expect(messages.contains { $0.stringValue == "Zoom in to see alignments" && !$0.isHidden })
@@ -117,7 +117,7 @@ struct NativeZoomTests {
         #expect(session.presentation.target?.formatted == "tiny:1-400")
         plus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:101-300")
-        #expect(scroll.isHidden)
+        #expect(session.presentation.isAlignmentSuppressed && session.presentation.alignments.isEmpty)
         plus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:151-250")
         let returning = session.submitInterval()
