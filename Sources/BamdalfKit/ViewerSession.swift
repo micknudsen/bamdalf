@@ -10,6 +10,10 @@ public struct IndexChoice: Equatable, Sendable {
     public let candidates: [URL]
 }
 
+public enum PanDirection: Sendable {
+    case left, right
+}
+
 /// Presentation shared by the application session and its native workspace.
 public struct ViewerPresentation {
     public var windowTitle = "Bamdalf"
@@ -77,8 +81,30 @@ public final class ViewerSession {
         presentation.intervalError = nil
     }
 
+    /// Pan by half the inclusive width, rounding an odd half up to a whole base.
+    @discardableResult
+    public func pan(_ direction: PanDirection) -> Task<Void, Never>? {
+        guard let target = presentation.target,
+              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+        let width = target.end - target.start + 1
+        let step = width / 2 + width % 2
+        let shift: Int64
+        switch direction {
+        case .left: shift = -min(step, target.start - 1)
+        case .right: shift = min(step, reference.length - target.end)
+        }
+        guard shift != 0 else { return nil }
+        presentation.intervalText = GenomicInterval(reference: target.reference,
+                                                    start: target.start + shift, end: target.end + shift).formatted
+        return submitInterval(preservingPanContinuity: true)
+    }
+
     @discardableResult
     public func submitInterval() -> Task<Void, Never>? {
+        submitInterval(preservingPanContinuity: false)
+    }
+
+    private func submitInterval(preservingPanContinuity: Bool) -> Task<Void, Never>? {
         guard let bam else { return nil }
         do {
             let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
@@ -94,7 +120,7 @@ public final class ViewerSession {
             let suppressed = target.end - target.start + 1 > alignmentVisibilityLimit
             let previous = presentation.target
             let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
-                && previous!.start <= target.end && previous!.end >= target.start
+                && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
             let available = regionalData.available(for: target)
             var next = presentation
             next.target = target

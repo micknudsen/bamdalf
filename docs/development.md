@@ -29,7 +29,7 @@ From a fresh checkout:
 ```sh
 bash scripts/build-htslib.sh
 swift build
-swift test --disable-xctest
+bash scripts/test.sh
 bash scripts/build-app.sh
 open .build/Bamdalf.app
 ```
@@ -68,18 +68,33 @@ that default and its limitations.
 Nearby typed targets on the same reference retain rows and vertical scrolling.
 Disjoint targets, reference changes, and returns from ruler-only display start
 fresh rows at the top once, then honor newer scrolling during loading. These
-layout changes still reuse adequate loaded data. Graphical navigation remains a
-subsequent increment. There is no permanent file sidebar or Open BAM toolbar
+layout changes still reuse adequate loaded data. The toolbar's **Pan left** and
+**Pan right** arrows move by half the inclusive width, rounded up for odd widths
+(one base moves one base). They clamp within the current reference without
+changing width. A changed pan replaces an older draft/error; a boundary no-op
+preserves it. Buttons remain available during regional loading and reuse the
+same row, scroll, and failure behavior as typed navigation. Zoom and pointer
+navigation remain subsequent increments. There is no permanent file sidebar or Open BAM toolbar
 button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
 For a focused check while developing:
 
 ```sh
-swift test --disable-xctest --filter LaunchTests
+bash scripts/test.sh --filter LaunchTests
 ```
 
 Run the documentation checks in [CONTRIBUTING.md](../CONTRIBUTING.md) as well.
+
+The test script requires a nonempty Swift Testing completion summary as well as
+a successful exit status. On 2026-11-07, local Swift 6.4.2 native-control tests
+sometimes exited zero before finishing; an exit-stack trace reached
+`swift_task_asyncMainDrainQueue`, consistent with the upstream
+[run-loop exit report](https://github.com/swiftlang/swift/issues/91716).
+The script rejects those incomplete runs rather than reporting success. CI's
+Xcode 16.4 toolchain remains the delivery gate; inspect executed-test totals.
+No application event-loop behavior or test assertions are changed to conceal a
+test-host failure.
 
 ## Implementation and test boundary
 
