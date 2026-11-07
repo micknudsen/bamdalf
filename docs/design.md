@@ -1,6 +1,6 @@
 # Bamdalf MVP design
 
-Updated 2026-11-07. This is the authoritative record of the current design, consolidated from the design interview. It is input to `to-spec`, not an implementation-ready specification. No native viewer or performance benchmark has been completed.
+Updated 2026-11-07. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 decisions were finalized by the user on 2026-11-07; the remaining named decisions are listed below. Native opening and coordinate/ruler increments were merged through PR #15; no final WGS performance qualification has been completed.
 
 Use US English in documentation and UI text. Terms are defined in [GLOSSARY.md](../GLOSSARY.md); deferred features are in [backlog.md](backlog.md). The [decision index](#decision-index) preserves the identifiers used in research notes without requiring the interview transcript.
 
@@ -10,7 +10,7 @@ The first milestone is a native macOS application for Apple Silicon that opens o
 
 The representative benchmark is **100× WGS, paired-end reads around 150 bases per read (approximately 2 × 150 bp), aligned to hg38**. Include ordinary regions and locally much deeper pileups. These are benchmark characteristics, not input restrictions or a cap on local depth. The viewer does not require a reference FASTA or restrict accepted BAMs to hg38 or exact 150-base reads.
 
-Actual datasets, reference bundles and contig sets, sequencing platform, test hardware, and measurable responsiveness/memory targets remain to be selected. Choose the internal sampling budget and alignment-visibility threshold using representative measurements. No numerical budget or visibility cutoff, or performance advantage over IGV, has been established.
+Final qualification datasets, reference bundles and contig sets, sequencing platform, test hardware, and measurable responsiveness/memory targets remain to be selected. Choose the internal sampling budget and alignment-visibility threshold using representative measurements. The initial visibility cutoff is supported by the [2026-11-07 regional baseline](performance/visibility-2026-11-07.md). No numerical sampling budget, final 100× qualification, or performance advantage over IGV has been established.
 
 ## Window and native controls
 
@@ -38,7 +38,7 @@ If the chosen index cannot be read or loaded, stop the open attempt and show an 
 
 A failed or canceled open, including cancellation of the index chooser, preserves the existing BAM, genomic interval, zoom, and vertical scroll position. A successful open replaces the previous view with **Enter a genomic interval**, focuses the interval field, and waits for a valid interval before requesting alignments. Opening a BAM/index is distinct from successfully loading a region.
 
-Access permissions, validation depth, detection of stale/mismatched indexes, chooser presentation, and other file-opening error details remain open. Successful index loading is not proof that every index problem has been detected. See the [index research](research/bam-index-discovery-2026-11-01.md).
+Validate the BAM header and selected index on opening and records as regions are read, without an upfront whole-file scan. A mapped record with unavailable CIGAR or a detected malformed/inconsistent record fails the regional load and restores the previous successful view; do not invent geometry or silently omit it. Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported. Preserve stored sequence = in neutral gray with a literal = when readable, without inferring a nucleotide. A detected corrupt, stale, or mismatched chosen index stops the open/load, reports the known problem, and preserves/restores the appropriate previous view without automatic fallback. An older timestamp alone proves no mismatch; successful opening/loading does not certify exhaustive index integrity or sorting. See the [index research](research/bam-index-discovery-2026-11-01.md).
 
 ## Interval input and editing
 
@@ -88,7 +88,7 @@ Mouse and trackpad gestures below apply in the alignment area.
 
 Keep navigation within the current reference. Clamp pans at its ends while preserving interval width. Shift zoom targets as needed at boundaries; cap zoom-out at the full reference length and zoom-in at one base. Navigation does not cross into another reference. Typed out-of-range intervals are rejected rather than clamped. Whole-base rounding and control feedback at limits remain open. Ruler-drag selection, pinch zoom, and modifier-plus-wheel zoom are not selected controls.
 
-Above the alignment-visibility threshold, retain the ruler and location field and show **Zoom in to see alignments**. Do not query or draw alignments, including already-cached or sampled ones. This is distinct from a loaded empty region. The threshold is independent of the maximum navigable interval and takes precedence over downsampling; sampling does not make arbitrarily wide views readable. No numerical cutoff has been selected. See the [navigation research](research/navigation-and-visibility-2026-11-01.md).
+Above the alignment-visibility threshold, retain the ruler and location field and show **Zoom in to see alignments**. Do not query or draw alignments, including already-cached or sampled ones. This is distinct from a loaded empty region. The threshold is independent of the maximum navigable interval and takes precedence over downsampling; sampling does not make arbitrarily wide views readable. The initial implementation cutoff is 10,000 bases, selected from the [2026-11-07 native baseline](performance/visibility-2026-11-07.md); wider views are suppressed. This is an initial readability tradeoff, not final WGS qualification. See the [navigation research](research/navigation-and-visibility-2026-11-01.md).
 
 Submitting the same parsed reference/start/end as the current ready view or active target within the same BAM does not reload, repack, reset scrolling, resample, or duplicate/restart a pending load. Apply normal valid-input formatting and let any existing load finish under the usual rules. This does not prevent retry after a failed request has restored a different view or the empty state.
 
@@ -114,7 +114,7 @@ Support all nine standard CIGAR operations and their format-defined query/refere
 | `H` | No extension, label, tick, or other hard-clipping indicator; retain the operation's information |
 | `P` | Padding, advancing neither query nor reference coordinates |
 
-Preserve operation lengths and aligned-block positions. Omit numeric insertion/deletion length labels and inserted-sequence inspection. A valid `H` operation is not grounds to discard the remaining alignment or its soft-clipped sequence. Standard `N` support does not add an RNA workflow or assert that every skip represents an intron or deletion. The stored sequence symbol `=` is a separate unresolved case from the supported CIGAR `=` operation.
+Preserve operation lengths and aligned-block positions. Omit numeric insertion/deletion length labels and inserted-sequence inspection. A valid `H` operation is not grounds to discard the remaining alignment or its soft-clipped sequence. Standard `N` support does not add an RNA workflow or assert that every skip represents an intron or deletion. The stored sequence symbol `=` is distinct from CIGAR `=`: preserve it in neutral gray, with the literal symbol when readable, without inferring a reference nucleotide.
 
 Show full soft-clipped sequence with **no vertical boundary ticks**. Tails extend the drawn extent, not the mapped reference span. Follow stored CIGAR order along increasing reference coordinates, including reverse-strand alignments. Use letters when readable and colored blocks otherwise, without a manual letters toggle:
 
@@ -124,13 +124,19 @@ Show full soft-clipped sequence with **no vertical boundary ticks**. Tails exten
 | C | Blue |
 | G | Yellow |
 | T | Red |
-| Ambiguity codes, including N | Neutral gray; retain the actual symbol when letters are readable |
+| Ambiguity codes, including N, and stored `=` | Neutral gray; retain the actual symbol when letters are readable |
 
 Color indicates nucleotide identity, not a claim that a clipped base maps or mismatches at its drawn position. Exact shades, text contrast, and the readability threshold remain open.
 
 If an otherwise valid mapped record has no stored sequence, draw its mapped geometry normally. Show known soft-clip lengths from valid CIGAR as full-length empty outlined tails at normal row height and base scale. Do not invent bases, substitute N, fetch sequence from another record, reconstruct it from a reference, or turn `S` into `H`. Missing sequence alone is not an exclusion. Outlines distinguish unavailable sequence from filled gray ambiguity bases. Omit quality-based fading for alignments and bases, without inventing missing quality scores.
 
-Indicate strand with a small pointed end inside the mapped body: right for forward, left for reverse. Clip drawings at viewport edges while preserving their full geometry and packing bounds. Add no continuation mark, moved strand point, or artificial closure of an outlined tail at the viewport edge. Marker dimensions, padding, crowding, and behavior for very narrow bodies remain open and must respect row continuity. Retrieval when only a soft-clipped tail or skipped reference interval overlaps the view is not settled by these drawing rules.
+Indicate strand with a small pointed end inside the mapped body: right for forward, left for reverse. Clip drawings at viewport edges while preserving their full geometry and packing bounds. Add no continuation mark, moved strand point, or artificial closure of an outlined tail at the viewport edge. Marker dimensions, padding, crowding, and behavior for very narrow bodies remain open and must respect row continuity.
+
+### Viewport eligibility and complete candidates
+
+Eligibility requires overlap of the aligned reference span, including deletion-only or reference-skip-only overlap. A soft-clipped tail alone never makes a record eligible, including cached records. Eligible records retain their full tails and full-extent packing. POS 101 with 10S10M is excluded at 95–100 and included at 100–105; POS 101 with 10M100N10M is included at 150–160. Completed targets require complete reference-overlapping candidates; fresh and reused/new data must agree, with distinct records preserved and repeated retrievals deduplicated. Completed empty coverage is successful; drawn extensions or sampled survivors do not establish query coverage.
+
+These D1 rules were accepted on 2026-11-07. They supersede the earlier unresolved policy and the subsequently withdrawn proposal to include soft-tail-only overlaps. Query planning, coverage representation, and record deduplication are engineering choices within this contract.
 
 Format evidence is retained in the [CIGAR](research/cigar-errors-2026-11-02.md), [reference-skip](research/skipped-reference-2026-11-02.md), [missing-sequence](research/missing-sequence-2026-11-01.md), [hard-clipping](research/hard-clipping-2026-11-01.md), and [clipping/BWA](research/clipping-indicators-and-bwa-2026-11-01.md) research notes. The accepted future BWA preparation check concerns supplementary split-read alignments only and is recorded in the backlog; alignment execution is outside the viewer milestone.
 
@@ -203,7 +209,7 @@ When the latest valid regional request fails:
 
 Recheck request identity before restoring or presenting a queued alert. Stale failures must not restore a view, change the field, or show an alert. If application state changes while an alert is open, an obsolete alert must not remain presented as current. New valid requests supersede old ones; editing alone and invalid submissions do not.
 
-This regional-load policy is separate from inline validation and file-opening errors. Standard CIGAR support does not select exhaustive validation, a blanket failure policy for every unusual record, IGV-style partial results, or recovery behavior. Which defects fail a load and how missing/malformed CIGAR is handled remain unresolved.
+This regional-load policy is separate from inline validation and file-opening errors. On 2026-11-07, the user resolved D2 as follows: Validate the BAM header and selected index on opening and records as regions are read, without an upfront whole-file scan. A mapped record with unavailable CIGAR or a detected malformed/inconsistent record fails the regional load and restores the previous successful view; do not invent geometry or silently omit it. Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported. Preserve stored sequence = in neutral gray with a literal = when readable, without inferring a nucleotide. A detected corrupt, stale, or mismatched chosen index stops the open/load, reports the known problem, and preserves/restores the appropriate previous view without automatic fallback. An older timestamp alone proves no mismatch; successful opening/loading does not certify exhaustive index integrity or sorting.
 
 ## Remaining specification work
 
@@ -211,10 +217,10 @@ The following are open choices, not accepted implementation requirements. Resolv
 
 | Area | Work remaining |
 | --- | --- |
-| Input and rendering correctness | Stored sequence `=`; unavailable/malformed CIGAR; validation depth and recovery; viewport eligibility/retrieval for soft-tail-only or reference-skip-only overlap |
+| Input and rendering correctness | D1/D2 resolved on 2026-11-07 above; implement incremental validation and reference-overlap completeness |
 | Coordinates and layout | Internal representation/conversion boundaries; integer rounding; ruler spacing; marker bounds/crowding; row packing consistent with continuity; narrow-body drawing |
 | Sampling and resources | Stable group identity; priority function/encoding/ties; adequate candidates across loads; selection algorithm; bounded cache and active row state; cancellation/scheduling and independent resource limits |
-| File handling | Permissions; index chooser; stale/mismatched-index detection; file-opening error presentation |
+| File handling | Engineering detection mechanisms within the accepted incremental-validation and explicit-index contracts |
 | Benchmark and validation | Actual data/reference bundle/regions/hardware; measurable latency and memory goals; numerical group budget/visibility cutoff; agreed public test boundaries |
 | Native application and delivery | Toolchain and dependency choices; build/CI setup; effective repository protection and checks; ticket/tracker configuration |
 

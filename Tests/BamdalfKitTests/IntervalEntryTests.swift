@@ -109,6 +109,6 @@ struct IntervalEntryTests {
         #expect(session.presentation.target?.start == 1000)
         #expect(session.presentation.target?.end == 2000)
         #expect(session.presentation.intervalError == nil)
-        #expect(session.presentation.message == "Alignment viewing is not available yet")
+        #expect(session.presentation.message.isEmpty)
     }
 }
