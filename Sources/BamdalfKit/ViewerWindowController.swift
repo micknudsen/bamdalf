@@ -57,7 +57,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }
 
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        !session.presentation.isOpening && window?.attachedSheet == nil
+        // Popup choices also reach this validator while their sheet is open.
+        guard menuItem.action == #selector(openBAM(_:)) else { return true }
+        return !session.presentation.isOpening && window?.attachedSheet == nil
     }
 
     @objc public func openBAM(_ sender: Any?) {
@@ -71,10 +73,15 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK else { return }
             Task { @MainActor in
-                await self.session.openBAM(panel.url)
-                self.presentOpenResult()
+                await self.openBAM(at: panel.url)
             }
         }
+    }
+
+    /// Completes the native file chooser's selection through the viewer session.
+    public func openBAM(at url: URL?) async {
+        await session.openBAM(url)
+        presentOpenResult()
     }
 
     private func render() {

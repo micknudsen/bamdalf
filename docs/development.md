@@ -78,8 +78,10 @@ cleaning `.build` or changing Xcode. CI runs the same script before Swift builds
 
 `ViewerSession` owns the application-facing presentation consumed by the real
 native workspace. Swift Testing checks that seam and the actual AppKit window.
-Native checks inspect the visible message, workspace sizing, and field focus
-after real opening. Integration checks use the
+Native checks inspect the visible message, workspace sizing, field focus after
+real opening, selectable index-menu items, explicit choice, and the attached
+selected-index error alert. They exercise the file-selection completion action
+used by the actual native chooser. Integration checks use the
 production reader and small real BAI/CSI files through the session. Controlled
 completion tests deliver older results after newer opens without timing sleeps.
 These checks do not claim regional alignment rendering or WGS performance.
@@ -113,3 +115,13 @@ passed locally, including workspace resizing. CI independently exercises Xcode
 16.4 / Swift 6.1.2 on macOS 15.
 
 ![Native Bamdalf workspace with no BAM file open](images/native-workspace.png)
+
+On 2026-11-07, manual use reached the native index chooser and exposed disabled
+BAI/CSI choices. A native regression reproduced both disabled menu items and an
+ineffective selection. The controller's menu validation had applied its
+"window has a sheet" restriction to the popup choices as well as File → Open
+BAM. Restricting that validation to the File command restored the native popup
+actions. The regression verifies both candidate items remain enabled, no index
+is preselected, an explicit CSI selection enables Open, and the File command
+stays disabled while the chooser is attached. A separate native check verifies
+the selected-index error alert and preservation of the previous workspace.
