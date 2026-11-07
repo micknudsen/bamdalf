@@ -1,0 +1,4 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:large_reference	LN:300000000
+@SQ	SN:ref:with-hyphen	LN:100
+position	0	large_reference	150000000	60	1M	*	0	0	A	I
