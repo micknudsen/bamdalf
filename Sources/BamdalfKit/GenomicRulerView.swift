@@ -7,6 +7,7 @@ final class GenomicRulerView: NSView {
     }
     private var renderedTarget: GenomicInterval?
     private var renderedWidth: CGFloat = -1
+    private var renderedPreviewOffset = 0.0
     private var ticks: [RulerTick] = []
 
     override init(frame frameRect: NSRect) {
@@ -21,9 +22,11 @@ final class GenomicRulerView: NSView {
 
     override func layout() {
         super.layout()
-        guard renderedTarget != presentation.target || renderedWidth != bounds.width else { return }
+        guard renderedTarget != presentation.target || renderedWidth != bounds.width
+            || renderedPreviewOffset != presentation.previewOffsetInBases else { return }
         renderedTarget = presentation.target
         renderedWidth = bounds.width
+        renderedPreviewOffset = presentation.previewOffsetInBases
         subviews.forEach { $0.removeFromSuperview() }
         ticks = presentation.rulerTicks(availableWidth: Double(bounds.width))
         guard let target = presentation.target else { return }

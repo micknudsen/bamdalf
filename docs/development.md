@@ -84,8 +84,16 @@ Between alignment views, zoom retains surviving rows, row extent, and scrolling,
 including crowded insertion decoration. Crossing above 10,000 bases suppresses
 all alignment retrieval/drawing. Zooming back starts fresh at the top once,
 reuses adequate data, and honors newer scrolling while missing data arrives.
-Pointer navigation remains a subsequent increment. There is no permanent file sidebar or Open BAM toolbar
-button. Close the window or use **Bamdalf → Quit Bamdalf** /
+In the alignment area, drag horizontally to preview loaded geometry and ruler
+ticks with the pointer. Fractional-base motion stays smooth; release commits the
+nearest whole-base displacement (half-base ties away from zero) and requests
+missing coverage. Drafts survive preview and an unchanged release. A changed
+release replaces the old draft/error. Double-click halves width around the hit
+base; Option + left-click doubles it. Even-width center ties use the lower
+placement, and targets shift inside reference bounds. These gestures also work
+in the ruler-only alignment area. Right-click stays distinct, field editing
+uses native behavior, and wheel/vertical trackpad events scroll the rows.
+There is no permanent file sidebar or Open BAM toolbar button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
 For a focused check while developing:
@@ -220,6 +228,17 @@ uses the actual scroll view and spinner to verify preserved positions/extent
 during loading and empty reuse, then a top reset on a disjoint cached target.
 The numerical row/marker/letter choices and measurement method are documented
 with the visibility baseline.
+
+Mouse tests send native pointer and wheel events to the actual alignment view,
+with bitmap assertions that bodies and ruler ticks move during fractional-base
+previews. Controlled completions cover changed/unchanged release, old successes
+and failures during a drag, restoration, newer drafts/scrolling, reference
+boundaries, clicked-base zoom, and wide-state hit testing. Preview remains
+provisional even when cached data is adequate. An older completion is held until
+release and applied only if its original target remains committed; it cannot
+replace a preview or promote that preview to the recovery view. Valid explicit
+navigation or successful BAM replacement retires a pending preview. There is no
+custom Escape-to-cancel gesture.
 
 The [navigation regression check](performance/navigation-2026-11-07.md) records
 the retained-row implementation's fresh-load measurements and the correction of

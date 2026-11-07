@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 @MainActor
 public final class ViewerWindowController: NSWindowController, NSTextFieldDelegate, NSMenuItemValidation, NSWindowDelegate {
     private let session: ViewerSession
-    private let message = NSTextField(labelWithString: "")
+    private let message = WorkspaceMessage(labelWithString: "")
     private let intervalField = NSTextField()
     private let panLeftButton = NSButton()
     private let panRightButton = NSButton()
@@ -115,12 +115,24 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             alignmentScroll.topAnchor.constraint(equalTo: ruler.bottomAnchor, constant: 4),
             alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
         ])
+        workspace.addSubview(alignmentScroll, positioned: .below, relativeTo: message)
         window.contentView = workspace
         super.init(window: window)
         panLeftButton.target = self
         panRightButton.target = self
         zoomOutButton.target = self
         zoomInButton.target = self
+        alignmentStack.canNavigate = { [weak self] in
+            guard let self else { return false }
+            return self.session.presentation.target != nil && !self.session.presentation.isOpening
+                && self.window?.attachedSheet == nil
+        }
+        alignmentStack.beginDrag = { [weak session] in session?.beginAlignmentDrag() }
+        alignmentStack.previewDrag = { [weak session] in session?.previewAlignmentDrag(horizontalFraction: $0) }
+        alignmentStack.endDrag = { [weak session] in session?.endAlignmentDrag() }
+        alignmentStack.zoomAt = { [weak session] direction, fraction in
+            session?.zoom(direction, atHorizontalFraction: fraction)
+        }
         window.delegate = self
         intervalField.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(alignmentDidScroll(_:)),
@@ -246,7 +258,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         else { loadingIndicator.stopAnimation(nil) }
         ruler.presentation = presentation
         ruler.isHidden = presentation.target == nil
-        alignmentScroll.isHidden = presentation.target == nil || presentation.isAlignmentSuppressed
+        alignmentScroll.isHidden = presentation.target == nil
         window?.contentView?.layoutSubtreeIfNeeded()
         let size = alignmentScroll.contentSize
         alignmentStack.frame = NSRect(x: 0, y: 0, width: size.width,
@@ -339,4 +351,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     @objc private func indexSelectionChanged(_ sender: NSPopUpButton) {
         indexAlert?.buttons.first?.isEnabled = sender.indexOfSelectedItem > 0
     }
+}
+
+/// Status text is visual; pointer navigation belongs to the alignment area beneath it.
+private final class WorkspaceMessage: NSTextField {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
