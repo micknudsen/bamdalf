@@ -50,7 +50,9 @@ jobs:
           xcodebuild -version
           swift --version
       - name: Build native application
-        run: swift build
+        run: |
+          bash scripts/build-htslib.sh
+          swift build
       - name: Test viewer session and native workspace
         run: swift test --disable-xctest
       - name: Package native application

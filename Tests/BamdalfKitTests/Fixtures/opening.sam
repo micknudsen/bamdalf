@@ -1,0 +1,5 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:2000
+@SQ	SN:other_reference	LN:800
+pair1	0	tiny	101	60	10M	*	0	0	ACGTACGTAC	IIIIIIIIII
+pair2	16	other_reference	201	30	6M	*	0	0	GATTAC	IIIIII

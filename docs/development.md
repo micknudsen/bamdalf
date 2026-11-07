@@ -27,6 +27,7 @@ and [macOS 15 image inventory](https://github.com/actions/runner-images/blob/mai
 From a fresh checkout:
 
 ```sh
+bash scripts/build-htslib.sh
 swift build
 swift test --disable-xctest
 bash scripts/build-app.sh
@@ -37,11 +38,17 @@ The script builds the release executable, packages its native application bundle
 and applies an ad hoc signature for local use. No paid Apple developer account
 is needed. This is a development app, not a notarized distribution.
 
-The launch window contains a full-width workspace with the message
-**No BAM file open**. It has no permanent file sidebar or Open BAM toolbar
-button. BAM opening and alignment display belong to subsequent implementation
-tickets; this increment displays no simulated alignments. Close the window or
-use **Bamdalf → Quit Bamdalf** / **Command-Q** to quit.
+The launch window contains a full-width workspace with **No BAM file open**.
+Use **File → Open BAM…** / **Command-O** to select a local BAM. The app discovers
+`sample.bam.bai`, `sample.bai`, `sample.bam.csi`, and `sample.csi` beside
+`sample.bam`. One candidate opens automatically; multiple candidates require an
+explicit choice. Canceling or failing a replacement preserves the open session.
+An index failure identifies the selected file without trying another index.
+
+A successful open shows **Enter a genomic interval** and focuses the field.
+This increment opens the BAM/header/index; it does not yet navigate or query/draw
+regional alignments. There is no permanent file sidebar or Open BAM toolbar
+button. Close the window or use **Bamdalf → Quit Bamdalf** / **Command-Q** to quit.
 
 For a focused check while developing:
 
@@ -54,15 +61,44 @@ Run the documentation checks in [CONTRIBUTING.md](../CONTRIBUTING.md) as well.
 ## Implementation and test boundary
 
 Swift 6, AppKit, and Swift Package Manager supply the native application, window,
-build, and tests. This bootstrap has no third-party runtime dependencies.
-AppKit gives subsequent viewer increments native dialogs and direct drawing
-without introducing an unused UI layer. Select and pin the BAM reader dependency
-when the file-opening increment actually needs it.
+build, and tests. A narrow C adapter uses source-built **HTSlib 1.25** behind an
+actor that owns the BAM, header, and selected index. This is an internal app
+boundary, not a public SDK. Header/index loading runs off the main thread, and
+obsolete open attempts cannot replace a newer session or show stale errors.
+
+`scripts/build-htslib.sh` downloads the official
+[HTSlib 1.25 release](https://github.com/samtools/htslib/releases/tag/1.25), verifies
+its pinned SHA-256, and builds a static library for macOS 15 or newer. The first
+build needs network access; subsequent builds reuse the verified archive and
+toolchain-specific build. Optional networking, plugins, libdeflate, bzip2, and
+LZMA are disabled for this local-BAM scope. The app links system zlib and copies
+the upstream HTSlib/HTScodecs licenses into its bundle. It needs no Homebrew
+libraries or runtime samtools executable. Run the dependency script again after
+cleaning `.build` or changing Xcode. CI runs the same script before Swift builds.
 
 `ViewerSession` owns the application-facing presentation consumed by the real
 native workspace. Swift Testing checks that seam and the actual AppKit window.
-Native checks inspect the visible message and workspace sizing; they do not
-claim BAM decoding, alignment rendering, or performance coverage.
+Native checks inspect the visible message, workspace sizing, field focus after
+real opening, selectable index-menu items, explicit choice, and the attached
+selected-index error alert. They exercise the file-selection completion action
+used by the actual native chooser. Integration checks use the
+production reader and small real BAI/CSI files through the session. Controlled
+completion tests deliver older results after newer opens without timing sleeps.
+These checks do not claim regional alignment rendering or WGS performance.
+
+The readable source fixture is
+[`opening.sam`](../Tests/BamdalfKitTests/Fixtures/opening.sam). Its references are
+`tiny` (2,000 bases) and `other_reference` (800 bases), with 10-base and 6-base
+alignments at positions 101 and 201 respectively. Regenerate the committed BAM,
+BAI, and CSI from that source using:
+
+```sh
+bash scripts/generate-fixtures.sh
+```
+
+Opening validates format/header and loads the explicitly selected index. It
+does not scan all alignments, verify complete sorting, or guarantee detection of
+every stale/mismatched index. No reference FASTA is required.
 
 The `Native macOS` CI job builds, runs the tests, and packages the application.
 `Required checks` depends on both native and documentation jobs and accepts
@@ -79,3 +115,13 @@ passed locally, including workspace resizing. CI independently exercises Xcode
 16.4 / Swift 6.1.2 on macOS 15.
 
 ![Native Bamdalf workspace with no BAM file open](images/native-workspace.png)
+
+On 2026-11-07, manual use reached the native index chooser and exposed disabled
+BAI/CSI choices. A native regression reproduced both disabled menu items and an
+ineffective selection. The controller's menu validation had applied its
+"window has a sheet" restriction to the popup choices as well as File → Open
+BAM. Restricting that validation to the File command restored the native popup
+actions. The regression verifies both candidate items remain enabled, no index
+is preselected, an explicit CSI selection enables Open, and the File command
+stays disabled while the chooser is attached. A separate native check verifies
+the selected-index error alert and preservation of the previous workspace.
