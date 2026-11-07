@@ -77,7 +77,7 @@ struct WideViewTests {
         await session.submitInterval()?.value
         #expect(session.presentation.isAlignmentSuppressed)
         #expect(session.presentation.alignments.isEmpty)
-        #expect(scroll.isHidden)
+        #expect(!scroll.isHidden, "The empty wide-view surface still receives pointer navigation")
         #expect(await requests.values == ["tiny:1-10,000"])
         #expect(window.contentView?.subviews.compactMap { $0 as? NSTextField }.contains {
             $0.stringValue == "Zoom in to see alignments" && !$0.isHidden

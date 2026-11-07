@@ -115,7 +115,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             alignmentScroll.topAnchor.constraint(equalTo: ruler.bottomAnchor, constant: 4),
             alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
         ])
-        workspace.addSubview(message, positioned: .above, relativeTo: alignmentScroll)
+        workspace.addSubview(alignmentScroll, positioned: .below, relativeTo: message)
         window.contentView = workspace
         super.init(window: window)
         panLeftButton.target = self
