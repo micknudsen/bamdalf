@@ -6,8 +6,9 @@ Open a local BAM through **File → Open BAM…**, with sibling BAI/CSI discover
 and explicit choice when multiple indexes exist. Enter a full genomic interval
 to inspect real alignments with standard CIGAR geometry, full soft clips,
 vertical scrolling, and safe loading/error restoration. Views wider than
-10,000 bases retain the ruler and ask you to zoom in. Nearby data/row continuity
-and graphical pan/zoom controls remain in the next implementation tickets.
+10,000 bases retain the ruler and ask you to zoom in. Nearby typed navigation
+reuses loaded data and preserves retained rows and vertical scrolling.
+Graphical pan/zoom controls remain in the next implementation tickets.
 
 - [Build, test, and launch](docs/development.md)
 - [Design](docs/design.md)

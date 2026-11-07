@@ -55,18 +55,22 @@ in the editor restores the target coordinates (or clears it before navigation).
 
 This increment queries real alignments and displays independent rows with full
 standard CIGAR geometry, colored/outlined soft clips, and vertical scrolling.
-Changed readable targets show their ruler immediately and a spinner while a
-fresh query loads. Same-target Enter does not reload or reset scrolling. A
+Changed readable targets show their ruler immediately, reuse eligible loaded
+records, and show a spinner only while missing query coverage loads. A target
+with complete coverage is ready immediately, including an empty region.
+Same-target Enter does not reload or reset scrolling. A
 failed region restores the prior successful view before its attached error
 alert, preserving any newer draft. Wider than 10,000 bases, the app shows
 **Zoom in to see alignments** without querying or drawing alignments. The
 [initial visibility measurements](performance/visibility-2026-11-07.md) document
 that default and its limitations.
 
-This is the approved intermediate fresh-load/fresh-layout increment. Nearby
-loaded-data reuse, retained rows, and graphical navigation are completed in
-subsequent tickets; this change does not claim that full navigation contract. There is no permanent file sidebar or Open
-BAM toolbar button. Close the window or use **Bamdalf → Quit Bamdalf** /
+Nearby typed targets on the same reference retain rows and vertical scrolling.
+Disjoint targets, reference changes, and returns from ruler-only display start
+fresh rows at the top once, then honor newer scrolling during loading. These
+layout changes still reuse adequate loaded data. Graphical navigation remains a
+subsequent increment. There is no permanent file sidebar or Open BAM toolbar
+button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
 For a focused check while developing:
@@ -123,6 +127,8 @@ adds a 300,000,000-base reference and an exact reference name containing a colon
 and hyphen. The additional `alignments.sam` fixture covers all nine operations, fixed flags,
 MAPQ 0/255, reverse order, literal `=`, skip-only overlap, and absent sequence.
 `rows.sam` includes 80 distinct identical records and soft-tail collisions.
+`navigation.sam` adds a spanning record, an earlier-drawn newcomer tail, vacant
+rows, and another reference for continuity and fresh-layout tests.
 `scripts/generate-defect-fixtures.c` deliberately writes unavailable/mismatched
 CIGAR records and their indexes without a decoder silently repairing them.
 Regenerate the committed fixtures using:
@@ -151,10 +157,38 @@ finishes before its result becomes a successful view; this development slice
 shows all eligible records without truncation or sampling.
 
 Record identity is the BAM virtual offset after each record within one opened
-file. It preserves distinct byte-identical records and supports future overlap
-deduplication; it is not a sampling-group key. Fresh row packing sorts by full
-drawn start and fills the first nonoverlapping row. Existing drawing bounds,
-H/P information, and the reference span remain distinct from viewport clipping.
+file. It preserves distinct byte-identical records and deduplicates overlap
+retrievals; it is not a sampling-group key. Fresh row packing sorts by full drawn
+start and fills the first nonoverlapping row. Nearby navigation reserves retained
+records' rows before placing newcomers, using full drawn bounds and gaps. Active
+row extent does not shrink during continuity, even when the target becomes empty.
+Existing drawing bounds, H/P information, and the reference span remain distinct
+from viewport clipping.
+
+Completed query intervals and their complete unsampled records establish reuse
+readiness. Coverage from several queries can satisfy a target; only uncovered
+intervals are read. Cached records can be drawn outside their original query
+coverage when their reference span overlaps the target, but they cannot prove
+that the target is complete. Soft-tail-only records remain ineligible. Each
+completed fragment can update the provisional view; the target becomes the
+successful recovery view only after all missing coverage completes. Failures
+restore the saved presentation without a query, preserving its adequate data
+for later reuse. Stale completions cannot update either the view or its cache.
+
+The session keeps at most eight historical completed-query snapshots, dropping
+the oldest when admitting another and replacing contained snapshots when a
+complete broader result is available. The active/provisional view and last
+successful recovery view also retain their records. This bounds historical
+snapshot count, not bytes or records in a dense region; no hard memory or latency
+limit is claimed. Wide views and fresh layouts do not clear this data; only a
+successful BAM replacement starts a new cache. Eviction permits a later reload,
+without promising historical row positions.
+
+Navigation tests cover real BAI/CSI partial/complete/empty reuse, cache gaps and
+eviction, identical-record identity, earlier soft-tail newcomers, partial-load
+failure, stale results, and replacement ownership. The native continuity check
+uses the actual scroll view and spinner to verify preserved positions/extent
+during loading and empty reuse, then a top reset on a disjoint cached target.
 The numerical row/marker/letter choices and measurement method are documented
 with the visibility baseline.
 
