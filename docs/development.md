@@ -68,3 +68,14 @@ The `Native macOS` CI job builds, runs the tests, and packages the application.
 `Required checks` depends on both native and documentation jobs and accepts
 only successful results. All three jobs must be required by branch protection
 before this bootstrap can merge.
+
+## Native demonstration
+
+On 2026-11-07, the packaged release app was launched on Apple Silicon macOS
+27.2, built with Xcode 27.2 / Swift 6.4.2. The native accessibility tree exposed
+the Bamdalf window, its message, standard window controls, and Bamdalf/File/Window
+menus. **Command-Q** terminated the app. Both automated session/window tests
+passed locally, including workspace resizing. CI independently exercises Xcode
+16.4 / Swift 6.1.2 on macOS 15.
+
+![Native Bamdalf workspace with no BAM file open](images/native-workspace.png)
