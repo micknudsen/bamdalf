@@ -15,8 +15,9 @@ struct FixtureFiles {
     func remove() { try? FileManager.default.removeItem(at: directory) }
 
     @MainActor
-    func openedSession(fixture: String = "opening", indexFormat: String = "bai") async throws -> ViewerSession {
-        let session = ViewerSession()
+    @discardableResult
+    func openedSession(fixture: String = "opening", indexFormat: String = "bai", session: ViewerSession? = nil) async throws -> ViewerSession {
+        let session = session ?? ViewerSession()
         let bam = sources.appendingPathComponent("\(fixture).bam")
         let index = bam.appendingPathExtension(indexFormat)
         await session.openBAM(bam)

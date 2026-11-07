@@ -5,13 +5,13 @@ import BamdalfKit
 struct AlignmentLayoutTests {
     @Test
     @MainActor
-    func fullDrawnExtentsNeverOverlapAndNewerScrollingSurvivesFreshLoad() async throws {
+    func fullDrawnExtentsNeverOverlapAndNewerScrollingSurvivesNearbyLoad() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.start == 102 { await gate.pause(102) }
+            if target.end == 301 { await gate.pause(301) }
             return records
         })
         let bam = files.sources.appendingPathComponent("rows.bam")
@@ -28,12 +28,12 @@ struct AlignmentLayoutTests {
         await session.submitInterval()?.value
         #expect(session.presentation.verticalOffset == 400)
 
-        session.editInterval("tiny:102-300")
+        session.editInterval("tiny:102-301")
         let pending = session.submitInterval()
-        #expect(session.presentation.verticalOffset == 0)
-        await gate.waitFor(102)
+        #expect(session.presentation.verticalOffset == 400)
+        await gate.waitFor(301)
         session.scrollVertically(to: 200)
-        await gate.release(102)
+        await gate.release(301)
         await pending?.value
         #expect(session.presentation.verticalOffset == 200)
         #expect(session.presentation.rowCount == 80)

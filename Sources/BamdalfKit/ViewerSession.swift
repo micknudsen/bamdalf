@@ -47,6 +47,7 @@ public final class ViewerSession {
     private var draftGeneration: UInt64?
     private var regionalRequestID = UUID()
     private var regionalTask: Task<Void, Never>?
+    private var regionalData = RegionalData()
     private let alignmentVisibilityLimit: Int64
     private let loadRegion: @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment]
     private let loadFile: @Sendable (URL, URL) async throws -> BAMFile
@@ -90,14 +91,20 @@ public final class ViewerSession {
             presentation.regionalError = nil
             let generation = editorGeneration
             let initialScrollGeneration = scrollGeneration
-            presentation.verticalOffset = 0
             let suppressed = target.end - target.start + 1 > alignmentVisibilityLimit
+            let previous = presentation.target
+            let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
+                && previous!.start <= target.end && previous!.end >= target.start
+            let available = regionalData.available(for: target)
             var next = presentation
             next.target = target
             next.message = suppressed ? "Zoom in to see alignments" : ""
-            next.isLoading = !suppressed
+            next.isLoading = !suppressed && !available.missing.isEmpty
             next.isAlignmentSuppressed = suppressed
-            next.alignments = []
+            next.alignments = suppressed ? [] : Self.pack(available.records, retaining: continuous ? presentation.alignments : [])
+            if !continuous { next.verticalOffset = 0 }
+            let availableRows = (next.alignments.map(\.row).max() ?? -1) + 1
+            next.rowCount = continuous ? max(next.rowCount, availableRows) : availableRows
             next.regionalError = nil
             if suppressed { next.rowCount = 0 }
             presentation = next
@@ -106,19 +113,30 @@ public final class ViewerSession {
                 lastSuccessful = presentation
                 return nil
             }
+            if available.missing.isEmpty {
+                regionalTask = nil
+                lastSuccessful = presentation
+                return nil
+            }
             regionalTask = Task {
                 do {
-                    let alignments = try await loadRegion(bam, target)
-                    guard regionalRequestID == requestID else { return }
-                    presentation.alignments = Self.pack(alignments)
-                    let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
-                    presentation.rowCount = scrollGeneration == initialScrollGeneration
-                        ? requiredRows : max(presentation.rowCount, requiredRows)
+                    var records = available.records
+                    for missing in available.missing {
+                        let loaded = try await loadRegion(bam, missing)
+                        guard regionalRequestID == requestID else { return }
+                        regionalData.insert(loaded, for: missing, keeping: target)
+                        records = RegionalData.eligible(records + loaded, for: target)
+                        presentation.alignments = Self.pack(records, retaining: presentation.alignments)
+                        let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
+                        presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
+                            ? max(presentation.rowCount, requiredRows) : requiredRows
+                    }
+                    regionalData.insert(records, for: target, keeping: target)
                     presentation.isLoading = false
                     lastSuccessful = presentation
                 } catch let error as RegionalLoadError {
                     guard regionalRequestID == requestID else { return }
-                    restoreSuccessfulView(for: error, generation: generation)
+                    restoreSuccessfulView(for: RegionalLoadError(interval: target, message: error.message), generation: generation)
                 } catch {
                     guard regionalRequestID == requestID else { return }
                     restoreSuccessfulView(for: RegionalLoadError(interval: target, message: error.localizedDescription), generation: generation)
@@ -143,22 +161,65 @@ public final class ViewerSession {
         presentation.verticalOffset = offset
     }
 
-    private static func pack(_ records: [Alignment]) -> [Alignment] {
+    private static func pack(_ records: [Alignment], retaining previous: [Alignment] = []) -> [Alignment] {
         var result = records.sorted {
             $0.drawnStart == $1.drawnStart ? $0.id < $1.id : $0.drawnStart < $1.drawnStart
         }
-        var ends: [Int64] = []
+        if previous.isEmpty {
+            // With no fixed occupants, sorted newcomers only need each row's
+            // final endpoint. Retained layouts below must also search gaps.
+            var ends: [Int64] = []
+            for index in result.indices {
+                let start = result[index].drawnStart
+                if let row = ends.firstIndex(where: { $0 < start }) {
+                    result[index].row = row
+                    ends[row] = result[index].drawnEnd
+                } else {
+                    result[index].row = ends.count
+                    ends.append(result[index].drawnEnd)
+                }
+            }
+            return result
+        }
+        let retained = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0.row) })
+        var occupied: [[ClosedRange<Int64>]] = []
         for index in result.indices {
-            let start = result[index].drawnStart
-            if let row = ends.firstIndex(where: { $0 < start }) {
+            guard let row = retained[result[index].id] else { continue }
+            result[index].row = row
+            while occupied.count <= row { occupied.append([]) }
+            occupied[row].append(result[index].drawnStart...result[index].drawnEnd)
+        }
+        for index in result.indices {
+            guard retained[result[index].id] == nil else { continue }
+            let extent = result[index].drawnStart...result[index].drawnEnd
+            if let row = occupied.firstIndex(where: { ranges in
+                // Sorted extents let the common append case use only the last
+                // bound; an earlier newcomer checks its two neighboring ranges.
+                let position = insertionPosition(of: extent.lowerBound, in: ranges)
+                return (position == 0 || ranges[position - 1].upperBound < extent.lowerBound)
+                    && (position == ranges.count || ranges[position].lowerBound > extent.upperBound)
+            }) {
                 result[index].row = row
-                ends[row] = result[index].drawnEnd
+                let position = insertionPosition(of: extent.lowerBound, in: occupied[row])
+                occupied[row].insert(extent, at: position)
             } else {
-                result[index].row = ends.count
-                ends.append(result[index].drawnEnd)
+                result[index].row = occupied.count
+                occupied.append([extent])
             }
         }
         return result
+    }
+
+    private static func insertionPosition(of start: Int64, in ranges: [ClosedRange<Int64>]) -> Int {
+        if let last = ranges.last, last.lowerBound <= start { return ranges.count }
+        var low = 0
+        var high = ranges.count
+        while low < high {
+            let middle = low + (high - low) / 2
+            if ranges[middle].lowerBound < start { low = middle + 1 }
+            else { high = middle }
+        }
+        return low
     }
 
     private func restoreSuccessfulView(for error: RegionalLoadError, generation: UInt64) {
@@ -170,6 +231,11 @@ public final class ViewerSession {
         restored.message = lastSuccessful?.message ?? "Enter a genomic interval"
         restored.isLoading = false
         restored.isAlignmentSuppressed = lastSuccessful?.isAlignmentSuppressed ?? false
+        if let target = restored.target, !restored.isAlignmentSuppressed {
+            // Restoration already holds a complete result, even if intervening
+            // partial queries evicted its historical cache entries.
+            regionalData.insert(restored.alignments, for: target, keeping: target)
+        }
         if draftGeneration == nil || draftGeneration! <= generation {
             restored.intervalText = restored.target?.formatted ?? ""
             restored.intervalError = nil
@@ -233,6 +299,7 @@ public final class ViewerSession {
             regionalRequestID = UUID()
             regionalTask = nil
             lastSuccessful = nil
+            regionalData = RegionalData()
             draftGeneration = nil
             presentation = ViewerPresentation()
             presentation.bamURL = file.url

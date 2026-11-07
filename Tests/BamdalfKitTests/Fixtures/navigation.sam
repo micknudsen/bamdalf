@@ -1,0 +1,8 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:20000
+@SQ	SN:other_reference	LN:20000
+lead	0	tiny	101	60	20M	*	0	0	*	*
+anchor	0	tiny	110	60	200M	*	0	0	*	*
+new_tail	0	tiny	150	60	100S10M	*	0	0	*	*
+late	0	tiny	250	60	20M	*	0	0	*	*
+other	0	other_reference	101	60	50M	*	0	0	*	*
