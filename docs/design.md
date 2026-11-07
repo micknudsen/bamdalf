@@ -48,6 +48,8 @@ Use 1-based, inclusive endpoints in input and display: positions 100–200 cover
 
 Accept coordinate numbers with no commas or correctly grouped thousands commas. Trim whitespace surrounding the complete entry, but reject whitespace inside it. Accept only the regular hyphen (`-`, U+002D) between the numeric endpoints; do not convert other dash characters. Examples:
 
+<!-- markdownlint-disable MD038 -- Spaces inside code spans in this table are inputs being tested. -->
+
 | Entry | Result |
 | --- | --- |
 | `chr1:1000-2000` or `chr1:1,000-2,000` | Same interval, if valid for the BAM |
@@ -55,6 +57,8 @@ Accept coordinate numbers with no commas or correctly grouped thousands commas. 
 | `chr1:10,00-20,000` | Reject malformed comma grouping |
 | `chr1:1000 - 2000` | Reject internal whitespace |
 | `chr1:1,000–2,000` | Reject the en dash |
+
+<!-- markdownlint-enable MD038 -->
 
 On Enter, require a known reference and `1 <= start <= end <= reference length`. Reject invalid input without silently correcting or clamping it. Immediately format a valid submission with thousands commas, a regular hyphen, and the exact reference name. Do not rewrite drafts or rejected input as a formatting side effect.
 

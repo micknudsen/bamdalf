@@ -1,2 +1,5 @@
 # Local design history, source context, and exploratory previews.
 /.local/
+
+# Documentation-check dependencies.
+/node_modules/
