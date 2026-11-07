@@ -54,7 +54,7 @@ jobs:
           bash scripts/build-htslib.sh
           swift build
       - name: Test viewer session and native workspace
-        run: swift test --disable-xctest
+        run: bash scripts/test.sh
       - name: Package native application
         run: bash scripts/build-app.sh
 

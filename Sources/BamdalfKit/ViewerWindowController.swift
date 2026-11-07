@@ -6,6 +6,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let session: ViewerSession
     private let message = NSTextField(labelWithString: "")
     private let intervalField = NSTextField()
+    private let panLeftButton = NSButton()
+    private let panRightButton = NSButton()
     private let intervalError = NSTextField(wrappingLabelWithString: "")
     private let ruler = GenomicRulerView(frame: .zero)
     private let loadingIndicator = NSProgressIndicator()
@@ -42,8 +44,26 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         intervalField.setAccessibilityLabel("Genomic interval")
         intervalField.translatesAutoresizingMaskIntoConstraints = false
         workspace.addSubview(intervalField)
+        for (button, symbol, label, action) in [
+            (panLeftButton, "arrow.left", "Pan left", #selector(panLeft(_:))),
+            (panRightButton, "arrow.right", "Pan right", #selector(panRight(_:))),
+        ] {
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+            button.setAccessibilityLabel(label)
+            button.toolTip = label
+            button.bezelStyle = .rounded
+            button.action = action
+            button.translatesAutoresizingMaskIntoConstraints = false
+            workspace.addSubview(button)
+            NSLayoutConstraint.activate([
+                button.widthAnchor.constraint(equalToConstant: 32),
+                button.centerYAnchor.constraint(equalTo: intervalField.centerYAnchor),
+            ])
+        }
         NSLayoutConstraint.activate([
-            intervalField.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
+            panLeftButton.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
+            panRightButton.leadingAnchor.constraint(equalTo: panLeftButton.trailingAnchor, constant: 4),
+            intervalField.leadingAnchor.constraint(equalTo: panRightButton.trailingAnchor, constant: 10),
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
             intervalField.widthAnchor.constraint(equalToConstant: 360),
         ])
@@ -91,6 +111,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         ])
         window.contentView = workspace
         super.init(window: window)
+        panLeftButton.target = self
+        panRightButton.target = self
         window.delegate = self
         intervalField.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(alignmentDidScroll(_:)),
@@ -148,6 +170,16 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         intervalField.selectText(sender)
     }
 
+    @objc public func panLeft(_ sender: Any?) {
+        guard !session.presentation.isOpening, window?.attachedSheet == nil else { return }
+        session.pan(.left)
+    }
+
+    @objc public func panRight(_ sender: Any?) {
+        guard !session.presentation.isOpening, window?.attachedSheet == nil else { return }
+        session.pan(.right)
+    }
+
     @objc public func openBAM(_ sender: Any?) {
         guard let window, !session.presentation.isOpening, window.attachedSheet == nil else { return }
         let panel = NSOpenPanel()
@@ -175,6 +207,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         isRendering = true
         defer { isRendering = false }
         let presentation = session.presentation
+        let referenceLength = presentation.references.first { $0.name == presentation.target?.reference }?.length
+        let canNavigate = !presentation.isOpening && window?.attachedSheet == nil
+        panLeftButton.isEnabled = canNavigate && (presentation.target?.start ?? 1) > 1
+        panRightButton.isEnabled = canNavigate && (presentation.target?.end ?? 0) < (referenceLength ?? 0)
         window?.title = presentation.windowTitle
         message.stringValue = presentation.message
         intervalField.isHidden = !presentation.intervalEntryAvailable

@@ -10,6 +10,10 @@ public struct IndexChoice: Equatable, Sendable {
     public let candidates: [URL]
 }
 
+public enum PanDirection: Sendable {
+    case left, right
+}
+
 /// Presentation shared by the application session and its native workspace.
 public struct ViewerPresentation {
     public var windowTitle = "Bamdalf"
@@ -75,6 +79,24 @@ public final class ViewerSession {
         draftGeneration = nil
         presentation.intervalText = presentation.target?.formatted ?? ""
         presentation.intervalError = nil
+    }
+
+    /// Pan by half the inclusive width, rounding an odd half up to a whole base.
+    @discardableResult
+    public func pan(_ direction: PanDirection) -> Task<Void, Never>? {
+        guard let target = presentation.target,
+              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+        let width = target.end - target.start + 1
+        let step = width / 2 + width % 2
+        let shift: Int64
+        switch direction {
+        case .left: shift = -min(step, target.start - 1)
+        case .right: shift = min(step, reference.length - target.end)
+        }
+        guard shift != 0 else { return nil }
+        presentation.intervalText = GenomicInterval(reference: target.reference,
+                                                    start: target.start + shift, end: target.end + shift).formatted
+        return submitInterval()
     }
 
     @discardableResult
