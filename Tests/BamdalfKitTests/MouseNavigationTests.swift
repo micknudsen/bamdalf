@@ -2,6 +2,31 @@ import Testing
 import BamdalfKit
 
 struct MouseNavigationTests {
+    @Test(arguments: ["bai", "csi"])
+    @MainActor
+    func recordsAdmittedDuringPreviewKeepTheirRowsThroughFurtherMotionAndRelease(indexFormat: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession(fixture: "navigation", indexFormat: indexFormat)
+        // Cache the newcomer, then enter a fresh layout containing only lead/anchor.
+        for target in ["tiny:120-159", "tiny:500-539", "tiny:100-139"] {
+            session.editInterval(target)
+            await session.submitInterval()?.value
+        }
+        session.beginAlignmentDrag()
+        session.previewAlignmentDrag(horizontalFraction: -0.5)
+        let newcomer = try #require(session.presentation.alignments.first { $0.name == "new_tail" })
+        #expect(newcomer.row == 2)
+        let extent = session.presentation.rowCount
+        session.previewAlignmentDrag(horizontalFraction: -0.75)
+        #expect(session.presentation.target?.formatted == "tiny:130-169")
+        #expect(session.presentation.alignments.first { $0.id == newcomer.id }?.row == newcomer.row)
+        #expect(session.presentation.rowCount >= extent)
+        await session.endAlignmentDrag()?.value
+        #expect(session.presentation.alignments.first { $0.id == newcomer.id }?.row == newcomer.row)
+        #expect(session.presentation.rowCount >= extent)
+    }
+
     @Test(arguments: [false, true])
     @MainActor
     func newNavigationOrBAMReplacementRetiresAnUncommittedDrag(replaceBAM: Bool) async throws {

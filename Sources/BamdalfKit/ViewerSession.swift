@@ -16,6 +16,13 @@ public enum PanDirection: Sendable {
 
 public enum ZoomDirection: Sendable {
     case `in`, out
+
+    func resizedWidth(_ width: Int64, maximum: Int64) -> Int64 {
+        switch self {
+        case .in: width / 2 + width % 2
+        case .out: width > maximum / 2 ? maximum : width * 2
+        }
+    }
 }
 
 /// Presentation shared by the application session and its native workspace.
@@ -112,17 +119,20 @@ public final class ViewerSession {
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
-        next.alignments = origin.isAlignmentSuppressed ? [] : Self.pack(available.records, retaining: origin.alignments)
-        next.rowCount = max(origin.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
+        next.alignments = origin.isAlignmentSuppressed ? [] : Self.pack(available.records, retaining: presentation.alignments)
+        next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
         next.isLoading = false
         presentation = next
     }
 
     @discardableResult
     public func endAlignmentDrag() -> Task<Void, Never>? {
+        let preview = presentation
         let target = presentation.target
         guard let restored = restoreDragOrigin() else { return nil }
         if let target, target != restored.origin.target {
+            presentation.alignments = preview.alignments
+            presentation.rowCount = preview.rowCount
             presentation.intervalText = target.formatted
             return submitInterval(preservingPanContinuity: true)
         }
@@ -167,11 +177,7 @@ public final class ViewerSession {
         guard let target = presentation.target,
               let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
         let width = target.end - target.start + 1
-        let newWidth: Int64
-        switch direction {
-        case .in: newWidth = width / 2 + width % 2
-        case .out: newWidth = width > reference.length / 2 ? reference.length : width * 2
-        }
+        let newWidth = direction.resizedWidth(width, maximum: reference.length)
         guard newWidth != width else { return nil }
         let difference = width - newWidth
         let offset = difference / 2 - (difference < 0 && difference % 2 != 0 ? 1 : 0)
@@ -187,11 +193,7 @@ public final class ViewerSession {
         guard fraction.isFinite, let target = presentation.target,
               let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
         let width = target.end - target.start + 1
-        let newWidth: Int64
-        switch direction {
-        case .in: newWidth = width / 2 + width % 2
-        case .out: newWidth = width > reference.length / 2 ? reference.length : width * 2
-        }
+        let newWidth = direction.resizedWidth(width, maximum: reference.length)
         guard newWidth != width else { return nil }
         let position = min(1, max(0, fraction)) * Double(width)
         let offset = position >= Double(width - 1) ? width - 1 : Int64(position)
