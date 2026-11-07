@@ -25,7 +25,7 @@ final class GenomicRulerView: NSView {
         renderedTarget = presentation.target
         renderedWidth = bounds.width
         subviews.forEach { $0.removeFromSuperview() }
-        ticks = presentation.rulerTicks(availableWidth: bounds.width)
+        ticks = presentation.rulerTicks(availableWidth: Double(bounds.width))
         guard let target = presentation.target else { return }
         let title = NSTextField(labelWithString: target.formatted)
         title.font = .systemFont(ofSize: 12, weight: .medium)
@@ -39,7 +39,8 @@ final class GenomicRulerView: NSView {
             label.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
             label.textColor = .secondaryLabelColor
             label.sizeToFit()
-            let x = min(max(0, tick.fraction * bounds.width - label.frame.width / 2), max(0, bounds.width - label.frame.width))
+            let center = CGFloat(tick.fraction) * bounds.width
+            let x = min(max(0, center - label.frame.width / 2), max(0, bounds.width - label.frame.width))
             guard x >= previousRight + 12 else { continue }
             label.setFrameOrigin(NSPoint(x: x, y: 22))
             addSubview(label)
@@ -57,7 +58,7 @@ final class GenomicRulerView: NSView {
         line.move(to: NSPoint(x: 0, y: 14))
         line.line(to: NSPoint(x: bounds.width, y: 14))
         for tick in ticks {
-            let x = tick.fraction * bounds.width
+            let x = CGFloat(tick.fraction) * bounds.width
             line.move(to: NSPoint(x: x, y: 14))
             line.line(to: NSPoint(x: x, y: 20))
         }
