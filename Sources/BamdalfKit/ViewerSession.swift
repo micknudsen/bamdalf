@@ -14,6 +14,10 @@ public enum PanDirection: Sendable {
     case left, right
 }
 
+public enum ZoomDirection: Sendable {
+    case `in`, out
+}
+
 /// Presentation shared by the application session and its native workspace.
 public struct ViewerPresentation {
     public var windowTitle = "Bamdalf"
@@ -97,6 +101,26 @@ public final class ViewerSession {
         presentation.intervalText = GenomicInterval(reference: target.reference,
                                                     start: target.start + shift, end: target.end + shift).formatted
         return submitInterval(preservingPanContinuity: true)
+    }
+
+    /// Halve (rounding up) or double width, breaking center ties toward lower coordinates.
+    @discardableResult
+    public func zoom(_ direction: ZoomDirection) -> Task<Void, Never>? {
+        guard let target = presentation.target,
+              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+        let width = target.end - target.start + 1
+        let newWidth: Int64
+        switch direction {
+        case .in: newWidth = width / 2 + width % 2
+        case .out: newWidth = width > reference.length / 2 ? reference.length : width * 2
+        }
+        guard newWidth != width else { return nil }
+        let difference = width - newWidth
+        let offset = difference / 2 - (difference < 0 && difference % 2 != 0 ? 1 : 0)
+        let start = min(max(1, target.start + offset), reference.length - newWidth + 1)
+        presentation.intervalText = GenomicInterval(reference: target.reference,
+                                                    start: start, end: start + (newWidth - 1)).formatted
+        return submitInterval()
     }
 
     @discardableResult

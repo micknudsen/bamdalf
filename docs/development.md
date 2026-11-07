@@ -73,8 +73,18 @@ layout changes still reuse adequate loaded data. The toolbar's **Pan left** and
 (one base moves one base). They clamp within the current reference without
 changing width. A changed pan replaces an older draft/error; a boundary no-op
 preserves it. Buttons remain available during regional loading and reuse the
-same row, scroll, and failure behavior as typed navigation. Zoom and pointer
-navigation remain subsequent increments. There is no permanent file sidebar or Open BAM toolbar
+same row, scroll, and failure behavior as typed navigation. **Zoom out** (minus)
+and **Zoom in** (plus) double/halve the inclusive width around the current center.
+Halving an odd width rounds up; a half-base center tie chooses the lower
+placement, then the complete target shifts inside the reference. For example,
+`tiny:101-110` zooms in to `tiny:103-107`, and `tiny:101-105` zooms out to
+`tiny:98-107`. Plus stops at one base and minus at the whole reference. A changed
+zoom replaces an older draft/error, while an unchanged limit preserves it.
+Between alignment views, zoom retains surviving rows, row extent, and scrolling,
+including crowded insertion decoration. Crossing above 10,000 bases suppresses
+all alignment retrieval/drawing. Zooming back starts fresh at the top once,
+reuses adequate data, and honors newer scrolling while missing data arrives.
+Pointer navigation remains a subsequent increment. There is no permanent file sidebar or Open BAM toolbar
 button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
@@ -143,7 +153,9 @@ and hyphen. The additional `alignments.sam` fixture covers all nine operations, 
 MAPQ 0/255, reverse order, literal `=`, skip-only overlap, and absent sequence.
 `rows.sam` includes 80 distinct identical records and soft-tail collisions.
 `navigation.sam` adds a spanning record, an earlier-drawn newcomer tail, vacant
-rows, and another reference for continuity and fresh-layout tests.
+rows, and another reference for continuity and fresh-layout tests. `zoom.sam`
+contains adjacent insertion-bearing records and an overlapping record for
+retained-row and native crowded-marker checks.
 `scripts/generate-defect-fixtures.c` deliberately writes unavailable/mismatched
 CIGAR records and their indexes without a decoder silently repairing them.
 Regenerate the committed fixtures using:

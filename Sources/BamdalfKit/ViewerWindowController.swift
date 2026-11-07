@@ -8,6 +8,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let intervalField = NSTextField()
     private let panLeftButton = NSButton()
     private let panRightButton = NSButton()
+    private let zoomOutButton = NSButton()
+    private let zoomInButton = NSButton()
     private let intervalError = NSTextField(wrappingLabelWithString: "")
     private let ruler = GenomicRulerView(frame: .zero)
     private let loadingIndicator = NSProgressIndicator()
@@ -47,6 +49,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         for (button, symbol, label, action) in [
             (panLeftButton, "arrow.left", "Pan left", #selector(panLeft(_:))),
             (panRightButton, "arrow.right", "Pan right", #selector(panRight(_:))),
+            (zoomOutButton, "minus", "Zoom out", #selector(zoomOut(_:))),
+            (zoomInButton, "plus", "Zoom in", #selector(zoomIn(_:))),
         ] {
             button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
             button.setAccessibilityLabel(label)
@@ -63,7 +67,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         NSLayoutConstraint.activate([
             panLeftButton.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
             panRightButton.leadingAnchor.constraint(equalTo: panLeftButton.trailingAnchor, constant: 16),
-            intervalField.leadingAnchor.constraint(equalTo: panRightButton.trailingAnchor, constant: 10),
+            zoomOutButton.leadingAnchor.constraint(equalTo: panRightButton.trailingAnchor, constant: 16),
+            zoomInButton.leadingAnchor.constraint(equalTo: zoomOutButton.trailingAnchor, constant: 16),
+            intervalField.leadingAnchor.constraint(equalTo: zoomInButton.trailingAnchor, constant: 10),
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
             intervalField.widthAnchor.constraint(equalToConstant: 360),
         ])
@@ -113,6 +119,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         super.init(window: window)
         panLeftButton.target = self
         panRightButton.target = self
+        zoomOutButton.target = self
+        zoomInButton.target = self
         window.delegate = self
         intervalField.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(alignmentDidScroll(_:)),
@@ -180,6 +188,16 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         session.pan(.right)
     }
 
+    @objc public func zoomOut(_ sender: Any?) {
+        guard !session.presentation.isOpening, window?.attachedSheet == nil else { return }
+        session.zoom(.out)
+    }
+
+    @objc public func zoomIn(_ sender: Any?) {
+        guard !session.presentation.isOpening, window?.attachedSheet == nil else { return }
+        session.zoom(.in)
+    }
+
     @objc public func openBAM(_ sender: Any?) {
         guard let window, !session.presentation.isOpening, window.attachedSheet == nil else { return }
         let panel = NSOpenPanel()
@@ -211,6 +229,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         let canNavigate = !presentation.isOpening && window?.attachedSheet == nil
         panLeftButton.isEnabled = canNavigate && (presentation.target?.start ?? 1) > 1
         panRightButton.isEnabled = canNavigate && (presentation.target?.end ?? 0) < (referenceLength ?? 0)
+        let width = presentation.target.map { $0.end - $0.start + 1 } ?? 0
+        zoomInButton.isEnabled = canNavigate && width > 1
+        zoomOutButton.isEnabled = canNavigate && width > 0 && width < (referenceLength ?? 0)
         window?.title = presentation.windowTitle
         message.stringValue = presentation.message
         intervalField.isHidden = !presentation.intervalEntryAvailable
