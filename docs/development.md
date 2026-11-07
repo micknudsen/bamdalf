@@ -78,8 +78,8 @@ cleaning `.build` or changing Xcode. CI runs the same script before Swift builds
 
 `ViewerSession` owns the application-facing presentation consumed by the real
 native workspace. Swift Testing checks that seam and the actual AppKit window.
-Native checks inspect the visible message, workspace sizing, BAM chooser
-configuration, and field focus after real opening. Integration checks use the
+Native checks inspect the visible message, workspace sizing, and field focus
+after real opening. Integration checks use the
 production reader and small real BAI/CSI files through the session. Controlled
 completion tests deliver older results after newer opens without timing sleeps.
 These checks do not claim regional alignment rendering or WGS performance.

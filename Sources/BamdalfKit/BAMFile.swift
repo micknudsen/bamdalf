@@ -22,7 +22,7 @@ public actor BAMFile {
         var indexFailed: Int32 = 0
         guard let pointer = bamdalf_bam_open(url.path, indexURL.path, &message, message.count, &indexFailed) else {
             throw FileOpenError(fileURL: indexFailed == 0 ? url : indexURL,
-                                message: String(cString: message))
+                                message: String(decoding: message.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
         handle = BAMHandle(pointer)
         self.url = url

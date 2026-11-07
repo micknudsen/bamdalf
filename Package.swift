@@ -11,7 +11,7 @@ let package = Package(
     targets: [
         .target(
             name: "CBAM",
-            cSettings: [.unsafeFlags(["-I", "\(htslib)/include"])],
+            cSettings: [.unsafeFlags(["-isystem", "\(htslib)/include"])],
             linkerSettings: [.unsafeFlags(["\(htslib)/lib/libhts.a"]), .linkedLibrary("z")]
         ),
         .target(name: "BamdalfKit", dependencies: ["CBAM"]),

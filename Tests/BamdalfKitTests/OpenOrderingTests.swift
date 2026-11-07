@@ -6,10 +6,10 @@ struct OpenOrderingTests {
     @Test(arguments: [false, true])
     @MainActor
     func obsoleteOpenCompletionCannotReplaceTheNewerBAMOrShowAnError(failLate: Bool) async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let fixtures = try #require(Bundle.module.url(forResource: "Fixtures", withExtension: nil))
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
+        let fixtures = files.sources
         let late = directory.appendingPathComponent("late.bam")
         let newer = directory.appendingPathComponent("newer.bam")
         for bam in [late, newer] {

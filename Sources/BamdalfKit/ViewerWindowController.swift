@@ -8,7 +8,6 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let intervalField = NSTextField()
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
-    private var indexPicker: NSPopUpButton?
 
     public init(session: ViewerSession) {
         self.session = session
@@ -122,14 +121,12 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         picker.action = #selector(indexSelectionChanged(_:))
         alert.accessoryView = picker
         indexAlert = alert
-        indexPicker = picker
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }
             let selected = picker.indexOfSelectedItem - 1
             let index = response == .alertFirstButtonReturn && choice.candidates.indices.contains(selected)
                 ? choice.candidates[selected] : nil
             self.indexAlert = nil
-            self.indexPicker = nil
             Task { @MainActor in
                 await self.session.chooseIndex(index)
                 self.presentOpenResult()

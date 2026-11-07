@@ -6,12 +6,12 @@ struct OpenBAMTests {
     @Test(arguments: [false, true])
     @MainActor
     func malformedOrMissingBAMReportsTheReaderFailureWithoutOpeningIt(missing: Bool) async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
         let bam = directory.appendingPathComponent("invalid.bam")
         if !missing { try Data("not a BAM file".utf8).write(to: bam) }
-        let fixtures = try #require(Bundle.module.url(forResource: "Fixtures", withExtension: nil))
+        let fixtures = files.sources
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("opening.bam.bai"),
                                         to: bam.appendingPathExtension("bai"))
         let session = ViewerSession()
@@ -27,10 +27,10 @@ struct OpenBAMTests {
     @Test
     @MainActor
     func failedOrCanceledReplacementPreservesTheBAMAndEditableDraftWithoutIndexFallback() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let fixtures = try #require(Bundle.module.url(forResource: "Fixtures", withExtension: nil))
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
+        let fixtures = files.sources
         let original = directory.appendingPathComponent("original.bam")
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("opening.bam"), to: original)
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("opening.bam.bai"),
@@ -74,10 +74,10 @@ struct OpenBAMTests {
     @Test(arguments: ["sample.bam.bai", "sample.bai", "sample.bam.csi", "sample.csi"])
     @MainActor
     func aSingleRealIndexOpensTheBAMWithItsHeaderReferences(indexName: String) async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let fixtures = try #require(Bundle.module.url(forResource: "Fixtures", withExtension: nil))
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
+        let fixtures = files.sources
         let bam = directory.appendingPathComponent("sample.bam")
         try FileManager.default.copyItem(at: fixtures.appendingPathComponent("opening.bam"), to: bam)
         let format = indexName.hasSuffix("bai") ? "bai" : "csi"
@@ -100,9 +100,9 @@ struct OpenBAMTests {
     @Test
     @MainActor
     func allFourIndexNamesRequireExplicitChoiceAndCancellationPreservesTheWorkspace() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
         let bam = directory.appendingPathComponent("sample.bam")
         let names = ["sample.bam.bai", "sample.bai", "sample.bam.csi", "sample.csi"]
         try Data().write(to: bam)
@@ -122,9 +122,9 @@ struct OpenBAMTests {
     @Test
     @MainActor
     func missingIndexReportsTheSelectedBAMWithoutReplacingTheWorkspace() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let directory = files.directory
         let bam = directory.appendingPathComponent("sample.bam")
         try Data().write(to: bam)
         let session = ViewerSession()
