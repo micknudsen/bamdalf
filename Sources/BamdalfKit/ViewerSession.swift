@@ -96,11 +96,15 @@ public final class ViewerSession {
         guard shift != 0 else { return nil }
         presentation.intervalText = GenomicInterval(reference: target.reference,
                                                     start: target.start + shift, end: target.end + shift).formatted
-        return submitInterval()
+        return submitInterval(preservingPanContinuity: true)
     }
 
     @discardableResult
     public func submitInterval() -> Task<Void, Never>? {
+        submitInterval(preservingPanContinuity: false)
+    }
+
+    private func submitInterval(preservingPanContinuity: Bool) -> Task<Void, Never>? {
         guard let bam else { return nil }
         do {
             let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
@@ -116,7 +120,7 @@ public final class ViewerSession {
             let suppressed = target.end - target.start + 1 > alignmentVisibilityLimit
             let previous = presentation.target
             let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
-                && previous!.start <= target.end && previous!.end >= target.start
+                && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
             let available = regionalData.available(for: target)
             var next = presentation
             next.target = target

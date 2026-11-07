@@ -4,6 +4,27 @@ import BamdalfKit
 struct ToolbarPanTests {
     @Test
     @MainActor
+    func oneBasePansPreserveRetainedRowsAndScrollDespiteNonoverlappingCoordinates() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession(fixture: "navigation")
+        session.editInterval("tiny:100-139")
+        await session.submitInterval()?.value
+        session.editInterval("tiny:120-120")
+        await session.submitInterval()?.value
+        let anchor = try #require(session.presentation.alignments.first { $0.name == "anchor" })
+        let extent = session.presentation.rowCount
+        session.scrollVertically(to: 100)
+        #expect(session.pan(.right) == nil)
+        #expect(session.presentation.target?.formatted == "tiny:121-121")
+        #expect(session.presentation.alignments.map(\.name) == ["anchor"])
+        #expect(session.presentation.alignments.first?.row == anchor.row)
+        #expect(session.presentation.rowCount == extent)
+        #expect(session.presentation.verticalOffset == 100)
+    }
+
+    @Test
+    @MainActor
     func rulerOnlyPansUpdateCoordinatesWithoutQueryingOrDrawing() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }

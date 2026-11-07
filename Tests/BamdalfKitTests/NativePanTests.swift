@@ -59,13 +59,21 @@ struct NativePanTests {
         #expect(scroll.contentView.bounds.origin.y == 300)
         #expect(stack.frame.height == height)
 
+        session.editInterval("tiny:101-101")
+        #expect(session.submitInterval() == nil)
+        right.performClick(nil)
+        #expect(session.presentation.target?.formatted == "tiny:102-102")
+        #expect(session.presentation.alignments == original)
+        #expect(scroll.contentView.bounds.origin.y == 300)
+        #expect(stack.frame.height == height)
+
         let alert = NSAlert()
         alert.messageText = "Modal navigation check"
         alert.addButton(withTitle: "OK")
         await withCheckedContinuation { continuation in
             alert.beginSheetModal(for: window) { _ in continuation.resume() }
             right.performClick(nil)
-            #expect(session.presentation.target?.formatted == "tiny:101-200")
+            #expect(session.presentation.target?.formatted == "tiny:102-102")
             window.endSheet(alert.window)
         }
 
