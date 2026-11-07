@@ -1,0 +1,23 @@
+{
+  "name": "bamdalf-documentation",
+  "private": true,
+  "description": "Documentation checks for Bamdalf; not the native application toolchain.",
+  "scripts": {
+    "check:docs": "markdownlint-cli2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "0.24.0",
+    "markdownlint-rule-relative-links": "5.1.4"
+  },
+  "overrides": {
+    "markdownlint": {
+      "re2js": "2.8.7"
+    },
+    "micromark-extension-math": {
+      "katex": "0.18.2"
+    }
+  }
+}
