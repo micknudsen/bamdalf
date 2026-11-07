@@ -33,9 +33,9 @@ struct LaunchTests {
         #expect(message.isEditable == false)
         #expect(abs(message.frame.midX - workspace.bounds.midX) < 1)
 
-        window.setContentSize(NSSize(width: 1100, height: 720))
+        window.setContentSize(NSSize(width: 900, height: 600))
         workspace.layoutSubtreeIfNeeded()
-        #expect(workspace.bounds.width == 1100)
-        #expect(abs(message.frame.midX - 550) < 1)
+        #expect(workspace.bounds.width == 900)
+        #expect(abs(message.frame.midX - 450) < 1)
     }
 }
