@@ -4,8 +4,10 @@ A native macOS BAM alignment viewer for Apple Silicon, under development.
 
 Open a local BAM through **File → Open BAM…**, with sibling BAI/CSI discovery
 and explicit choice when multiple indexes exist. Enter a full genomic interval
-to navigate a ruler using the BAM's reference bounds. Alignment display and
-pan/zoom controls are tracked in the next implementation tickets.
+to inspect real alignments with standard CIGAR geometry, full soft clips,
+vertical scrolling, and safe loading/error restoration. Views wider than
+10,000 bases retain the ruler and ask you to zoom in. Nearby data/row continuity
+and graphical pan/zoom controls remain in the next implementation tickets.
 
 - [Build, test, and launch](docs/development.md)
 - [Design](docs/design.md)

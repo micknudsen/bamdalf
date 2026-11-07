@@ -2,12 +2,17 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor
-public final class ViewerWindowController: NSWindowController, NSTextFieldDelegate, NSMenuItemValidation {
+public final class ViewerWindowController: NSWindowController, NSTextFieldDelegate, NSMenuItemValidation, NSWindowDelegate {
     private let session: ViewerSession
     private let message = NSTextField(labelWithString: "")
     private let intervalField = NSTextField()
     private let intervalError = NSTextField(wrappingLabelWithString: "")
     private let ruler = GenomicRulerView(frame: .zero)
+    private let loadingIndicator = NSProgressIndicator()
+    private var regionalAlert: (id: UUID, alert: NSAlert)?
+    private let alignmentScroll = NSScrollView()
+    private let alignmentStack = GenomicAlignmentView(frame: .zero)
+    private var isRendering = false
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
 
@@ -42,6 +47,16 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
             intervalField.widthAnchor.constraint(equalToConstant: 360),
         ])
+        loadingIndicator.style = .spinning
+        loadingIndicator.controlSize = .small
+        loadingIndicator.isDisplayedWhenStopped = false
+        loadingIndicator.setAccessibilityLabel("Loading alignments")
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(loadingIndicator)
+        NSLayoutConstraint.activate([
+            loadingIndicator.leadingAnchor.constraint(equalTo: intervalField.trailingAnchor, constant: 10),
+            loadingIndicator.centerYAnchor.constraint(equalTo: intervalField.centerYAnchor),
+        ])
         intervalError.font = .systemFont(ofSize: 12)
         intervalError.textColor = .systemRed
         intervalError.setAccessibilityLabel("Interval validation")
@@ -60,9 +75,26 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             ruler.topAnchor.constraint(equalTo: intervalError.bottomAnchor, constant: 12),
             ruler.heightAnchor.constraint(equalToConstant: 68),
         ])
+        alignmentScroll.hasVerticalScroller = true
+        alignmentScroll.hasHorizontalScroller = false
+        alignmentScroll.autohidesScrollers = true
+        alignmentScroll.scrollerStyle = .overlay
+        alignmentScroll.documentView = alignmentStack
+        alignmentScroll.contentView.postsBoundsChangedNotifications = true
+        alignmentScroll.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(alignmentScroll)
+        NSLayoutConstraint.activate([
+            alignmentScroll.leadingAnchor.constraint(equalTo: ruler.leadingAnchor),
+            alignmentScroll.trailingAnchor.constraint(equalTo: ruler.trailingAnchor),
+            alignmentScroll.topAnchor.constraint(equalTo: ruler.bottomAnchor, constant: 4),
+            alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
+        ])
         window.contentView = workspace
         super.init(window: window)
+        window.delegate = self
         intervalField.delegate = self
+        NotificationCenter.default.addObserver(self, selector: #selector(alignmentDidScroll(_:)),
+                                               name: NSView.boundsDidChangeNotification, object: alignmentScroll.contentView)
         session.onPresentationChange = { [weak self] in self?.render() }
         render()
     }
@@ -139,6 +171,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }
 
     private func render() {
+        guard !isRendering else { return }
+        isRendering = true
+        defer { isRendering = false }
         let presentation = session.presentation
         window?.title = presentation.windowTitle
         message.stringValue = presentation.message
@@ -149,12 +184,57 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         }
         intervalError.stringValue = presentation.intervalError ?? ""
         intervalError.isHidden = presentation.intervalError == nil
+        loadingIndicator.isHidden = !presentation.isLoading
+        if presentation.isLoading { loadingIndicator.startAnimation(nil) }
+        else { loadingIndicator.stopAnimation(nil) }
         ruler.presentation = presentation
         ruler.isHidden = presentation.target == nil
+        alignmentScroll.isHidden = presentation.target == nil || presentation.isAlignmentSuppressed
+        window?.contentView?.layoutSubtreeIfNeeded()
+        let size = alignmentScroll.contentSize
+        alignmentStack.frame = NSRect(x: 0, y: 0, width: size.width,
+                                      height: max(CGFloat(presentation.rowCount) * GenomicAlignmentView.rowHeight,
+                                                  size.height + CGFloat(presentation.verticalOffset)))
+        alignmentStack.presentation = presentation
+        alignmentScroll.contentView.scroll(to: NSPoint(x: 0, y: CGFloat(presentation.verticalOffset)))
+        alignmentScroll.reflectScrolledClipView(alignmentScroll.contentView)
         if presentation.sessionID != displayedSessionID {
             displayedSessionID = presentation.sessionID
             window?.makeFirstResponder(intervalField)
         }
+        presentRegionalError()
+    }
+
+    public func windowDidResize(_ notification: Notification) { render() }
+
+    public func windowDidEndSheet(_ notification: Notification) {
+        Task { @MainActor [weak self] in self?.presentRegionalError() }
+    }
+
+    private func presentRegionalError() {
+        guard let window else { return }
+        if let shown = regionalAlert, shown.id != session.presentation.regionalError?.id {
+            regionalAlert = nil
+            window.endSheet(shown.alert.window)
+        }
+        guard let error = session.presentation.regionalError, regionalAlert == nil,
+              window.isVisible, window.attachedSheet == nil else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Could not load \(error.interval.formatted)"
+        alert.informativeText = error.message
+        alert.addButton(withTitle: "OK")
+        regionalAlert = (error.id, alert)
+        alert.beginSheetModal(for: window) { [weak self] _ in
+            guard let self else { return }
+            if self.regionalAlert?.id == error.id { self.regionalAlert = nil }
+            self.session.dismissRegionalError(error.id)
+        }
+    }
+
+    @objc private func alignmentDidScroll(_ notification: Notification) {
+        guard !isRendering else { return }
+        session.scrollVertically(to: Double(alignmentScroll.contentView.bounds.origin.y))
     }
 
     private func presentOpenResult() {

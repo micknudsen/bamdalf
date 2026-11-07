@@ -53,9 +53,19 @@ inline error; editing clears the error without navigating. **Go → Go to
 Interval** / **Command-L** focuses and selects the existing text. **Escape**
 in the editor restores the target coordinates (or clears it before navigation).
 
-This increment navigates coordinates but does not query or draw regional
-alignments. It explicitly shows **Alignment viewing is not available yet**
-instead of claiming an empty result. There is no permanent file sidebar or Open
+This increment queries real alignments and displays independent rows with full
+standard CIGAR geometry, colored/outlined soft clips, and vertical scrolling.
+Changed readable targets show their ruler immediately and a spinner while a
+fresh query loads. Same-target Enter does not reload or reset scrolling. A
+failed region restores the prior successful view before its attached error
+alert, preserving any newer draft. Wider than 10,000 bases, the app shows
+**Zoom in to see alignments** without querying or drawing alignments. The
+[initial visibility measurements](performance/visibility-2026-11-07.md) document
+that default and its limitations.
+
+This is the approved intermediate fresh-load/fresh-layout increment. Nearby
+loaded-data reuse, retained rows, and graphical navigation are completed in
+subsequent tickets; this change does not claim that full navigation contract. There is no permanent file sidebar or Open
 BAM toolbar button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
@@ -93,15 +103,16 @@ selected-index error alert. They exercise the file-selection completion action
 used by the actual native chooser. Integration checks use the
 production reader and small real BAI/CSI files through the session. Controlled
 completion tests deliver older results after newer opens without timing sleeps.
-These checks do not claim regional alignment rendering or WGS performance.
+Those opening checks alone do not establish regional drawing or WGS performance;
+the regional tests and separate measurements below cover their own boundaries.
 
 Interval tests drive editing/submission/reset through that same session with
 real header bounds. Native tests send Enter/Escape through the actual AppKit
 field editor, exercise the real Go menu, and inspect inline errors and ruler
 labels after focus changes and window resizing. The ruler places full integer
 labels at base centers, choosing 1/2/5 steps and reducing density to fit. Targets
-use signed 64-bit, 1-based inclusive coordinates; BAM query conversion belongs
-to the later regional-reader increment.
+use signed 64-bit, 1-based inclusive coordinates; the C query adapter converts them
+once to HTSlib's zero-based half-open interval.
 
 The readable opening source fixture is
 [`opening.sam`](../Tests/BamdalfKitTests/Fixtures/opening.sam). Its references are
@@ -109,15 +120,43 @@ The readable opening source fixture is
 alignments at positions 101 and 201 respectively. The
 [`coordinates.sam`](../Tests/BamdalfKitTests/Fixtures/coordinates.sam) fixture
 adds a 300,000,000-base reference and an exact reference name containing a colon
-and hyphen. Regenerate both fixtures' committed BAM, BAI, and CSI files using:
+and hyphen. The additional `alignments.sam` fixture covers all nine operations, fixed flags,
+MAPQ 0/255, reverse order, literal `=`, skip-only overlap, and absent sequence.
+`rows.sam` includes 80 distinct identical records and soft-tail collisions.
+`scripts/generate-defect-fixtures.c` deliberately writes unavailable/mismatched
+CIGAR records and their indexes without a decoder silently repairing them.
+Regenerate the committed fixtures using:
 
 ```sh
 bash scripts/generate-fixtures.sh
 ```
 
-Opening validates format/header and loads the explicitly selected index. It
-does not scan all alignments, verify complete sorting, or guarantee detection of
-every stale/mismatched index. No reference FASTA is required.
+Opening validates format/header and loads the explicitly selected index. A
+known reference-count mismatch between index and header fails that open without
+fallback. Regional reads detect decoding failures, unavailable mapped CIGAR,
+invalid operations/lengths, sequence-consumption inconsistency, and reference
+bounds violations. A detected defect fails the whole regional load; there is no
+partial result or invented geometry. Valid missing sequence retains known
+geometry and outlined tails. No timestamp heuristic, whole-file scan, full
+sorting certification, or exhaustive stale-index guarantee is claimed. No
+reference FASTA is required.
+
+Regional session tests use real BAI/CSI files and controlled completions for
+latest-request precedence, same-target submissions, successful/empty/wide
+restoration, newer drafts/scrolling, populated replacement, and stale BAM
+results. Native checks exercise the actual scroll view, spinner, attached
+regional-error alert, and supersession of displayed/queued alerts. Renderer
+captures complement independently calculated geometry assertions. Every query
+finishes before its result becomes a successful view; this development slice
+shows all eligible records without truncation or sampling.
+
+Record identity is the BAM virtual offset after each record within one opened
+file. It preserves distinct byte-identical records and supports future overlap
+deduplication; it is not a sampling-group key. Fresh row packing sorts by full
+drawn start and fills the first nonoverlapping row. Existing drawing bounds,
+H/P information, and the reference span remain distinct from viewport clipping.
+The numerical row/marker/letter choices and measurement method are documented
+with the visibility baseline.
 
 The `Native macOS` CI job builds, runs the tests, and packages the application.
 `Required checks` depends on both native and documentation jobs and accepts
@@ -151,3 +190,11 @@ They retain the target ruler across rejected/unfinished text, keep errors on
 focus loss, and use the actual menu/field-editor actions for focus and Escape.
 Native view captures were inspected for each case; the tests also verify
 full-coordinate labels remain in bounds and reduce density on resize.
+
+On 2026-11-07, the actual native renderer was inspected with both real HG002
+regions and independently specified synthetic CIGAR/sequence fixtures. The
+[measurement report](performance/visibility-2026-11-07.md) retains renderer-only
+captures, raw timing/RSS data, reproducible acquisition, and explicit limits.
+Full-window cache captures with omitted layers were excluded as complete-window
+evidence. Separate native tests verified the real ruler/field, scrolling,
+spinner, and error sheets.

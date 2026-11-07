@@ -1,0 +1,13 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:20000
+@SQ	SN:other_reference	LN:20000
+forward	0	tiny	101	0	10S10M5S	*	0	0	ACGTNRY=ACAAAAAAAAAATGCAN	*
+reverse	16	tiny	101	255	3S10M2S	*	0	0	TGCAAAAAAAAAACG	*
+supplementary	2048	tiny	101	60	10M	*	0	0	AAAAAAAAAA	*
+secondary	256	tiny	101	60	10M	*	0	0	AAAAAAAAAA	*
+qcfail	512	tiny	101	60	10M	*	0	0	AAAAAAAAAA	*
+duplicate	1024	tiny	101	60	10M	*	0	0	AAAAAAAAAA	*
+secondary_supp	2304	tiny	101	60	10M	*	0	0	AAAAAAAAAA	*
+complex	16	tiny	1001	60	2H3S4M1I1P2=1X2D3N2M4S1H	*	0	0	ACGTTTTACCGAATNRY	*
+skip	0	tiny	2001	60	10M100N10M	*	0	0	AAAAAAAAAAAAAAAAAAAA	*
+missing_sequence	0	tiny	3001	60	5S10M5S	*	0	0	*	*
