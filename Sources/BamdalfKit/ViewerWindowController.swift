@@ -62,7 +62,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         }
         NSLayoutConstraint.activate([
             panLeftButton.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
-            panRightButton.leadingAnchor.constraint(equalTo: panLeftButton.trailingAnchor, constant: 4),
+            panRightButton.leadingAnchor.constraint(equalTo: panLeftButton.trailingAnchor, constant: 16),
             intervalField.leadingAnchor.constraint(equalTo: panRightButton.trailingAnchor, constant: 10),
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
             intervalField.widthAnchor.constraint(equalToConstant: 360),
