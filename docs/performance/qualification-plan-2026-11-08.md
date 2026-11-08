@@ -74,3 +74,13 @@ targets/results, explain revisions, and report against the target version used.
 This supersedes the original prohibition on adjusting goals after seeing
 results; silent failure relabeling is not permitted. Do not claim qualification
 complete with unmet applicable goals or missing required measurements.
+
+## Recorded execution — 2026-11-08
+
+The [completed qualification report](qualification-2026-11-08.md) records the
+broader independently reproduced panel, fixed protocol and its reviewed
+scrolling correction, dense-drag optimization, all 27 completed cases, and the
+612.701-second memory route at `micknudsen/bamdalf@01d3d95`. It supersedes the
+unperformed-execution status above without changing this plan's numerical
+targets. Its machine, CPU-drawing boundary, and memory-growth limitations remain
+part of the result; supported-toolchain CI is a separate delivery gate.

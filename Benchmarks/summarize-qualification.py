@@ -47,9 +47,10 @@ def main():
             raise SystemExit(f"Wrong repetitions: {case_id}")
         all_rows.extend(rows)
         measured = [row for row in rows if row["measured"] and "target_ms" in row]
-        labels = sorted({row["action"] for row in measured}) if case_id.startswith("cached_") or case_id == "integrated_workflow" else ["all"]
+        grouping = "step" if case_id == "integrated_workflow" else "action" if case_id.startswith("cached_") else None
+        labels = sorted({row[grouping] for row in measured}) if grouping else ["all"]
         for label in labels:
-            group = [row for row in measured if label == "all" or row["action"] == label]
+            group = [row for row in measured if grouping is None or row[grouping] == label]
             if not group:
                 continue
             targets = {row["target_ms"] for row in group}
@@ -95,7 +96,8 @@ def summarize(case_id, label, group):
     values = sorted(row["wall_ms"] for row in group)
     target = group[0]["target_ms"]
     within = sum(value <= target for value in values)
-    return {"case": case_id, "action": label, "n": len(values), "target_ms": target,
+    return {"case": case_id, "action": group[0]["action"] if case_id == "integrated_workflow" else label,
+            "step": label if case_id == "integrated_workflow" else "", "n": len(values), "target_ms": target,
             "within_target": within, "fraction_within_target": within / len(values),
             "observed_target_met": within / len(values) >= 0.95,
             "first_ms": group[0]["wall_ms"], "median_ms": statistics.median(values),
