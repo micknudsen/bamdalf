@@ -81,7 +81,7 @@ def main():
     csv_file(output / "memory-by-minute.csv", minute_rows)
     (output / "completion.json").write_text(json.dumps({
         "protocol_sha256": digest, "cases": completions,
-        "measured_product_baseline": plan["baseline_commit"],
+        "protocol_product_baseline": plan["baseline_commit"],
         "timing_cases_passed": all(row["observed_target_met"] for row in summaries if not row["demonstration_only"]),
         "memory_target_met": all(row["primary_memory_target_met"] for row in completions if row["case"].startswith("memory_")),
     }, indent=2) + "\n")

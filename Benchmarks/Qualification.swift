@@ -39,6 +39,7 @@ struct Qualification {
         let expected_records: Int?
         let expected_queried_records: Int?
         let expected_continuity: Bool?
+        let expected_scroll_change: Bool?
         let expected_selection_of: String?
         let capture: Bool?
         let target_ms: Double?
@@ -524,6 +525,9 @@ struct Qualification {
         }
         if let expected = step.expected_suppressed, after.isAlignmentSuppressed != expected {
             throw Failure("\(caseID)/\(step.id): unexpected wide status")
+        }
+        if step.expected_scroll_change == true && after.verticalOffset == before.verticalOffset {
+            throw Failure("\(caseID)/\(step.id): measured scrolling did not move the viewport")
         }
         if let expected = step.expected_records, after.alignments.count != expected {
             throw Failure("\(caseID)/\(step.id): expected \(expected) retained records, got \(after.alignments.count)")
