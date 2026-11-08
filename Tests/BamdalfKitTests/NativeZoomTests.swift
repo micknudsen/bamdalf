@@ -194,7 +194,10 @@ struct NativeZoomTests {
         #expect(labels.contains("tiny:501-1,500"))
         window.setContentSize(window.contentMinSize)
         workspace.layoutSubtreeIfNeeded()
-        let ordered = buttons.sorted { $0.frame.minX < $1.frame.minX }
+        let navigationLabels = ["Pan left", "Pan right", "Zoom out", "Zoom in"]
+        let ordered = buttons.filter { navigationLabels.contains($0.accessibilityLabel() ?? "") }
+            .sorted { $0.frame.minX < $1.frame.minX }
+        #expect(ordered.count == 4)
         for button in ordered { #expect(workspace.bounds.contains(button.frame)) }
         for (left, right) in zip(ordered, ordered.dropFirst()) { #expect(left.frame.maxX <= right.frame.minX) }
         #expect(ordered.last!.frame.maxX < field.frame.minX)

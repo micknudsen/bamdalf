@@ -14,6 +14,7 @@ public struct Alignment: Equatable, Sendable, Identifiable {
     public let id: UInt64
     public internal(set) var row = 0
     public let name: String
+    public let readGroup: String?
     public let cigar: String
     public let isReverse: Bool
     public let referenceStart: Int64

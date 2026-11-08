@@ -7,6 +7,34 @@ import Foundation
 /// macOS /usr/bin/time -l, including startup, loading, rendering, and PNG export.
 @main
 struct VisibilityBaseline {
+    actor QueryWork {
+        private var calls = 0
+        private var eligibleRecords = 0
+        private var milliseconds = 0.0
+
+        func record(count: Int, milliseconds: Double) {
+            calls += 1
+            eligibleRecords += count
+            self.milliseconds += milliseconds
+        }
+
+        func snapshot() -> (calls: Int, eligibleRecords: Int, milliseconds: Double) {
+            (calls, eligibleRecords, milliseconds)
+        }
+    }
+
+    struct GroupIdentity: Hashable {
+        let readGroup: String?
+        let name: String
+        let unnamedRecord: UInt64?
+
+        init(_ alignment: Alignment) {
+            readGroup = alignment.name == "*" ? nil : alignment.readGroup
+            name = alignment.name
+            unnamedRecord = alignment.name == "*" ? alignment.id : nil
+        }
+    }
+
     @MainActor
     static func main() {
         let application = NSApplication.shared
@@ -50,13 +78,21 @@ struct VisibilityBaseline {
 
     @MainActor
     private static func measure(arguments: [String]) async throws {
-        guard arguments.count == 3 else {
-            throw Failure("usage: VisibilityBaseline BAM chr20:start-end OUTPUT_PREFIX")
+        guard (3...4).contains(arguments.count) else {
+            throw Failure("usage: VisibilityBaseline BAM chr20:start-end OUTPUT_PREFIX [SAMPLING_GROUP_BUDGET]")
         }
+        let budget = arguments.count == 4 ? Int(arguments[3]) : Int.max
+        guard let budget, budget > 0 else { throw Failure("Sampling group budget must be a positive integer") }
         let bam = URL(fileURLWithPath: arguments[0]).standardizedFileURL
         let output = URL(fileURLWithPath: arguments[2]).standardizedFileURL
         try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let session = ViewerSession(alignmentVisibilityLimit: .max)
+        let queryWork = QueryWork()
+        let session = ViewerSession(loadRegion: { file, target in
+            let start = wallSeconds()
+            let records = try await file.alignments(in: target)
+            await queryWork.record(count: records.count, milliseconds: (wallSeconds() - start) * 1000)
+            return records
+        }, alignmentVisibilityLimit: .max, samplingGroupBudget: budget, samplingSeed: { 42 })
         let controller = ViewerWindowController(session: session)
         guard let window = controller.window, let content = window.contentView else {
             throw Failure("Native viewer window is unavailable")
@@ -127,7 +163,7 @@ struct VisibilityBaseline {
         var drawWall: [Double] = []
         var drawCPU: [Double] = []
         // Exercise the actual NSView override. No copied renderer, surrogate
-        // shapes, sampling, or production API hooks are used by this harness.
+        // shapes or separate sampling implementation are used by this harness.
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = graphics
         window.effectiveAppearance.performAsCurrentDrawingAppearance {
@@ -159,14 +195,22 @@ struct VisibilityBaseline {
         }
         let spans = presentation.alignments.map { $0.drawnEnd - $0.drawnStart + 1 }.sorted()
         let width = interval.end - interval.start + 1
+        let work = await queryWork.snapshot()
         let result: [String: Any] = [
-            "schema_version": 1,
+            "schema_version": 2,
             "timestamp_utc": ISO8601DateFormatter().string(from: Date()),
             "bam": bam.path,
             "index": presentation.indexURL?.path ?? "",
             "interval": interval.formatted,
             "width_bases": width,
             "alignments": presentation.alignments.count,
+            "retained_groups": Set(presentation.alignments.map(GroupIdentity.init)).count,
+            "sampling_group_budget": budget,
+            "sampling_seed": 42,
+            "is_downsampled": presentation.isDownsampled,
+            "regional_query_calls": work.calls,
+            "queried_eligible_records": work.eligibleRecords,
+            "regional_query_wall_ms": work.milliseconds,
             "rows": presentation.rowCount,
             "file_open_wall_ms": openMilliseconds,
             "query_pack_native_layout_wall_ms": queryMilliseconds,

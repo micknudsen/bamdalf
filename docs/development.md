@@ -93,6 +93,10 @@ base; Option + left-click doubles it. Even-width center ties use the lower
 placement, and targets shift inside reference bounds. These gestures also work
 in the ruler-only alignment area. Right-click stays distinct, field editing
 uses native behavior, and wheel/vertical trackpad events scroll the rows.
+The status slot shows a spinner while loading. A ready downsampled target shows
+a small amber triangle; hovering or focusing it explains **Downsampled: some
+alignments are not shown.** The same text is available to assistive technology.
+Ready unsampled and wide targets leave the slot empty.
 There is no permanent file sidebar or Open BAM toolbar button. Close the window or use **Bamdalf → Quit Bamdalf** /
 **Command-Q** to quit.
 
@@ -123,8 +127,9 @@ boundary, not a public SDK. Header/index loading runs off the main thread, and
 obsolete open attempts cannot replace a newer session or show stale errors.
 
 `scripts/build-htslib.sh` downloads the official
-[HTSlib 1.25 release](https://github.com/samtools/htslib/releases/tag/1.25), verifies
-its pinned SHA-256, and builds a static library for macOS 15 or newer. The first
+[HTSlib 1.25 release](https://github.com/samtools/htslib/releases/tag/1.25)
+through its pinned official GitHub release-asset API ID, verifies its pinned
+SHA-256, and builds a static library for macOS 15 or newer. The first
 build needs network access; subsequent builds reuse the verified archive and
 toolchain-specific build. Optional networking, plugins, libdeflate, bzip2, and
 LZMA are disabled for this local-BAM scope. The app links system zlib and copies
@@ -189,7 +194,8 @@ results. Native checks exercise the actual scroll view, spinner, attached
 regional-error alert, and supersession of displayed/queued alerts. Renderer
 captures complement independently calculated geometry assertions. Every query
 finishes before its result becomes a successful view; this development slice
-shows all eligible records without truncation or sampling.
+uses complete eligible candidates before whole-view group sampling. The fixed
+2,000-group budget and its limits have [representative measurements](performance/sampling-2026-11-08.md).
 
 Record identity is the BAM virtual offset after each record within one opened
 file. It preserves distinct byte-identical records and deduplicates overlap
@@ -215,7 +221,8 @@ dropping the oldest when admitting another and replacing contained snapshots
 when a complete broader result is available. Snapshots supplying active query
 coverage or eligible candidates remain available independently of that historical
 limit. The active/provisional view and last successful recovery view also retain
-their records. This bounds inactive snapshot count, not active data, bytes, or
+their complete unsampled candidates separately from displayed samples. This
+bounds inactive snapshot count, not active data, bytes, or
 records in a dense region; no hard memory or latency limit is claimed. Wide views
 and fresh layouts do not clear this data; only a successful BAM replacement
 starts a new cache. Eviction permits a later reload, without promising historical
@@ -284,3 +291,53 @@ captures, raw timing/RSS data, reproducible acquisition, and explicit limits.
 Full-window cache captures with omitted layers were excluded as complete-window
 evidence. Separate native tests verified the real ruler/field, scrolling,
 spinner, and error sheets.
+
+## Sampling implementation
+
+On 2026-11-08, issue #7 added whole-target selection with a fixed internal budget
+of 2,000 groups, selected from [recorded native measurements](performance/sampling-2026-11-08.md).
+The application offers no budget or resampling control. The session constructor
+accepts controlled seeds, budgets, and priority functions for deterministic tests
+and separate measurements at the approved application-facing seam.
+
+Each successful BAM open draws a uniform UInt64 seed. Cancellation or failed
+replacement preserves the prior seed. Priorities are the first eight digest
+bytes of SHA-256, interpreted as an unsigned big-endian integer, over the
+big-endian eight-byte seed followed by this identity encoding:
+
+| Group | Encoded bytes |
+| --- | --- |
+| Unavailable QNAME (`*`) | `00`, then eight-byte big-endian BAM virtual offset after the record |
+| Named, absent RG | `01`, QNAME byte length as eight-byte big-endian integer, UTF-8 QNAME |
+| Named, present RG | `02`, RG byte length as eight-byte big-endian integer, UTF-8 RG, QNAME byte length in the same format, UTF-8 QNAME |
+
+An empty RG is present and remains distinct from absent RG. Length prefixes
+prevent pairs such as `(a, bc)` and `(ab, c)` from colliding. Reused exact
+`(RG, QNAME)` pairs stay together regardless of position, mate/supplementary
+flags, or sequence. Unnamed records use their own stable offsets. The seed and
+identity determine the priority without retaining previously encountered groups.
+Groups sort by descending priority; equal priorities sort by ascending
+lexicographic identity bytes, independent of query or cache order. Exactly
+`min(2000, N)` groups survive, with all their eligible loaded records. There are
+no bins, local quotas, outside-query mate fetches, or UMI-family aggregation.
+SHA-256 priorities implement the pseudorandom equal-inclusion intent; a
+particular sample does not preserve exact regional depth ratios.
+
+Complete query results stay in the data cache and successful recovery snapshot.
+Selection runs again on target-wide eligible candidates during reuse, new
+loads, and drag previews. The previous successful candidate snapshot survives
+partial-load failure independently of its displayed sample; narrowing after
+restoration can therefore recover a previously omitted group. Selection happens
+before packing; surviving displayed records retain their rows during nearby
+navigation. Disjoint typed targets and returns from ruler-only targets retain
+the established fresh-layout behavior. The fixed group budget bounds neither
+query work nor retained records, rows, memory, or load latency.
+
+The readable `sampling.sam` fixture includes cross-RG and absent/empty-RG names,
+unnamed records, a reused name at a distant position, mates, supplementary pieces,
+and filtered records. The `density.sam` fixture checks whole-view priorities
+without local quotas; `malformed-rg.sam` checks that present non-Z RG tags fail
+the regional load instead of becoming absent RG. Real BAI/CSI tests use independently specified tied-priority
+outcomes, exact budget boundaries, stable reloads, complete-candidate reuse,
+controlled completion/failure, and native status/renderer checks. Performance
+measurements remain separate from timing-insensitive correctness assertions.

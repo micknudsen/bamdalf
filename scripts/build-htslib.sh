@@ -3,6 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 version=1.25
+release_asset=681078941
 sha256=158c271e4e2986bb2dd11283b640edc10c56695b293df77a109ce99480303730
 destination="$PWD/.build/htslib"
 build_key=$( { shasum -a 256 "$0"; xcrun clang --version; xcrun --show-sdk-path; } | shasum -a 256)
@@ -14,8 +15,10 @@ fi
 archive="$PWD/.build/dependencies/htslib-$version.tar.bz2"
 mkdir -p "$(dirname "$archive")"
 if [[ ! -f "$archive" ]]; then
-    curl --fail --location --retry 3 \
-        "https://github.com/samtools/htslib/releases/download/$version/htslib-$version.tar.bz2" \
+    curl --fail --location --retry 3 --retry-all-errors \
+        --header "Accept: application/octet-stream" \
+        --header "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/repos/samtools/htslib/releases/assets/$release_asset" \
         --output "$archive"
 fi
 printf '%s  %s\n' "$sha256" "$archive" | shasum -a 256 --check

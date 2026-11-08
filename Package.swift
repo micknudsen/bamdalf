@@ -17,7 +17,7 @@ let package = Package(
         .target(name: "BamdalfKit", dependencies: ["CBAM"]),
         .executableTarget(name: "Bamdalf", dependencies: ["BamdalfKit"]),
         .executableTarget(name: "VisibilityBaseline", dependencies: ["BamdalfKit"], path: "Benchmarks",
-                          exclude: ["run-visibility-baseline.sh", "README.md", "Data"], sources: ["VisibilityBaseline.swift"]),
+                          exclude: ["run-visibility-baseline.sh", "run-sampling-baseline.sh", "README.md", "Data"], sources: ["VisibilityBaseline.swift"]),
         .testTarget(name: "BamdalfKitTests", dependencies: ["BamdalfKit"], resources: [.copy("Fixtures")]),
     ]
 )

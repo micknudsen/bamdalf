@@ -23,8 +23,12 @@ _Avoid_: Read, when referring specifically to one alignment record.
 **Downsampling**:
 Selecting a subset of otherwise eligible alignments for display. The intentional omissions are distinct from alignment data that has not yet finished loading.
 
+**Query template**:
+The originating sequenced fragment whose segments can yield mate and supplementary alignment records.
+_Avoid_: Read group, which identifies sequencing metadata rather than one fragment.
+
 **Sampling group**:
-A set of eligible, loaded alignment records from one query template, including records from its mates and supplementary alignments, treated as one unit for downsampling.
+A set of eligible, loaded alignment records treated as one unit for downsampling, intended to represent one originating query template, including mates and supplementary pieces. Missing names and reused identities can prevent exact correspondence to a biological fragment.
 _Avoid_: Read group, which has a distinct SAM/BAM metadata meaning.
 
 **SAM/BAM read group**:

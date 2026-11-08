@@ -32,6 +32,10 @@ public actor BAMFile {
             let flags = bamdalf_record_flags(query)
             if flags & 0x704 != 0 { continue }
             let name = String(cString: bamdalf_record_name(query))
+            var readGroup: UnsafePointer<CChar>?
+            guard bamdalf_record_read_group(query, &readGroup) == 0 else {
+                throw RegionalLoadError(interval: interval, message: "Alignment \(name) has an invalid RG tag; expected a string (Z).")
+            }
             guard bamdalf_record_cigar_count(query) > 0 else {
                 throw RegionalLoadError(interval: interval, message: "Mapped alignment \(name) has no CIGAR.")
             }
@@ -88,7 +92,7 @@ public actor BAMFile {
                 throw RegionalLoadError(interval: interval, message: "Alignment \(name) exceeds the reference bounds.")
             }
             if reference > start && start <= interval.end && reference > interval.start {
-                result.append(Alignment(id: bamdalf_record_id(query), name: name, cigar: cigar, isReverse: flags & 16 != 0,
+                result.append(Alignment(id: bamdalf_record_id(query), name: name, readGroup: readGroup.map { String(cString: $0) }, cigar: cigar, isReverse: flags & 16 != 0,
                                         referenceStart: start, referenceEnd: reference - 1, segments: segments))
             }
         }

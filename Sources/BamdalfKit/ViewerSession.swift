@@ -38,6 +38,7 @@ public struct ViewerPresentation {
     public var intervalError: String?
     public var isAlignmentSuppressed = false
     public var isLoading = false
+    public var isDownsampled = false
     public var alignments: [Alignment] = []
     public var rowCount = 0
     public var verticalOffset = 0.0
@@ -59,6 +60,9 @@ public final class ViewerSession {
     private var openingID = UUID()
     private var scrollGeneration: UInt64 = 0
     private var lastSuccessful: ViewerPresentation?
+    private var lastSuccessfulCandidates: [Alignment] = []
+    private var sampling: AlignmentSampling
+    private let samplingSeed: @Sendable () -> UInt64
     private var editorGeneration: UInt64 = 0
     private var draftGeneration: UInt64?
     private var regionalRequestID = UUID()
@@ -74,9 +78,13 @@ public final class ViewerSession {
         try await BAMFile.open($0, indexURL: $1)
     }, loadRegion: @escaping @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment] = {
         try await $0.alignments(in: $1)
-    }, alignmentVisibilityLimit: Int64 = 10_000) {
+    }, alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
+                samplingSeed: @escaping @Sendable () -> UInt64 = { UInt64.random(in: .min ... .max) },
+                samplingPriority: (@Sendable (UInt64, [UInt8]) -> UInt64)? = nil) {
         precondition(alignmentVisibilityLimit > 0)
         self.alignmentVisibilityLimit = alignmentVisibilityLimit
+        self.sampling = AlignmentSampling(budget: samplingGroupBudget, priority: samplingPriority)
+        self.samplingSeed = samplingSeed
         loadFile = loadBAM
         self.loadRegion = loadRegion
     }
@@ -119,7 +127,9 @@ public final class ViewerSession {
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
-        next.alignments = origin.isAlignmentSuppressed ? [] : Self.pack(available.records, retaining: presentation.alignments)
+        let selected = sampling.select(origin.isAlignmentSuppressed ? [] : available.records)
+        next.alignments = Self.pack(selected.records, retaining: presentation.alignments)
+        next.isDownsampled = selected.isDownsampled
         next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
         next.isLoading = false
         presentation = next
@@ -235,7 +245,9 @@ public final class ViewerSession {
             next.message = suppressed ? "Zoom in to see alignments" : ""
             next.isLoading = !suppressed && !available.missing.isEmpty
             next.isAlignmentSuppressed = suppressed
-            next.alignments = suppressed ? [] : Self.pack(available.records, retaining: continuous ? presentation.alignments : [])
+            let selected = sampling.select(suppressed ? [] : available.records)
+            next.alignments = Self.pack(selected.records, retaining: continuous ? presentation.alignments : [])
+            next.isDownsampled = selected.isDownsampled
             if !continuous { next.verticalOffset = 0 }
             let availableRows = (next.alignments.map(\.row).max() ?? -1) + 1
             next.rowCount = continuous ? max(next.rowCount, availableRows) : availableRows
@@ -245,10 +257,12 @@ public final class ViewerSession {
             if suppressed {
                 regionalTask = nil
                 lastSuccessful = presentation
+                lastSuccessfulCandidates = []
                 return nil
             }
             if available.missing.isEmpty {
                 regionalTask = nil
+                lastSuccessfulCandidates = available.records
                 lastSuccessful = presentation
                 return nil
             }
@@ -261,7 +275,9 @@ public final class ViewerSession {
                         regionalData.insert(loaded, for: missing, keeping: target)
                         records = RegionalData.eligible(records + loaded, for: target)
                         if dragOrigin == nil && index + 1 < available.missing.count {
-                            presentation.alignments = Self.pack(records, retaining: presentation.alignments)
+                            let selected = sampling.select(records)
+                            presentation.alignments = Self.pack(selected.records, retaining: presentation.alignments)
+                            presentation.isDownsampled = selected.isDownsampled
                             let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
                             presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
                                 ? max(presentation.rowCount, requiredRows) : requiredRows
@@ -301,7 +317,10 @@ public final class ViewerSession {
         }
         switch result {
         case .success(let records):
-            presentation.alignments = Self.pack(records, retaining: presentation.alignments)
+            let selected = sampling.select(records)
+            presentation.alignments = Self.pack(selected.records, retaining: presentation.alignments)
+            presentation.isDownsampled = selected.isDownsampled
+            lastSuccessfulCandidates = records
             let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
             presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
                 ? max(presentation.rowCount, requiredRows) : requiredRows
@@ -391,11 +410,12 @@ public final class ViewerSession {
         restored.verticalOffset = 0
         restored.message = lastSuccessful?.message ?? "Enter a genomic interval"
         restored.isLoading = false
+        restored.isDownsampled = lastSuccessful?.isDownsampled ?? false
         restored.isAlignmentSuppressed = lastSuccessful?.isAlignmentSuppressed ?? false
         if let target = restored.target, !restored.isAlignmentSuppressed {
             // Restoration already holds a complete result, even if intervening
             // partial queries evicted its historical cache entries.
-            regionalData.insert(restored.alignments, for: target, keeping: target)
+            regionalData.insert(lastSuccessfulCandidates, for: target, keeping: target)
         }
         if draftGeneration == nil || draftGeneration! <= generation {
             restored.intervalText = restored.target?.formatted ?? ""
@@ -462,6 +482,8 @@ public final class ViewerSession {
             dragOrigin = nil
             deferredRegionalCompletion = nil
             lastSuccessful = nil
+            lastSuccessfulCandidates = []
+            sampling.seed = samplingSeed()
             regionalData = RegionalData()
             draftGeneration = nil
             presentation = ViewerPresentation()
