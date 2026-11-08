@@ -14,7 +14,7 @@ fi
 archive="$PWD/.build/dependencies/htslib-$version.tar.bz2"
 mkdir -p "$(dirname "$archive")"
 if [[ ! -f "$archive" ]]; then
-    curl --fail --location --retry 3 \
+    curl --fail --location --retry 3 --retry-all-errors \
         "https://github.com/samtools/htslib/releases/download/$version/htslib-$version.tar.bz2" \
         --output "$archive"
 fi
