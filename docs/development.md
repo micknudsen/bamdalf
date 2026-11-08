@@ -127,8 +127,9 @@ boundary, not a public SDK. Header/index loading runs off the main thread, and
 obsolete open attempts cannot replace a newer session or show stale errors.
 
 `scripts/build-htslib.sh` downloads the official
-[HTSlib 1.25 release](https://github.com/samtools/htslib/releases/tag/1.25), verifies
-its pinned SHA-256, and builds a static library for macOS 15 or newer. The first
+[HTSlib 1.25 release](https://github.com/samtools/htslib/releases/tag/1.25)
+through its pinned official GitHub release-asset API ID, verifies its pinned
+SHA-256, and builds a static library for macOS 15 or newer. The first
 build needs network access; subsequent builds reuse the verified archive and
 toolchain-specific build. Optional networking, plugins, libdeflate, bzip2, and
 LZMA are disabled for this local-BAM scope. The app links system zlib and copies
