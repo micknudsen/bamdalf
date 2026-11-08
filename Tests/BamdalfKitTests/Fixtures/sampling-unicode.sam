@@ -1,0 +1,4 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:2000
+shared	0	tiny	101	60	4M	*	0	0	ACGT	*	RG:Z:é
+shared	0	tiny	105	60	4M	*	0	0	ACGT	*	RG:Z:é

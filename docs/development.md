@@ -315,13 +315,20 @@ An empty RG is present and remains distinct from absent RG. Length prefixes
 prevent pairs such as `(a, bc)` and `(ab, c)` from colliding. Reused exact
 `(RG, QNAME)` pairs stay together regardless of position, mate/supplementary
 flags, or sequence. Unnamed records use their own stable offsets. The seed and
-identity determine the priority without retaining previously encountered groups.
+identity determine the priority without requiring a history of earlier groups.
 Groups sort by descending priority; equal priorities sort by ascending
 lexicographic identity bytes, independent of query or cache order. Exactly
 `min(2000, N)` groups survive, with all their eligible loaded records. There are
 no bins, local quotas, outside-query mate fetches, or UMI-family aggregation.
 SHA-256 priorities implement the pseudorandom equal-inclusion intent; a
 particular sample does not preserve exact regional depth ratios.
+
+The sampler reuses priorities only for the immediately preceding candidate
+group set. It replaces that map on every sampled selection and clears it for
+unsampled/empty selections and every session-seed assignment. This avoids an
+inventory of all earlier groups. Internal set keys hash their complete encoded
+byte buffer at once; SHA-256 still receives the same seed and identity bytes,
+and equal priorities still use the same bytewise tie ordering.
 
 Complete query results stay in the data cache and successful recovery snapshot.
 Selection runs again on target-wide eligible candidates during reuse, new
@@ -336,7 +343,8 @@ query work nor retained records, rows, memory, or load latency.
 The readable `sampling.sam` fixture includes cross-RG and absent/empty-RG names,
 unnamed records, a reused name at a distant position, mates, supplementary pieces,
 and filtered records. The `density.sam` fixture checks whole-view priorities
-without local quotas; `malformed-rg.sam` checks that present non-Z RG tags fail
+without local quotas; `sampling-unicode.sam` preserves byte-distinct RG values
+that Unicode string comparison would consider equivalent. `malformed-rg.sam` checks that present non-Z RG tags fail
 the regional load instead of becoming absent RG. Real BAI/CSI tests use independently specified tied-priority
 outcomes, exact budget boundaries, stable reloads, complete-candidate reuse,
 controlled completion/failure, and native status/renderer checks. Performance
