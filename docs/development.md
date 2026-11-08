@@ -38,6 +38,9 @@ The script builds the release executable, packages its native application bundle
 and applies an ad hoc signature for local use. No paid Apple developer account
 is needed. This is a development app, not a notarized distribution.
 
+For versioned ZIP packaging and the manual GitHub draft-release workflow, see
+[Preview releases](releases.md).
+
 The launch window contains a full-width workspace with **No BAM file open**.
 Use **File → Open BAM…** / **Command-O** to select a local BAM. The app discovers
 `sample.bam.bai`, `sample.bai`, `sample.bam.csi`, and `sample.csi` beside

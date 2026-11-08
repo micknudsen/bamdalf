@@ -7,3 +7,6 @@
 # Native build products and local SwiftPM state.
 /.build/
 /.swiftpm/
+
+# Python release-tool bytecode.
+__pycache__/

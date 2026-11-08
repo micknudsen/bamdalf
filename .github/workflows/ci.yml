@@ -49,6 +49,8 @@ jobs:
           test "$(uname -m)" = arm64
           xcodebuild -version
           swift --version
+      - name: Test release version validation
+        run: python3 -m unittest discover -s scripts/tests
       - name: Build native application
         env:
           BAMDALF_GITHUB_TOKEN: ${{ github.token }}
@@ -59,7 +61,9 @@ jobs:
       - name: Test viewer session and native workspace
         run: bash scripts/test.sh
       - name: Package native application
-        run: bash scripts/build-app.sh
+        run: |
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+          bash scripts/package-release.sh "v$version"
 
   required-checks:
     name: Required checks

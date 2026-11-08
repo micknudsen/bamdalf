@@ -11,6 +11,7 @@ reuses loaded data and preserves retained rows and vertical scrolling.
 Graphical pan/zoom controls remain in the next implementation tickets.
 
 - [Build, test, and launch](docs/development.md)
+- [Prepare preview releases](docs/releases.md)
 - [Design](docs/design.md)
 - [Domain glossary](GLOSSARY.md)
 - [Future functionality](docs/backlog.md)
