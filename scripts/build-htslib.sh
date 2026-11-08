@@ -15,12 +15,20 @@ fi
 archive="$PWD/.build/dependencies/htslib-$version.tar.bz2"
 mkdir -p "$(dirname "$archive")"
 if [[ ! -f "$archive" ]]; then
-    curl --fail --location --retry 3 --retry-all-errors \
+    # Read the optional credential from stdin so it never enters curl's argv.
+    # --location strips Authorization on cross-host redirects; do not use
+    # --location-trusted, which would forward it to the asset storage host.
+    {
+        if [[ -n "${BAMDALF_GITHUB_TOKEN:-}" ]]; then
+            printf 'Authorization: Bearer %s\n' "$BAMDALF_GITHUB_TOKEN"
+        fi
+    } | curl --fail --location --retry 3 --retry-all-errors --header @- \
         --header "Accept: application/octet-stream" \
         --header "X-GitHub-Api-Version: 2022-11-28" \
         "https://api.github.com/repos/samtools/htslib/releases/assets/$release_asset" \
         --output "$archive"
 fi
+unset BAMDALF_GITHUB_TOKEN
 printf '%s  %s\n' "$sha256" "$archive" | shasum -a 256 --check
 
 build_directory=$(mktemp -d "$PWD/.build/dependencies/build.XXXXXX")

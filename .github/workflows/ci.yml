@@ -50,8 +50,11 @@ jobs:
           xcodebuild -version
           swift --version
       - name: Build native application
+        env:
+          BAMDALF_GITHUB_TOKEN: ${{ github.token }}
         run: |
           bash scripts/build-htslib.sh
+          unset BAMDALF_GITHUB_TOKEN
           swift build
       - name: Test viewer session and native workspace
         run: bash scripts/test.sh

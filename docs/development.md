@@ -136,6 +136,12 @@ LZMA are disabled for this local-BAM scope. The app links system zlib and copies
 the upstream HTSlib/HTScodecs licenses into its bundle. It needs no Homebrew
 libraries or runtime samtools executable. Run the dependency script again after
 cleaning `.build` or changing Xcode. CI runs the same script before Swift builds.
+CI supplies its existing read-only GitHub token for the public release-asset API
+request; local downloads are anonymous unless `BAMDALF_GITHUB_TOKEN` is set.
+The script reads the optional authorization header through stdin, keeps it off
+the curl command line, and strips it on the redirect to the asset storage host.
+This avoids sharing the anonymous API quota with other hosted-runner users;
+the asset ID, checksum, TLS verification, and token permissions stay unchanged.
 
 `ViewerSession` owns the application-facing presentation consumed by the real
 native workspace. Swift Testing checks that seam and the actual AppKit window.
