@@ -107,9 +107,13 @@ int bamdalf_query_next(bamdalf_query *query) {
 }
 uint64_t bamdalf_record_id(const bamdalf_query *query) { return bgzf_tell(query->bam->file->fp.bgzf); }
 const char *bamdalf_record_name(const bamdalf_query *query) { return bam_get_qname(query->record); }
-const char *bamdalf_record_read_group(const bamdalf_query *query) {
+int bamdalf_record_read_group(const bamdalf_query *query, const char **read_group) {
     uint8_t *tag = bam_aux_get(query->record, "RG");
-    return tag ? bam_aux2Z(tag) : NULL;
+    *read_group = NULL;
+    if (!tag) return 0;
+    if (*tag != 'Z') return -1;
+    *read_group = bam_aux2Z(tag);
+    return *read_group ? 0 : -1;
 }
 uint16_t bamdalf_record_flags(const bamdalf_query *query) { return query->record->core.flag; }
 int64_t bamdalf_record_start(const bamdalf_query *query) { return query->record->core.pos; }

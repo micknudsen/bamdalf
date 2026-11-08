@@ -334,7 +334,9 @@ query work nor retained records, rows, memory, or load latency.
 
 The readable `sampling.sam` fixture includes cross-RG and absent/empty-RG names,
 unnamed records, a reused name at a distant position, mates, supplementary pieces,
-and filtered records. Real BAI/CSI tests use independently specified tied-priority
+and filtered records. The `density.sam` fixture checks whole-view priorities
+without local quotas; `malformed-rg.sam` checks that present non-Z RG tags fail
+the regional load instead of becoming absent RG. Real BAI/CSI tests use independently specified tied-priority
 outcomes, exact budget boundaries, stable reloads, complete-candidate reuse,
 controlled completion/failure, and native status/renderer checks. Performance
 measurements remain separate from timing-insensitive correctness assertions.

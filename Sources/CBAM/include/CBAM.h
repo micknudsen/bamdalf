@@ -16,7 +16,7 @@ void bamdalf_query_close(bamdalf_query *query);
 int bamdalf_query_next(bamdalf_query *query);
 uint64_t bamdalf_record_id(const bamdalf_query *query);
 const char *bamdalf_record_name(const bamdalf_query *query);
-const char *bamdalf_record_read_group(const bamdalf_query *query);
+int bamdalf_record_read_group(const bamdalf_query *query, const char **read_group);
 uint16_t bamdalf_record_flags(const bamdalf_query *query);
 int64_t bamdalf_record_start(const bamdalf_query *query);
 uint32_t bamdalf_record_cigar_count(const bamdalf_query *query);

@@ -217,4 +217,21 @@ struct SamplingTests {
         #expect(session.presentation.alignments.filter { $0.referenceStart < 2000 }.count == 4)
         #expect(session.presentation.alignments.filter { $0.referenceStart >= 2000 }.count == 4)
     }
+
+    @Test(arguments: [17001, 18001])
+    @MainActor
+    func malformedPresentReadGroupFailsTheRegionInsteadOfUsingAbsentNamespace(start: Int) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession(fixture: "malformed-rg")
+        session.editInterval("tiny:101-110")
+        await session.submitInterval()?.value
+        let prior = session.presentation.alignments
+        session.editInterval("tiny:\(start)-\(start + 9)")
+        await session.submitInterval()?.value
+        #expect(session.presentation.regionalError?.message.contains("RG") == true)
+        #expect(session.presentation.target?.formatted == "tiny:101-110")
+        #expect(session.presentation.alignments == prior)
+        #expect(!session.presentation.isLoading)
+    }
 }

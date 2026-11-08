@@ -1,0 +1,5 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:30000
+good	0	tiny	101	60	10M	*	0	0	ACGTACGTAC	*
+wrong-integer	0	tiny	17001	60	10M	*	0	0	ACGTACGTAC	*	RG:i:7
+wrong-hex	0	tiny	18001	60	10M	*	0	0	ACGTACGTAC	*	RG:H:AB
