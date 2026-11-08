@@ -1,0 +1,24 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:30000
+@SQ	SN:other	LN:30000
+@RG	ID:a
+@RG	ID:b
+@RG	ID:ab
+shared	65	tiny	101	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:a
+shared	129	tiny	102	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:a
+shared	2048	tiny	103	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:a
+shared	65	tiny	104	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:b
+shared	129	tiny	105	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:b
+shared	0	tiny	106	0	10M	*	0	0	ACGTACGTAC	*
+*	0	tiny	107	0	10M	*	0	0	ACGTACGTAC	*
+*	0	tiny	108	0	10M	*	0	0	ACGTACGTAC	*
+shared	0	tiny	109	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:
+bc	0	tiny	110	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:a
+c	0	tiny	111	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:ab
+filtered	256	tiny	112	0	10M	*	0	0	ACGTACGTAC	*
+filtered	512	tiny	113	0	10M	*	0	0	ACGTACGTAC	*
+filtered	1024	tiny	114	0	10M	*	0	0	ACGTACGTAC	*
+filtered	2304	tiny	115	0	10M	*	0	0	ACGTACGTAC	*
+shared	0	tiny	401	0	10M	*	0	0	ACGTACGTAC	*	RG:Z:a
+newcomer	0	tiny	501	0	10M	*	0	0	ACGTACGTAC	*
+outside	0	tiny	15001	0	10M	*	0	0	ACGTACGTAC	*

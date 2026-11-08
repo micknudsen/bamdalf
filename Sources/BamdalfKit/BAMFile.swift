@@ -88,7 +88,7 @@ public actor BAMFile {
                 throw RegionalLoadError(interval: interval, message: "Alignment \(name) exceeds the reference bounds.")
             }
             if reference > start && start <= interval.end && reference > interval.start {
-                result.append(Alignment(id: bamdalf_record_id(query), name: name, cigar: cigar, isReverse: flags & 16 != 0,
+                result.append(Alignment(id: bamdalf_record_id(query), name: name, readGroup: bamdalf_record_read_group(query).map { String(cString: $0) }, cigar: cigar, isReverse: flags & 16 != 0,
                                         referenceStart: start, referenceEnd: reference - 1, segments: segments))
             }
         }

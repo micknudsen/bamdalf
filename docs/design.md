@@ -1,6 +1,6 @@
 # Bamdalf MVP design
 
-Updated 2026-11-07. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 decisions were finalized by the user on 2026-11-07; the remaining named decisions are listed below. Native opening and coordinate/ruler increments were merged through PR #15; no final WGS performance qualification has been completed.
+Updated 2026-11-08. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 were finalized on 2026-11-07; D3/D4 were finalized in Q97–Q110 and confirmed by the user on 2026-11-08. Native navigation was delivered through PR #20. The issue #7 sampling implementation and measurements accompany this revision; final qualification remains a separate issue #11 task.
 
 Use US English in documentation and UI text. Terms are defined in [GLOSSARY.md](../GLOSSARY.md); deferred features are in [backlog.md](backlog.md). The [decision index](#decision-index) preserves the identifiers used in research notes without requiring the interview transcript.
 
@@ -10,7 +10,7 @@ The first milestone is a native macOS application for Apple Silicon that opens o
 
 The representative benchmark is **100× WGS, paired-end reads around 150 bases per read (approximately 2 × 150 bp), aligned to hg38**. Include ordinary regions and locally much deeper pileups. These are benchmark characteristics, not input restrictions or a cap on local depth. The viewer does not require a reference FASTA or restrict accepted BAMs to hg38 or exact 150-base reads.
 
-Final qualification datasets, reference bundles and contig sets, sequencing platform, test hardware, and measurable responsiveness/memory targets remain to be selected. Choose the internal sampling budget and alignment-visibility threshold using representative measurements. The initial visibility cutoff is supported by the [2026-11-07 regional baseline](performance/visibility-2026-11-07.md). No numerical sampling budget, final 100× qualification, or performance advantage over IGV has been established.
+The accepted [qualification plan](performance/qualification-plan-2026-11-08.md) fixes the M4/16 GiB baseline, derived approximately 100× HG002 regional panel, provisional latency/memory targets, and evidence-based revision policy. Exact acquisition and measurement details are delegated to implementation, before qualification results are collected. Choose the numerical sampling budget and visibility threshold through representative measurement. The initial 10 kb cutoff has [early supporting measurements](performance/visibility-2026-11-07.md); the [sampling baseline](performance/sampling-2026-11-08.md) selects an initial 2,000-group budget. Final WGS qualification remains separate.
 
 ## Window and native controls
 
@@ -176,7 +176,11 @@ Keep the sampling status with reused or restored views. Loading, intentional sam
 
 A **sampling group** contains eligible, loaded records from one query template, including mates and supplementary pieces. It is distinct from SAM/BAM `@RG` metadata and does not combine duplicate molecules or UMI families. For example, eligible loaded R1 primary, R1 supplementary, and R2 primary records can form one group of three records.
 
-Keep or omit all eligible loaded members of a group together, including members in different parts of the interval; when a group leaves the sample, remove its retained members together. Filters apply first. Do not fetch records outside the regional query just to complete groups, and continue to draw their members independently. Exact group identity and coordination across separately loaded/cached data remain open.
+Keep or omit all eligible loaded members of a group together, including members in different parts of the interval; when a group leaves the sample, remove its retained members together. Filters apply first. Do not fetch records outside the regional query just to complete groups, and continue to draw their members independently. The same identity rules apply across separately loaded and cached data.
+
+D3 resolved 2026-11-08 (Q97–Q102): For named records, sampling identity is the exact pair (RG, QNAME). A missing RG uses a distinct no-read-group namespace; never infer it from other records. Each record with unavailable QNAME (*) is its own group with stable per-record identity across reloads. Reused (RG, QNAME) keys remain one group even for unrelated fragments; do not split by position or sequence. This is a limitation of available identity, not a guarantee of biological uniqueness. Different RGs never combine merely because QNAME matches.
+
+Break equal pseudorandom priorities deterministically using stable group identities, independently of retrieval order and cache state. The implementing agent chooses and documents the exact hash, unambiguous identity encoding, and tie ordering, with independently expected identity/tie cases and repeatability tests. Preserve the existing session-seed, highest-priority, exact-budget, and equal-inclusion-intent contract.
 
 Use one uniform whole-view sample, with **no bins or local quotas**. Let `N` be the number of eligible groups for the target and `B` the fixed internal group budget. Retain `min(B, N)` groups. Show all when `N <= B`; otherwise each group has inclusion probability `B/N`, uniformly without replacement. An empty candidate set is a successful empty view. The same rule covers cached data; the candidate set must represent the target, not merely an already-sampled cached subset.
 
@@ -184,7 +188,7 @@ Equal inclusion probability preserves relative density in expectation, including
 
 Give each group a stable pseudorandom priority derived reproducibly from one random seed for the current open-BAM session and a stable group identifier. Recompute priorities when needed; no inventory of every previously encountered group is required. Retain the groups with the **highest** priorities. Overlapping views intentionally share priorities, making nearby selections correlated. Returning to the same eligible candidates/settings reproduces the sample even after eviction and reload. A changed candidate set can change membership; reopening the BAM may choose a new seed. There is no manual Redo downsampling action in the MVP.
 
-Choose one numerical `B` through representative testing and keep it fixed across views, without a user-facing setting. The retained fraction varies with `N`. Each group counts once, so `B` is not a cap on alignment records, rows, local depth, total memory, or query time, and downsampling does not guarantee faster BAM scanning. Priority function, encoding, collision/tie handling, exact candidates, selection algorithm, cache reconciliation, and separate resource limits remain unresolved. Stable priorities alone do not guarantee stable row placement.
+Choose one numerical `B` through representative testing and keep it fixed across views, without a user-facing setting. The retained fraction varies with `N`. Each group counts once, so `B` is not a cap on alignment records, rows, local depth, total memory, or query time, and downsampling does not guarantee faster BAM scanning. Hash, unambiguous encoding, and deterministic identity-based tie ordering are delegated within the resolved D3 contract. Selection structures, cache reconciliation, and resource mechanisms remain implementation choices; D1 defines complete target candidates and the qualification plan defines provisional resource targets. Stable priorities alone do not guarantee stable row placement.
 
 See the [downsampling evidence](research/downsampling-2026-11-01.md), [navigation-stability research](research/navigation-stability-2026-11-05.md), and [priority/memory research](research/sampling-priorities-memory-2026-11-06.md) for source findings and illustrative mechanisms, rather than additional implementation requirements.
 
@@ -227,9 +231,9 @@ The following are open choices, not accepted implementation requirements. Resolv
 | --- | --- |
 | Input and rendering correctness | D1/D2 resolved on 2026-11-07 above; implement incremental validation and reference-overlap completeness |
 | Coordinates and layout | Internal representation/conversion boundaries; integer rounding; ruler spacing; marker bounds/crowding; row packing consistent with continuity; narrow-body drawing |
-| Sampling and resources | Stable group identity; priority function/encoding/ties; adequate candidates across loads; selection algorithm; bounded cache and active row state; cancellation/scheduling and independent resource limits |
+| Sampling and resources | Implement resolved D1/D3 identity, complete candidates, and stable selection; choose/document hash and encoding, selection structures, cache and active row state, scheduling, and resource mechanisms |
 | File handling | Engineering detection mechanisms within the accepted incremental-validation and explicit-index contracts |
-| Benchmark and validation | Actual data/reference bundle/regions/hardware; measurable latency and memory goals; numerical group budget/visibility cutoff; agreed public test boundaries |
+| Benchmark and validation | Prepare the agreed D4 panel and fixed protocol; measure provisional targets and record justified revisions; tune numerical group budget/visibility cutoff |
 | Native application and delivery | Toolchain and dependency choices; build/CI setup; effective repository protection and checks; ticket/tracker configuration |
 
 Swift, SwiftUI/AppKit, a narrow HTSlib adapter, and native drawing are candidate architecture choices. No specific adapter, hash, streaming algorithm, cache design, or renderer is selected by this record. Introduce Metal or other specialized optimization only when measurements justify it. The installed tools and repository settings must be verified during setup; historical local tool observations are not a portable build guarantee.
@@ -287,3 +291,5 @@ These identifiers preserve traceability for research references. The topical sec
 | Q91–Q92 | Superseded by native alert/focus/selection behavior on 2026-11-07 |
 | Q93 | Withdrawn; no custom Esc-to-cancel-drag requirement |
 | Q94–Q96 | 100× WGS, approximately 2 × 150 bp, hg38 benchmark |
+| Q97–Q102 | D3 fragment identity, absent metadata, reused names, deterministic priority ties, and delegated hash/encoding |
+| Q103–Q110 | D4 hardware/data plan, provisional performance targets, evidence-based revisions, and delegated protocol |

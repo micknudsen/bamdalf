@@ -13,6 +13,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let intervalError = NSTextField(wrappingLabelWithString: "")
     private let ruler = GenomicRulerView(frame: .zero)
     private let loadingIndicator = NSProgressIndicator()
+    private let samplingWarning = SamplingWarningButton()
     private var regionalAlert: (id: UUID, alert: NSAlert)?
     private let alignmentScroll = NSScrollView()
     private let alignmentStack = GenomicAlignmentView(frame: .zero)
@@ -82,6 +83,14 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         NSLayoutConstraint.activate([
             loadingIndicator.leadingAnchor.constraint(equalTo: intervalField.trailingAnchor, constant: 10),
             loadingIndicator.centerYAnchor.constraint(equalTo: intervalField.centerYAnchor),
+        ])
+        samplingWarning.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(samplingWarning)
+        NSLayoutConstraint.activate([
+            samplingWarning.leadingAnchor.constraint(equalTo: intervalField.trailingAnchor, constant: 10),
+            samplingWarning.centerYAnchor.constraint(equalTo: intervalField.centerYAnchor),
+            samplingWarning.widthAnchor.constraint(equalToConstant: 18),
+            samplingWarning.heightAnchor.constraint(equalToConstant: 18),
         ])
         intervalError.font = .systemFont(ofSize: 12)
         intervalError.textColor = .systemRed
@@ -253,6 +262,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         }
         intervalError.stringValue = presentation.intervalError ?? ""
         intervalError.isHidden = presentation.intervalError == nil
+        samplingWarning.show(!presentation.isLoading && presentation.isDownsampled)
         loadingIndicator.isHidden = !presentation.isLoading
         if presentation.isLoading { loadingIndicator.startAnimation(nil) }
         else { loadingIndicator.stopAnimation(nil) }
