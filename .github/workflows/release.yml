@@ -1,0 +1,131 @@
+name: Prepare preview release
+run-name: Prepare ${{ github.ref_name }} (unnotarized preview)
+
+# A version tag prepares an unpublished draft; publication remains manual.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Build unnotarized preview
+    if: ${{ !github.event.deleted }}
+    runs-on: macos-15
+    timeout-minutes: 35
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the exact tagged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate tagged source and wait for its master CI
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/release_metadata.py "$RELEASE_TAG"
+          source_sha=$(git rev-parse HEAD)
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$source_sha"
+          if ! git merge-base --is-ancestor "$source_sha" origin/master; then
+            echo 'Release tags must identify a commit merged into master.' >&2
+            exit 1
+          fi
+          # A tag may arrive just after its commit is pushed. Allow CI to appear,
+          # then wait for that exact commit's newest master push run to succeed.
+          run_id=''
+          for attempt in {1..12}; do
+            run_id=$(gh run list --workflow ci.yml --commit "$source_sha" \
+              --branch master --event push --limit 1 --json databaseId \
+              --jq '.[0].databaseId // empty')
+            if [[ -n "$run_id" ]]; then break; fi
+            sleep 5
+          done
+          if [[ -z "$run_id" ]]; then
+            echo 'No master push CI run exists for this exact tagged commit.' >&2
+            exit 1
+          fi
+          gh run watch "$run_id" --exit-status --interval 10
+          printf 'sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Build the pinned native dependency
+        env:
+          BAMDALF_GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/build-htslib.sh
+      - name: Test release tooling and native release build
+        run: |
+          python3 -m unittest discover -s scripts/tests
+          bash scripts/test.sh --configuration release
+      - name: Package and verify the unnotarized preview
+        run: bash scripts/package-release.sh "$RELEASE_TAG"
+      - name: Retain release assets for review
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Bamdalf-${{ github.ref_name }}-unnotarized
+          path: .build/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft:
+    name: Create draft prerelease
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download the exact assets from this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Bamdalf-${{ github.ref_name }}-unnotarized
+          path: release-assets
+      - name: Verify assets and create draft without publishing
+        working-directory: release-assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS
+          # Recheck the remote tag in case it moved after the build started.
+          test "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)" = "$SOURCE_SHA"
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          This is an early, unnotarized preview for Apple Silicon Macs running macOS 15 or newer.
+
+          The app has an ad hoc signature. It is not Developer ID signed or notarized by Apple;
+          macOS Gatekeeper may block it.
+
+          Download the Bamdalf ZIP asset, extract it, and move Bamdalf.app into Applications.
+          GitHub's automatic source archives do not contain a runnable app.
+
+          Review and edit these notes and the generated changelog before publishing.
+          NOTES
+          printf '\n[Installation and verification](https://github.com/%s/blob/%s/docs/releases.md)\n' \
+            "$GH_REPO" "$SOURCE_SHA" >> "$RUNNER_TEMP/release-notes.md"
+          printf '\n[Build workflow](https://github.com/%s/actions/runs/%s) · Source commit: `%s`\n' \
+            "$GH_REPO" "$GITHUB_RUN_ID" "$SOURCE_SHA" >> "$RUNNER_TEMP/release-notes.md"
+          # Never overwrite an existing release or create a missing tag.
+          gh release create "$RELEASE_TAG" \
+            "Bamdalf-$RELEASE_TAG-macos-arm64-unnotarized.zip" \
+            SHA256SUMS BUILD-INFO.txt release-metadata.json \
+            --verify-tag --draft --prerelease --latest=false \
+            --title "Bamdalf $RELEASE_TAG (unnotarized preview)" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes
