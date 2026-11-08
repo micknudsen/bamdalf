@@ -35,6 +35,13 @@ struct NativeSamplingTests {
         #expect(warning.accessibilityLabel() == text)
         #expect(warning.accessibilityHelp() == text)
         #expect(warning.contentTintColor == .systemOrange)
+        window.setContentSize(window.contentMinSize)
+        workspace.layoutSubtreeIfNeeded()
+        let field = try #require(workspace.subviews.compactMap { $0 as? NSTextField }.first { $0.isEditable })
+        #expect(warning.frame.minX > field.frame.maxX)
+        #expect(workspace.bounds.contains(warning.frame))
+        window.setContentSize(NSSize(width: 1100, height: 720))
+        workspace.layoutSubtreeIfNeeded()
         #expect(window.makeFirstResponder(warning))
         #expect(window.firstResponder === warning)
         func containsExplanation(_ view: NSView) -> Bool {
