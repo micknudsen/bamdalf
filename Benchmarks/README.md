@@ -1,5 +1,15 @@
 # Native alignment visibility baseline
 
+For the completed viewer workload, see the
+[2026-11-08 qualification report](../docs/performance/qualification-2026-11-08.md),
+its [fixed v2 protocol](qualification-protocol-v2.json), and the
+[broader derived approximately 100× data recipe](Data/qualification-README.md).
+The report includes the case-per-process reproduction loop for `Qualification`,
+native navigation/drawing boundaries, all timing outcomes, and the ten-minute
+memory trace. Run each named case in its own process: the result summarizer
+rejects combined-process runs. The older baseline below remains useful for its
+separate unsampled visibility and sampling-budget comparisons.
+
 `VisibilityBaseline` measures the actual viewer session, window controller, and alignment `NSView` using a local indexed BAM. It is a measurement executable, not a renderer implementation or a correctness test. It sets the session's visibility limit to `Int64.max` so candidate widths remain measurable after the application default is selected. Its three-argument form also explicitly disables sampling with an unlimited group budget, preserving the original visibility comparison after the app's sampling default is selected.
 
 Build and run from repository root, with the project HTSlib bootstrap already completed:

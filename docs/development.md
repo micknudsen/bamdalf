@@ -136,6 +136,12 @@ LZMA are disabled for this local-BAM scope. The app links system zlib and copies
 the upstream HTSlib/HTScodecs licenses into its bundle. It needs no Homebrew
 libraries or runtime samtools executable. Run the dependency script again after
 cleaning `.build` or changing Xcode. CI runs the same script before Swift builds.
+CI supplies its existing read-only GitHub token for the public release-asset API
+request; local downloads are anonymous unless `BAMDALF_GITHUB_TOKEN` is set.
+The script reads the optional authorization header through stdin, keeps it off
+the curl command line, and strips it on the redirect to the asset storage host.
+This avoids sharing the anonymous API quota with other hosted-runner users;
+the asset ID, checksum, TLS verification, and token permissions stay unchanged.
 
 `ViewerSession` owns the application-facing presentation consumed by the real
 native workspace. Swift Testing checks that seam and the actual AppKit window.
@@ -315,13 +321,20 @@ An empty RG is present and remains distinct from absent RG. Length prefixes
 prevent pairs such as `(a, bc)` and `(ab, c)` from colliding. Reused exact
 `(RG, QNAME)` pairs stay together regardless of position, mate/supplementary
 flags, or sequence. Unnamed records use their own stable offsets. The seed and
-identity determine the priority without retaining previously encountered groups.
+identity determine the priority without requiring a history of earlier groups.
 Groups sort by descending priority; equal priorities sort by ascending
 lexicographic identity bytes, independent of query or cache order. Exactly
 `min(2000, N)` groups survive, with all their eligible loaded records. There are
 no bins, local quotas, outside-query mate fetches, or UMI-family aggregation.
 SHA-256 priorities implement the pseudorandom equal-inclusion intent; a
 particular sample does not preserve exact regional depth ratios.
+
+The sampler reuses priorities only for the immediately preceding candidate
+group set. It replaces that map on every sampled selection and clears it for
+unsampled/empty selections and every session-seed assignment. This avoids an
+inventory of all earlier groups. Internal set keys hash their complete encoded
+byte buffer at once; SHA-256 still receives the same seed and identity bytes,
+and equal priorities still use the same bytewise tie ordering.
 
 Complete query results stay in the data cache and successful recovery snapshot.
 Selection runs again on target-wide eligible candidates during reuse, new
@@ -336,7 +349,8 @@ query work nor retained records, rows, memory, or load latency.
 The readable `sampling.sam` fixture includes cross-RG and absent/empty-RG names,
 unnamed records, a reused name at a distant position, mates, supplementary pieces,
 and filtered records. The `density.sam` fixture checks whole-view priorities
-without local quotas; `malformed-rg.sam` checks that present non-Z RG tags fail
+without local quotas; `sampling-unicode.sam` preserves byte-distinct RG values
+that Unicode string comparison would consider equivalent. `malformed-rg.sam` checks that present non-Z RG tags fail
 the regional load instead of becoming absent RG. Real BAI/CSI tests use independently specified tied-priority
 outcomes, exact budget boundaries, stable reloads, complete-candidate reuse,
 controlled completion/failure, and native status/renderer checks. Performance

@@ -5,6 +5,23 @@ import BamdalfKit
 struct SamplingTests {
     @Test(arguments: ["bai", "csi"])
     @MainActor
+    func byteDistinctReadGroupsRemainSeparateDespiteUnicodeCanonicalEquivalence(index: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = ViewerSession(samplingGroupBudget: 1, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
+        try await files.openedSession(fixture: "sampling-unicode", indexFormat: index, session: session)
+        session.editInterval("tiny:100-120")
+        await session.submitInterval()?.value
+        #expect(session.presentation.isDownsampled)
+        #expect(session.presentation.alignments.count == 1)
+        // The two-byte composed RG sorts before the three-byte decomposed RG
+        // in the independently specified length-prefixed identity encoding.
+        #expect(session.presentation.alignments.map(\.referenceStart) == [101])
+        #expect(session.presentation.alignments.first?.readGroup.map { Array($0.utf8) } == [0xC3, 0xA9])
+    }
+
+    @Test(arguments: ["bai", "csi"])
+    @MainActor
     func exactGroupBudgetCoordinatesEligibleMembersAfterFiltering(index: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
