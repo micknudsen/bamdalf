@@ -112,8 +112,9 @@ ready to create the release tag.
    preparation. An older merged commit is valid even if master has advanced.
 4. After CI succeeds, the workflow runs native release tests, packages and
    verifies the ZIP, uploads an Actions artifact, then creates a **draft
-   release** with the app ZIP, `SHA256SUMS`, `BUILD-INFO.txt`, and
-   `release-metadata.json`. Only the draft job has repository write permission.
+   release** with the app ZIP and `SHA256SUMS`. The ZIP includes `BUILD-INFO.txt`
+   and `release-metadata.json` beside the app. Only the draft job has repository
+   write permission.
 5. When the workflow succeeds, open **Releases** on GitHub and edit the draft.
    Replace the editing reminder with a useful feature summary and limitations;
    review the generated changelog. The draft includes the source commit and a
@@ -137,7 +138,7 @@ merged commit and a new version tag because reruns use the original tagged code.
 
 ## Verify the downloaded app
 
-Download all four assets to the same directory. In Terminal:
+Download the app ZIP and `SHA256SUMS` to the same directory. In Terminal:
 
 ```sh
 shasum -a 256 --check SHA256SUMS
@@ -146,7 +147,8 @@ codesign --verify --strict extracted/bamdalf.app
 ```
 
 Checksums check file integrity; the ad hoc signature does not authenticate the
-publisher. `BUILD-INFO.txt` records the source commit, source cleanliness,
+publisher. The ZIP includes `BUILD-INFO.txt` and `release-metadata.json` beside
+the app. `BUILD-INFO.txt` records the source commit, source cleanliness,
 toolchain, OS, and signing status. The ZIP contains the app and licenses for
 bamdalf, HTSlib, and HTScodecs. Packaging rejects dynamic dependencies outside
 Apple's system library locations, so users need neither conda nor Homebrew.

@@ -30,8 +30,10 @@ rm -f "$destination"/bamdalf-*-macos-arm64*.zip \
     "$destination/SHA256SUMS" "$destination/BUILD-INFO.txt" \
     "$destination/release-metadata.json"
 archive="bamdalf-$1-macos-arm64.zip"
-ditto -c -k --keepParent "$app" "$destination/$archive"
-printf '%s\n' "$metadata" > "$destination/release-metadata.json"
+contents=$(mktemp -d "$PWD/.build/release-contents.XXXXXX")
+trap 'rm -rf "$contents"' EXIT
+ditto "$app" "$contents/bamdalf.app"
+printf '%s\n' "$metadata" > "$contents/release-metadata.json"
 {
     printf 'Tag: %s\nCommit: %s\n' "$1" "$(git rev-parse HEAD)"
     if [[ -n "$(git status --porcelain)" ]]; then
@@ -43,10 +45,11 @@ printf '%s\n' "$metadata" > "$destination/release-metadata.json"
     sw_vers
     xcodebuild -version
     swift --version
-} > "$destination/BUILD-INFO.txt"
+} > "$contents/BUILD-INFO.txt"
+ditto -c -k "$contents" "$destination/$archive"
 (
     cd "$destination"
-    shasum -a 256 "$archive" BUILD-INFO.txt release-metadata.json > SHA256SUMS
+    shasum -a 256 "$archive" > SHA256SUMS
     shasum -a 256 --check SHA256SUMS
 )
 printf 'Prepared release in %s\n' "$destination"
