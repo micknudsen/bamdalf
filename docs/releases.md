@@ -35,7 +35,7 @@ process in two phases:
 
 The assistant uses prerelease status only when you explicitly request it. It
 clears the workflow draft's initial prerelease flag when publishing a normal
-release; the app's unnotarized status remains disclosed in the notes.
+release. Release notes and summaries follow the content rules in the skill.
 
 Proposed notes and their source revision are kept in `.local/releases/` so an
 interrupted conversation can resume. Material changes to the release contents
