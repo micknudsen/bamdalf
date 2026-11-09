@@ -10,7 +10,7 @@ import sys
 
 def release_metadata(tag, info):
     if not re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag):
-        raise ValueError("Use a tag of the form vMAJOR.MINOR.PATCH, for example v0.1.0")
+        raise ValueError("Use a tag of the form vMAJOR.MINOR.PATCH, for example v1.2.3")
     version = info["CFBundleShortVersionString"]
     if tag != f"v{version}":
         raise ValueError(f"Tag {tag} does not match Info.plist version {version}")

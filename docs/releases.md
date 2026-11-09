@@ -18,7 +18,7 @@ notes. Publishing the draft exposes those same assets without rebuilding them.
 ## Ask the release assistant
 
 In this repository, say **Make release vX.Y.Z**, using a concrete version, for
-example **Make release v0.1.0**. The repository's
+example **Make release v1.2.3**. The repository's
 [bamdalf-release skill](../.agents/skills/bamdalf-release/SKILL.md) handles the
 process in two phases:
 
@@ -50,21 +50,24 @@ steps only after you approve its proposed release notes.
 
 [Resources/Info.plist](../Resources/Info.plist) is the version source:
 
-- `CFBundleShortVersionString`: `MAJOR.MINOR.PATCH`, initially `0.1.0`.
+- `CFBundleShortVersionString`: `MAJOR.MINOR.PATCH`; `0.0.0` denotes the unreleased development build.
 - `CFBundleVersion`: a positive integer build number, initially `1`; increment
   for each new release candidate that changes the shipped app.
 - `LSMinimumSystemVersion`: minimum supported macOS, currently `15.0`.
 
-Use matching Git tags such as `v0.1.0`. The scripts reject a different version,
-leading zeroes, and tag suffixes. GitHub's **prerelease** flag labels these early
-previews even though the tag uses the simple `v0.1.0` form. Keep the deployment
+The distribution examples below use `v1.2.3` as an illustrative version. Choose
+the intended release version and update the plist before using them. Git tags
+must match the plist version; the scripts reject mismatches, leading zeroes,
+and tag suffixes. GitHub's **prerelease** flag labels these early
+previews even though the tag uses the simple `vMAJOR.MINOR.PATCH` form. Keep the deployment
 target in `Package.swift`, HTSlib build flags, and the plist aligned when changing
 the supported OS.
 
 ## Prepare a version
 
-1. Make the version/build change in a branch and PR. The initial version already
-   says `0.1.0` / `1`. Summarize the features, limitations, and any remaining MVP
+1. Make the version/build change in a branch and PR. The development version is
+   `0.0.0` / `1`; select the intended release version before preparing a release.
+   Summarize the features, limitations, and any remaining MVP
    work for the eventual release notes. Run the documentation and native checks
    described in [development](development.md) and [contributing](../CONTRIBUTING.md).
 2. Merge only after all required CI checks pass and merge is authorized. Release
@@ -79,7 +82,8 @@ For a local rehearsal, select Xcode as in the development instructions:
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 python3 -m unittest discover -s scripts/tests
 bash scripts/test.sh --configuration release
-bash scripts/package-release.sh v0.1.0
+version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+bash scripts/package-release.sh "v$version"
 ```
 
 This only writes `.build/` products. It neither creates a tag nor contacts the
@@ -99,8 +103,8 @@ ready to create the release tag.
    ```sh
    git fetch origin master --tags
    git log -1 origin/master
-   git tag -a v0.1.0 origin/master -m "Bamdalf v0.1.0"
-   git push origin refs/tags/v0.1.0
+   git tag -a v1.2.3 origin/master -m "Bamdalf v1.2.3"
+   git push origin refs/tags/v1.2.3
    ```
 
 3. The tag push automatically starts **Prepare preview release**. There is no
@@ -141,7 +145,7 @@ Download all four assets to the same directory. In Terminal:
 
 ```sh
 shasum -a 256 --check SHA256SUMS
-ditto -x -k Bamdalf-v0.1.0-macos-arm64-unnotarized.zip preview
+ditto -x -k Bamdalf-v1.2.3-macos-arm64-unnotarized.zip preview
 codesign --verify --strict preview/Bamdalf.app
 ```
 
