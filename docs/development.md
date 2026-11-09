@@ -269,12 +269,12 @@ before this bootstrap can merge.
 
 On 2026-11-07, the packaged release app was launched on Apple Silicon macOS
 27.2, built with Xcode 27.2 / Swift 6.4.2. The native accessibility tree exposed
-the bamdalf window, its message, standard window controls, and bamdalf/File/Window
+the Bamdalf window, its message, standard window controls, and Bamdalf/File/Window
 menus. **Command-Q** terminated the app. Both automated session/window tests
 passed locally, including workspace resizing. CI independently exercises Xcode
 16.4 / Swift 6.1.2 on macOS 15.
 
-![Native bamdalf workspace with no BAM file open](images/native-workspace.png)
+![Native Bamdalf workspace with no BAM file open](images/native-workspace.png)
 
 On 2026-11-07, manual use reached the native index chooser and exposed disabled
 BAI/CSI choices. A native regression reproduced both disabled menu items and an
