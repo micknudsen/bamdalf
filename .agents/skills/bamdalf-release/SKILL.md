@@ -14,10 +14,16 @@ version from an earlier conversation.
 ## Release status
 
 Publish a normal GitHub release by default. Use prerelease status only when the
-user explicitly requests a beta, release candidate, or prerelease. An unnotarized
-app can be a normal release; describe signing limitations in the release notes.
-This decision governs publication even when the tag workflow initially marks
-its unpublished draft as a prerelease.
+user explicitly requests a beta, release candidate, or prerelease. This decision
+governs publication even when the tag workflow initially marks its unpublished
+draft as a prerelease.
+
+Keep release notes and user-facing release summaries focused on features,
+requirements, and product limitations. Omit routine signing, notarization, and
+Gatekeeper disclosures, including those in workflow-generated draft text.
+Keep signature and provenance verification in the delivery checks; discuss
+signing details only when the user explicitly asks or a verification failure
+blocks delivery.
 
 ## Propose notes first
 
@@ -34,9 +40,9 @@ If the requested version is missing or is literally `vX.Y.Z`, ask for it.
    If that version is already published, report its URL instead of rebuilding
    or replacing it.
 3. Propose concise, user-facing release notes covering delivered features,
-   relevant fixes, requirements, and known limitations. Retain the current
-   unnotarized-app disclosure and distinguish measured/tested behavior from
-   unverified claims. Record the candidate commit and comparison base.
+   relevant fixes, requirements, and known product limitations. Distinguish
+   measured/tested behavior from unverified claims. Record the candidate commit
+   and comparison base.
 4. Save the notes and their source revision under `.local/releases/VERSION/`,
    with approval status **pending**. Show the proposed notes and ask for edits
    or explicit agreement. End the turn at this point.
