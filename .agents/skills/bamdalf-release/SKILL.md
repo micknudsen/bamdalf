@@ -84,9 +84,10 @@ when it establishes actual agreement; a saved draft alone does not.
    failures and repair only within the approved release scope. Rerun a transient
    failed job at most once for the same cause; report a repeated blocker. A fix
    requiring different tagged code needs a new version agreed with the user.
-6. Verify the draft belongs to the requested tag and source. Download its four
-   assets; check `SHA256SUMS`, archive version/build metadata, build provenance,
-   and bundled licenses. On macOS, verify the extracted app's signature. Report
+6. Verify the draft belongs to the requested tag and source. Download its app ZIP
+   and `SHA256SUMS`; verify the ZIP checksum, then extract it. Check the app
+   version/build metadata, `BUILD-INFO.txt` and `release-metadata.json` beside
+   the app, and bundled licenses. On macOS, verify the extracted app's signature. Report
    any fresh-download/GUI checks that remain unexecuted; these are separate from
    native CI evidence.
 7. Apply the approved notes to the draft, retaining source and build links.
