@@ -31,7 +31,7 @@ bash scripts/build-htslib.sh
 swift build
 bash scripts/test.sh
 bash scripts/build-app.sh
-open .build/Bamdalf.app
+open .build/bamdalf.app
 ```
 
 The script builds the release executable, packages its native application bundle,
@@ -100,7 +100,7 @@ The status slot shows a spinner while loading. A ready downsampled target shows
 a small amber triangle; hovering or focusing it explains **Downsampled: some
 alignments are not shown.** The same text is available to assistive technology.
 Ready unsampled and wide targets leave the slot empty.
-There is no permanent file sidebar or Open BAM toolbar button. Close the window or use **Bamdalf → Quit Bamdalf** /
+There is no permanent file sidebar or Open BAM toolbar button. Close the window or use **bamdalf → Quit bamdalf** /
 **Command-Q** to quit.
 
 For a focused check while developing:

@@ -1,5 +1,5 @@
-name: Prepare preview release
-run-name: Prepare ${{ github.ref_name }} (unnotarized preview)
+name: Prepare release
+run-name: Prepare ${{ github.ref_name }}
 
 # A version tag prepares an unpublished draft; publication remains manual.
 on:
@@ -10,12 +10,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: preview-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Build unnotarized preview
+    name: Build release
     if: ${{ !github.event.deleted }}
     runs-on: macos-15
     timeout-minutes: 35
@@ -71,18 +71,18 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/tests
           bash scripts/test.sh --configuration release
-      - name: Package and verify the unnotarized preview
+      - name: Package and verify the release
         run: bash scripts/package-release.sh "$RELEASE_TAG"
       - name: Retain release assets for review
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Bamdalf-${{ github.ref_name }}-unnotarized
+          name: bamdalf-${{ github.ref_name }}
           path: .build/release/*
           if-no-files-found: error
           retention-days: 14
 
   draft:
-    name: Create draft prerelease
+    name: Create draft release
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -97,7 +97,7 @@ jobs:
       - name: Download the exact assets from this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: Bamdalf-${{ github.ref_name }}-unnotarized
+          name: bamdalf-${{ github.ref_name }}
           path: release-assets
       - name: Verify assets and create draft without publishing
         working-directory: release-assets
@@ -108,12 +108,9 @@ jobs:
           # Recheck the remote tag in case it moved after the build started.
           test "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)" = "$SOURCE_SHA"
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
-          This is an early, unnotarized preview for Apple Silicon Macs running macOS 15 or newer.
+          bamdalf for Apple Silicon Macs running macOS 15 or newer.
 
-          The app has an ad hoc signature. It is not Developer ID signed or notarized by Apple;
-          macOS Gatekeeper may block it.
-
-          Download the Bamdalf ZIP asset, extract it, and move Bamdalf.app into Applications.
+          Download the bamdalf ZIP asset, extract it, and move bamdalf.app into Applications.
           GitHub's automatic source archives do not contain a runnable app.
 
           Review and edit these notes and the generated changelog before publishing.
@@ -124,8 +121,8 @@ jobs:
             "$GH_REPO" "$GITHUB_RUN_ID" "$SOURCE_SHA" >> "$RUNNER_TEMP/release-notes.md"
           # Never overwrite an existing release or create a missing tag.
           gh release create "$RELEASE_TAG" \
-            "Bamdalf-$RELEASE_TAG-macos-arm64-unnotarized.zip" \
+            "bamdalf-$RELEASE_TAG-macos-arm64.zip" \
             SHA256SUMS BUILD-INFO.txt release-metadata.json \
-            --verify-tag --draft --prerelease --latest=false \
-            --title "Bamdalf $RELEASE_TAG (unnotarized preview)" \
+            --verify-tag --draft --latest=false \
+            --title "bamdalf $RELEASE_TAG" \
             --notes-file "$RUNNER_TEMP/release-notes.md" --generate-notes

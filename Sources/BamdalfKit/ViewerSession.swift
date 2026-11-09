@@ -27,7 +27,7 @@ public enum ZoomDirection: Sendable {
 
 /// Presentation shared by the application session and its native workspace.
 public struct ViewerPresentation {
-    public var windowTitle = "Bamdalf"
+    public var windowTitle = "bamdalf"
     public var message = "No BAM file open"
     public var bamURL: URL?
     public var indexURL: URL?
@@ -490,7 +490,7 @@ public final class ViewerSession {
             presentation.bamURL = file.url
             presentation.indexURL = file.indexURL
             presentation.references = file.references
-            presentation.windowTitle = "\(url.lastPathComponent) — Bamdalf"
+            presentation.windowTitle = "\(url.lastPathComponent) — bamdalf"
             presentation.message = "Enter a genomic interval"
             presentation.intervalText = ""
             presentation.target = nil

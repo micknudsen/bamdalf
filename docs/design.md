@@ -1,4 +1,4 @@
-# Bamdalf MVP design
+# bamdalf MVP design
 
 Updated 2026-11-08. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 were finalized on 2026-11-07; D3/D4 were finalized in Q97–Q110 and confirmed by the user on 2026-11-08. Native navigation was delivered through PR #20. The issue #7 sampling implementation and measurements accompany this revision; final qualification remains a separate issue #11 task.
 

@@ -1,10 +1,8 @@
-# Preview releases
+# Releases
 
-The initial distribution is an **unnotarized preview** for Apple Silicon Macs
-running macOS 15 or newer. It has an ad hoc signature, with no Developer ID
-signature or Apple notarization. It needs no Apple account secrets in CI.
-This is the distribution choice made on 2026-11-08; signed and notarized releases
-remain future work.
+Releases support Apple Silicon Macs running macOS 15 or newer. They use the
+existing ad hoc signing setup, with no Apple Developer Program credentials
+required in CI. Signature details remain available in the build provenance.
 
 The reusable process is: prepare a version through a PR, push its version tag,
 then review and publish the automatically prepared GitHub draft. A tag push
@@ -34,8 +32,8 @@ process in two phases:
    is unnecessary.
 
 The assistant uses prerelease status only when you explicitly request it. It
-clears the workflow draft's initial prerelease flag when publishing a normal
-release. Release notes and summaries follow the content rules in the skill.
+ensures the draft has the requested release status before publishing. Release
+notes and summaries follow the content rules in the skill.
 
 Proposed notes and their source revision are kept in `.local/releases/` so an
 interrupted conversation can resume. Material changes to the release contents
@@ -58,9 +56,8 @@ steps only after you approve its proposed release notes.
 The distribution examples below use `v1.2.3` as an illustrative version. Choose
 the intended release version and update the plist before using them. Git tags
 must match the plist version; the scripts reject mismatches, leading zeroes,
-and tag suffixes. GitHub's **prerelease** flag labels these early
-previews even though the tag uses the simple `vMAJOR.MINOR.PATCH` form. Keep the deployment
-target in `Package.swift`, HTSlib build flags, and the plist aligned when changing
+and tag suffixes. Releases use normal GitHub release status by default. Keep
+the deployment target in `Package.swift`, HTSlib build flags, and the plist aligned when changing
 the supported OS.
 
 ## Prepare a version
@@ -103,11 +100,11 @@ ready to create the release tag.
    ```sh
    git fetch origin master --tags
    git log -1 origin/master
-   git tag -a v1.2.3 origin/master -m "Bamdalf v1.2.3"
+   git tag -a v1.2.3 origin/master -m "bamdalf v1.2.3"
    git push origin refs/tags/v1.2.3
    ```
 
-3. The tag push automatically starts **Prepare preview release**. There is no
+3. The tag push automatically starts **Prepare release**. There is no
    separate Actions dispatch. It validates the tag/version match, requires the
    commit to belong to `master`, and waits for successful **master push CI on
    that exact commit**. A green PR run alone is insufficient. It allows up to
@@ -115,15 +112,14 @@ ready to create the release tag.
    preparation. An older merged commit is valid even if master has advanced.
 4. After CI succeeds, the workflow runs native release tests, packages and
    verifies the ZIP, uploads an Actions artifact, then creates a **draft
-   prerelease** with the app ZIP, `SHA256SUMS`, `BUILD-INFO.txt`, and
+   release** with the app ZIP, `SHA256SUMS`, `BUILD-INFO.txt`, and
    `release-metadata.json`. Only the draft job has repository write permission.
 5. When the workflow succeeds, open **Releases** on GitHub and edit the draft.
    Replace the editing reminder with a useful feature summary and limitations;
    review the generated changelog. The draft includes the source commit and a
-   link to the workflow run. Keep the unnotarized/Apple Silicon/macOS requirements
-   prominent.
+   link to the workflow run. Keep the Apple Silicon/macOS requirements prominent.
 6. Download and smoke-test the actual draft assets, then publish when satisfied.
-   Keep **Set as a prerelease** enabled for the initial preview. Publishing is a
+   Leave **Set as a prerelease** disabled for a normal release. Publishing is a
    separate human action; this workflow has no automatic publication step.
 
 If a run fails, fix the cause and use GitHub's **Re-run failed jobs** on the
@@ -145,17 +141,17 @@ Download all four assets to the same directory. In Terminal:
 
 ```sh
 shasum -a 256 --check SHA256SUMS
-ditto -x -k Bamdalf-v1.2.3-macos-arm64-unnotarized.zip preview
-codesign --verify --strict preview/Bamdalf.app
+ditto -x -k bamdalf-v1.2.3-macos-arm64.zip extracted
+codesign --verify --strict extracted/bamdalf.app
 ```
 
 Checksums check file integrity; the ad hoc signature does not authenticate the
 publisher. `BUILD-INFO.txt` records the source commit, source cleanliness,
 toolchain, OS, and signing status. The ZIP contains the app and licenses for
-Bamdalf, HTSlib, and HTScodecs. Packaging rejects dynamic dependencies outside
+bamdalf, HTSlib, and HTScodecs. Packaging rejects dynamic dependencies outside
 Apple's system library locations, so users need neither conda nor Homebrew.
 
-Move `Bamdalf.app` into Applications. Test from the downloaded archive on a
+Move `bamdalf.app` into Applications. Test from the downloaded archive on a
 supported Mac, preferably one without the development tools or local HTSlib:
 
 - Confirm the displayed app version in Finder's **Get Info**.
@@ -164,7 +160,7 @@ supported Mac, preferably one without the development tools or local HTSlib:
 - Try a missing index and an invalid interval, then confirm recovery.
 - Close and relaunch the app.
 
-Expect Gatekeeper to potentially block this preview. For software you have
+Expect Gatekeeper to potentially block this app. For software you have
 reviewed and trust, Apple documents the **System Settings → Privacy & Security →
 Open Anyway** exception after an attempted launch. Managed Macs may prohibit
 exceptions; those users need a future signed/notarized build. Do not disable

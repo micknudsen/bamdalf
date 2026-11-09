@@ -5,9 +5,9 @@ import Foundation
 let htslib = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".build/htslib").path
 
 let package = Package(
-    name: "Bamdalf",
+    name: "bamdalf",
     platforms: [.macOS(.v15)],
-    products: [.executable(name: "Bamdalf", targets: ["Bamdalf"])],
+    products: [.executable(name: "bamdalf", targets: ["Bamdalf"])],
     targets: [
         .target(
             name: "CBAM",
