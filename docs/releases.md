@@ -15,6 +15,37 @@ For a native Mac app, the downloadable ZIP is the distribution artifact. The
 draft stages that ZIP and its companion files while you write the public release
 notes. Publishing the draft exposes those same assets without rebuilding them.
 
+## Ask the release assistant
+
+In this repository, say **Make release vX.Y.Z**, using a concrete version, for
+example **Make release v0.1.0**. The repository's
+[bamdalf-release skill](../.agents/skills/bamdalf-release/SKILL.md) handles the
+process in two phases:
+
+1. Propose release notes based on the changes since the previous release. Review
+   the notes and suggest changes until you are satisfied. The assistant waits
+   for your explicit agreement before changing versions, creating a PR, or
+   creating/pushing a release tag.
+2. Once you approve the notes, the assistant prepares any needed version/build
+   update through a PR, waits for the required checks, squash-merges, pushes the
+   tag, and monitors the release workflow. After verifying the draft assets, it
+   applies the agreed notes and **publishes a normal GitHub release**. Your notes
+   approval authorizes these remaining steps; a separate publish confirmation
+   is unnecessary.
+
+The assistant uses prerelease status only when you explicitly request it. It
+clears the workflow draft's initial prerelease flag when publishing a normal
+release; the app's unnotarized status remains disclosed in the notes.
+
+Proposed notes and their source revision are kept in `.local/releases/` so an
+interrupted conversation can resume. Material changes to the release contents
+or agreed notes require renewed agreement. A question about releasing or a
+request to edit this process does not start a release.
+
+The tag workflow still creates a draft. When using the manual instructions
+below, review and publish that draft yourself; the assistant completes those
+steps only after you approve its proposed release notes.
+
 ## Version metadata
 
 [Resources/Info.plist](../Resources/Info.plist) is the version source:
@@ -100,8 +131,7 @@ longer.
 The workflow refuses an existing release instead of replacing its assets. If
 draft creation partially fails, inspect the draft and run before retrying; a
 maintainer may remove an incomplete unpublished draft after confirming nobody
-needs it. Actions artifacts are retained for 14 days; the draft's attached assets
-are separate. Published releases and tags should remain unchanged. Fix a shipped
+needs it. Published releases and tags should remain unchanged. Fix a shipped
 problem with a new version and build number. A workflow/script fix requires a new
 merged commit and a new version tag because reruns use the original tagged code.
 
