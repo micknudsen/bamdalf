@@ -19,8 +19,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     private func installMenus() {
         let menu = NSMenu()
         let applicationItem = NSMenuItem()
-        let applicationMenu = NSMenu(title: "Bamdalf")
-        applicationMenu.addItem(withTitle: "Quit Bamdalf", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let applicationMenu = NSMenu(title: "bamdalf")
+        applicationMenu.addItem(withTitle: "Quit bamdalf", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         applicationItem.submenu = applicationMenu
         menu.addItem(applicationItem)
 

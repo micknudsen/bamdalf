@@ -1,5 +1,5 @@
 interface:
-  display_name: "Bamdalf Release"
+  display_name: "bamdalf Release"
   short_description: "Agree on release notes, then deliver a release"
   default_prompt: "Use $bamdalf-release to make a release, proposing notes for agreement first."
 policy:

@@ -1,9 +1,9 @@
 ---
 name: bamdalf-release
-description: 'Make a Bamdalf release when the user says "Make release vX.Y.Z": propose release notes, wait for agreement, then deliver the version through CI and publish the GitHub release. Release questions and workflow edits do not authorize a release.'
+description: 'Make a bamdalf release when the user says "Make release vX.Y.Z": propose release notes, wait for agreement, then deliver the version through CI and publish the GitHub release. Release questions and workflow edits do not authorize a release.'
 ---
 
-# Bamdalf release
+# bamdalf release
 
 Read the repository's [release guide](../../../docs/releases.md),
 [contribution rules](../../../CONTRIBUTING.md), and
@@ -14,9 +14,8 @@ version from an earlier conversation.
 ## Release status
 
 Publish a normal GitHub release by default. Use prerelease status only when the
-user explicitly requests a beta, release candidate, or prerelease. This decision
-governs publication even when the tag workflow initially marks its unpublished
-draft as a prerelease.
+user explicitly requests a beta, release candidate, or prerelease. The tag
+workflow creates a draft of a normal release.
 
 Keep release notes and user-facing release summaries focused on features,
 requirements, and product limitations. Omit routine signing, notarization, and

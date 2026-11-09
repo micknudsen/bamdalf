@@ -8,7 +8,7 @@ struct LaunchTests {
     func testNewSessionPresentsAnUnopenedWorkspace() {
         let session = ViewerSession()
 
-        #expect(session.presentation.windowTitle == "Bamdalf")
+        #expect(session.presentation.windowTitle == "bamdalf")
         #expect(session.presentation.message == "No BAM file open")
     }
 
@@ -25,7 +25,7 @@ struct LaunchTests {
         workspace.layoutSubtreeIfNeeded()
 
         #expect(window.isVisible)
-        #expect(window.title == "Bamdalf")
+        #expect(window.title == "bamdalf")
         #expect(window.toolbar == nil)
         #expect(!workspace.subviews.contains { $0 is NSSplitView })
         let message = try #require(workspace.subviews.compactMap { $0 as? NSTextField }.first)
