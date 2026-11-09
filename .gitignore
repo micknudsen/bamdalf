@@ -10,3 +10,6 @@
 
 # Python release-tool bytecode.
 __pycache__/
+
+# Local VS Code settings.
+/.vscode/
