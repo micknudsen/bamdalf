@@ -5,7 +5,7 @@ import BamdalfKit
 struct RegionalAlignmentTests {
     @Test(arguments: ["bai", "csi"])
     @MainActor
-    func realIndexedRegionDrawsOnlyReferenceOverlappingEligibleRecords(index: String) async throws {
+    func realIndexedRegionDrawsEligibleBodiesAndTailOnlyOverlaps(index: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
         let session = try await files.openedSession(fixture: "alignments", indexFormat: index)
@@ -27,7 +27,7 @@ struct RegionalAlignmentTests {
 
         session.editInterval("tiny:95-100")
         await session.submitInterval()?.value
-        #expect(session.presentation.alignments.isEmpty)
+        #expect(session.presentation.alignments.map(\.name).sorted() == ["forward", "reverse"])
         #expect(!session.presentation.isLoading)
         #expect(session.presentation.regionalError == nil)
     }

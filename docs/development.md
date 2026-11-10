@@ -3,10 +3,11 @@
 This document describes the current implementation. The
 [2026-11-10 design revision](design.md#viewport-eligibility-and-complete-candidates)
 accepts bounded soft-tail-only visibility and
-[rolling prefetch](design.md#rolling-prefetch-and-resource-priority), including
-background refill during dragging and separate speculative-error handling.
-Those changes are not yet implemented: the behavior and tests described below
-still use aligned-span-only eligibility and release-time retrieval.
+[rolling prefetch](design.md#rolling-prefetch-and-resource-priority). The bounded
+visibility slice uses a fixed 250-base search margin, supported by the
+[2026-11-10 measurements](performance/bounded-tail-2026-11-10.md). Rolling
+prefetch, background refill during dragging, and separate speculative-error
+handling remain pending. This slice retains release-time retrieval during dragging.
 
 ## Prerequisites
 
@@ -223,11 +224,23 @@ row extent does not shrink during continuity, even when the target becomes empty
 Existing drawing bounds, H/P information, and the reference span remain distinct
 from viewport clipping.
 
+For visible interval V, required search interval R pads each side by a fixed
+250 bases and clamps to the reference. The 10,000-base display cutoff applies
+to V, so an R wider than 10,000 bases still loads for an eligible visible width.
+The indexed reader retains aligned-reference-span query semantics. The session
+selects records whose aligned span overlaps R and whose full drawn extent
+overlaps V, including tail-only, deletion-only, and reference-skip-only overlap.
+Cached tails anchored beyond R remain ineligible; selected tails retain their
+full scale and sequence/outline geometry. The finite margin does not guarantee
+discovery of arbitrarily distant tails.
+
 Completed query intervals and their complete unsampled records establish reuse
-readiness. Coverage from several queries can satisfy a target; only uncovered
-intervals are read. Cached records can be drawn outside their original query
-coverage when their reference span overlaps the target, but they cannot prove
-that the target is complete. Soft-tail-only records remain ineligible. Each
+readiness. Coverage from several queries can satisfy R; only its uncovered
+intervals are read. Keep these query records separate from visible candidates
+and sampled survivors: an offscreen record may become visible in a later target
+covered by the same query. Existing flag filters and V/R eligibility precede
+whole-view sampling; offscreen groups and group members do not consume its
+allowance. Cached geometry alone cannot prove complete R coverage. Each
 completed fragment can update the provisional view; the target becomes the
 successful recovery view only after all missing coverage completes. Failures
 restore the saved presentation without a query, preserving its adequate data
@@ -238,12 +251,19 @@ dropping the oldest when admitting another and replacing contained snapshots
 when a complete broader result is available. Snapshots supplying active query
 coverage or eligible candidates remain available independently of that historical
 limit. The active/provisional view and last successful recovery view also retain
-their complete unsampled candidates separately from displayed samples. This
+their complete unsampled required-query records separately from displayed samples. This
 bounds inactive snapshot count, not active data, bytes, or
 records in a dense region; no hard memory or latency limit is claimed. Wide views
 and fresh layouts do not clear this data; only a successful BAM replacement
 starts a new cache. Eviction permits a later reload, without promising historical
 row positions.
+
+The `bounded-tails.sam` fixture independently specifies exact 250-base search
+boundaries, longer excluded tails, both strands, D/N-only overlaps, missing
+sequence, filtered records, identical-looking distinct records, and offscreen
+sampling groups. BAI/CSI tests compare fresh, pan, broad-cache, mixed, and
+evicted/reloaded candidate sets and samples. Required malformed records outside
+V still fail their load and restore the committed view.
 
 Navigation tests cover real BAI/CSI partial/complete/empty reuse, cache gaps and
 eviction, identical-record identity, earlier soft-tail newcomers, partial-load

@@ -54,4 +54,10 @@ struct RegionalData {
         }
         return result
     }
+
+    /// Apply drawn overlap only after selecting aligned spans within required
+    /// search coverage. These display candidates never back a coverage claim.
+    static func visible(_ records: [Alignment], in target: GenomicInterval) -> [Alignment] {
+        records.filter { $0.drawnStart <= target.end && $0.drawnEnd >= target.start }
+    }
 }

@@ -6,6 +6,68 @@ import BamdalfKit
 struct NativeAlignmentTests {
     @Test
     @MainActor
+    func tailOnlyViewsDrawStoredBaseColorsAndUnclosedMissingSequenceOutlines() async throws {
+        _ = NSApplication.shared
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession(fixture: "alignments")
+        let controller = ViewerWindowController(session: session)
+        controller.showWindow(nil)
+        let window = try #require(controller.window)
+        defer { window.close() }
+        window.appearance = NSAppearance(named: .aqua)
+        let workspace = try #require(window.contentView)
+        let scroll = try #require(workspace.subviews.compactMap { $0 as? NSScrollView }.first)
+        let stack = try #require(scroll.documentView)
+
+        session.editInterval("tiny:91-100")
+        await session.submitInterval()?.value
+        let forward = try #require(session.presentation.alignments.first { $0.name == "forward" })
+        let reverse = try #require(session.presentation.alignments.first { $0.name == "reverse" })
+        #expect(forward.referenceStart == 101 && reverse.referenceStart == 101)
+        workspace.layoutSubtreeIfNeeded()
+        let left = try renderAlignmentBitmap(in: stack, window: window)
+        // Stored forward tail ACGT begins at 91. Reverse tail TGC begins at
+        // 98 and stays in stored CIGAR order rather than being reversed again.
+        let a = try tailColor(in: left, x: Int(stack.bounds.width * 0.025), y: forward.row * 18 + 4)
+        let c = try tailColor(in: left, x: Int(stack.bounds.width * 0.125), y: forward.row * 18 + 4)
+        let g = try tailColor(in: left, x: Int(stack.bounds.width * 0.225), y: forward.row * 18 + 4)
+        let t = try tailColor(in: left, x: Int(stack.bounds.width * 0.325), y: forward.row * 18 + 4)
+        #expect(a.greenComponent > a.redComponent && a.greenComponent > a.blueComponent)
+        #expect(c.blueComponent > c.redComponent && c.blueComponent > c.greenComponent)
+        #expect(g.redComponent > 0.8 && g.greenComponent > 0.6 && g.blueComponent < 0.4)
+        #expect(t.redComponent > t.greenComponent && t.redComponent > t.blueComponent)
+        let reverseT = try tailColor(in: left, x: Int(stack.bounds.width * 0.725), y: reverse.row * 18 + 4)
+        #expect(reverseT.redComponent > reverseT.greenComponent && reverseT.redComponent > reverseT.blueComponent)
+
+        session.editInterval("tiny:111-115")
+        await session.submitInterval()?.value
+        #expect(session.presentation.alignments.allSatisfy { $0.referenceEnd == 110 })
+        let right = try renderAlignmentBitmap(in: stack, window: window)
+        let forwardRight = try #require(session.presentation.alignments.first { $0.name == "forward" })
+        let rightT = try tailColor(in: right, x: Int(stack.bounds.width * 0.05), y: forwardRight.row * 18 + 4)
+        #expect(rightT.redComponent > rightT.greenComponent && rightT.redComponent > rightT.blueComponent)
+
+        for interval in ["tiny:2997-2999", "tiny:3012-3014"] {
+            session.editInterval(interval)
+            await session.submitInterval()?.value
+            let missing = try #require(session.presentation.alignments.first)
+            #expect(missing.name == "missing_sequence")
+            #expect(missing.segments.filter { $0.kind == .softClip }.allSatisfy { $0.sequence == nil })
+            let outline = try renderAlignmentBitmap(in: stack, window: window)
+            let y = missing.row * 18
+            for x in [1, Int(stack.bounds.width / 2), Int(stack.bounds.width) - 2] {
+                let edge = try tailColor(in: outline, x: x, y: y + 3)
+                let interior = try tailColor(in: outline, x: x, y: y + 9)
+                #expect(max(edge.redComponent, edge.greenComponent, edge.blueComponent) < 0.2)
+                #expect(min(interior.redComponent, interior.greenComponent, interior.blueComponent) > 0.95,
+                        "Clipped outline tails stay open at both viewport edges and invent no sequence")
+            }
+        }
+    }
+
+    @Test
+    @MainActor
     func nativeStackDrawsRealRecordsAndScrollsThroughTheSession() async throws {
         _ = NSApplication.shared
         let files = try FixtureFiles()
@@ -35,6 +97,13 @@ struct NativeAlignmentTests {
         await session.submitInterval()?.value
         #expect(scroll.contentView.bounds.origin.y == 200)
         #expect(session.presentation.verticalOffset == 200)
+        let original = session.presentation.alignments
+        session.editInterval("tiny:251-259")
+        await session.submitInterval()?.value
+        #expect(session.presentation.alignments == original)
+        #expect(session.presentation.alignments.allSatisfy { $0.referenceEnd == 250 })
+        #expect(scroll.contentView.bounds.origin.y == 200)
+        #expect(session.presentation.verticalOffset == 200)
     }
     @Test
     @MainActor
@@ -44,7 +113,7 @@ struct NativeAlignmentTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.start == 2001 {
+            if target.end == 2260 {
                 await gate.pause(2001)
                 throw RegionalLoadError(interval: target, message: "Known index failure")
             }
@@ -91,7 +160,7 @@ struct NativeAlignmentTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let session = ViewerSession(loadRegion: { file, target in
-            if target.start == 2001 { throw RegionalLoadError(interval: target, message: "Queued old failure") }
+            if target.end == 2260 { throw RegionalLoadError(interval: target, message: "Queued old failure") }
             return try await file.alignments(in: target)
         })
         let bam = files.sources.appendingPathComponent("alignments.bam")
@@ -124,6 +193,11 @@ struct NativeAlignmentTests {
     @MainActor
     private func descendants(of view: NSView) -> [NSView] {
         view.subviews.flatMap { [$0] + descendants(of: $0) }
+    }
+
+    @MainActor
+    private func tailColor(in bitmap: NSBitmapImageRep, x: Int, y: Int) throws -> NSColor {
+        try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
     }
 
 }

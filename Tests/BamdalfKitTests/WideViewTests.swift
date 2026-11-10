@@ -13,11 +13,11 @@ struct WideViewTests {
         let requests = RegionRequests()
         let session = ViewerSession(loadRegion: { file, target in
             await requests.record(target.formatted)
-            if target.start == 101 {
+            if target.end == 360 {
                 await gate.pause(101)
                 if failLate { throw RegionalLoadError(interval: target, message: "Stale failure") }
             }
-            if target.start == 2001 { throw RegionalLoadError(interval: target, message: "Current failure") }
+            if target.end == 2260 { throw RegionalLoadError(interval: target, message: "Current failure") }
             return try await file.alignments(in: target)
         }, alignmentVisibilityLimit: 1000)
         let bam = files.sources.appendingPathComponent("alignments.bam")
@@ -32,7 +32,7 @@ struct WideViewTests {
         #expect(session.presentation.message == "Zoom in to see alignments")
         #expect(!session.presentation.isLoading)
         #expect(session.presentation.alignments.isEmpty)
-        #expect(await requests.values == ["tiny:101-110"])
+        #expect(await requests.values == ["tiny:1-360"])
         await gate.release(101)
         await old?.value
         #expect(session.presentation.target?.formatted == "tiny:1-10,000")
@@ -78,7 +78,7 @@ struct WideViewTests {
         #expect(session.presentation.isAlignmentSuppressed)
         #expect(session.presentation.alignments.isEmpty)
         #expect(!scroll.isHidden, "The empty wide-view surface still receives pointer navigation")
-        #expect(await requests.values == ["tiny:1-10,000"])
+        #expect(await requests.values == ["tiny:1-10,250"])
         #expect(window.contentView?.subviews.compactMap { $0 as? NSTextField }.contains {
             $0.stringValue == "Zoom in to see alignments" && !$0.isHidden
         } == true)

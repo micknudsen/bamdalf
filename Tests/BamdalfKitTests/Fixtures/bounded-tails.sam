@@ -1,0 +1,26 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:60000
+@SQ	SN:other	LN:20000
+@RG	ID:a
+start	0	tiny	1	60	5S5M	*	0	0	ACGTACCCCC	*
+outside_left	0	tiny	9741	60	10M270S	*	0	0	*	*
+left_boundary	0	tiny	9742	60	10M260S	*	0	0	*	*
+zzzz	0	tiny	9900	60	10M	*	0	0	*	*
+same	0	tiny	9991	60	10M10S	*	0	0	AAAAAAAAAACCCCCCCCCC	*
+same	0	tiny	9991	60	10M10S	*	0	0	AAAAAAAAAACCCCCCCCCC	*
+left_reverse	16	tiny	9991	60	10M10S	*	0	0	AAAAAAAAAAGGGGGGGGGG	*
+shared	0	tiny	9991	60	10M10S	*	0	0	AAAAAAAAAATTTTTTTTTT	*	RG:Z:a
+deletion	0	tiny	9991	60	10M10D10M	*	0	0	*	*
+skip	0	tiny	9991	60	10M10N10M	*	0	0	*	*
+right_forward	0	tiny	10011	60	10S10M	*	0	0	ACGTNACGTNAAAAAAAAAA	*
+right_reverse	16	tiny	10011	60	10S10M	*	0	0	TGCANTGCANAAAAAAAAAA	*
+missing	0	tiny	10011	60	10S10M	*	0	0	*	*
+supplementary	2048	tiny	10011	60	10S10M	*	0	0	*	*
+secondary	256	tiny	10011	60	10S10M	*	0	0	*	*
+qcfail	512	tiny	10011	60	10S10M	*	0	0	*	*
+duplicate	1024	tiny	10011	60	10S10M	*	0	0	*	*
+unmapped	4	tiny	10011	60	10S10M	*	0	0	*	*
+shared	0	tiny	10030	60	10M	*	0	0	*	*	RG:Z:a
+right_boundary	0	tiny	10260	60	260S10M	*	0	0	*	*
+outside_right	0	tiny	10261	60	270S10M	*	0	0	*	*
+end	16	tiny	59996	60	5M5S	*	0	0	CCCCCACGTA	*

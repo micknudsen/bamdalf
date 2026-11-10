@@ -11,8 +11,8 @@ struct RegionalOrderingTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let alignments = try await file.alignments(in: target)
-            await gate.pause(target.start)
-            if failLate && target.start == 101 {
+            await gate.pause(target.end == 360 ? 101 : 1001)
+            if failLate && target.end == 360 {
                 throw RegionalLoadError(interval: target, message: "Controlled read failure")
             }
             return alignments
@@ -50,7 +50,7 @@ struct RegionalOrderingTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.start == 2001 {
+            if target.end == 2260 {
                 await gate.pause(2001)
                 throw RegionalLoadError(interval: target, message: "Controlled selected-index failure")
             }

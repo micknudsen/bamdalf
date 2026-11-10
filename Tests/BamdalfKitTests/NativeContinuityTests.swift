@@ -13,7 +13,7 @@ struct NativeContinuityTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 300 { await gate.pause(300) }
+            if target.end == 550 { await gate.pause(300) }
             return records
         })
         try await files.openedSession(fixture: "rows", indexFormat: "bai", session: session)
@@ -50,7 +50,7 @@ struct NativeContinuityTests {
         #expect(stack.frame.height == height)
         #expect(session.presentation.alignments == original)
 
-        session.editInterval("tiny:260-300")
+        session.editInterval("tiny:261-300")
         #expect(session.submitInterval() == nil)
         #expect(session.presentation.alignments.isEmpty)
         #expect(spinner.isHidden)

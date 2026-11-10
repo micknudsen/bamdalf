@@ -1,0 +1,68 @@
+[
+  {
+    "case": "ordinary_1000",
+    "queried_records": 1349,
+    "displayed_records": 940,
+    "retained_groups": 638,
+    "is_downsampled": false,
+    "load_layout_wall_median_ms": 65.98429195582867,
+    "load_layout_wall_max_ms": 66.52591598685831,
+    "first_draw_wall_max_ms": 5.402042006608099,
+    "peak_rss_max_bytes": 157892608
+  },
+  {
+    "case": "ordinary_10000",
+    "queried_records": 7448,
+    "displayed_records": 3747,
+    "retained_groups": 2000,
+    "is_downsampled": true,
+    "load_layout_wall_median_ms": 76.84791699284688,
+    "load_layout_wall_max_ms": 78.73958302661777,
+    "first_draw_wall_max_ms": 8.70150001719594,
+    "peak_rss_max_bytes": 163856384
+  },
+  {
+    "case": "dense_1000",
+    "queried_records": 5289,
+    "displayed_records": 2658,
+    "retained_groups": 2000,
+    "is_downsampled": true,
+    "load_layout_wall_median_ms": 82.00662501621991,
+    "load_layout_wall_max_ms": 86.3706250092946,
+    "first_draw_wall_max_ms": 5.498707992956042,
+    "peak_rss_max_bytes": 160464896
+  },
+  {
+    "case": "dense_10000",
+    "queried_records": 16353,
+    "displayed_records": 3302,
+    "retained_groups": 2000,
+    "is_downsampled": true,
+    "load_layout_wall_median_ms": 90.92870802851394,
+    "load_layout_wall_max_ms": 93.98870798759162,
+    "first_draw_wall_max_ms": 8.558625006116927,
+    "peak_rss_max_bytes": 170393600
+  },
+  {
+    "case": "original_dense_1000",
+    "queried_records": 15676,
+    "displayed_records": 2666,
+    "retained_groups": 2000,
+    "is_downsampled": true,
+    "load_layout_wall_median_ms": 118.03075001807883,
+    "load_layout_wall_max_ms": 119.6271670050919,
+    "first_draw_wall_max_ms": 5.709000048227608,
+    "peak_rss_max_bytes": 167886848
+  },
+  {
+    "case": "original_dense_10000",
+    "queried_records": 48911,
+    "displayed_records": 3285,
+    "retained_groups": 2000,
+    "is_downsampled": true,
+    "load_layout_wall_median_ms": 169.7657499462366,
+    "load_layout_wall_max_ms": 182.6469999505207,
+    "first_draw_wall_max_ms": 9.75349999498576,
+    "peak_rss_max_bytes": 194101248
+  }
+]
