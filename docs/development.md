@@ -1,5 +1,13 @@
 # Native development
 
+This document describes the current implementation. The
+[2026-11-10 design revision](design.md#viewport-eligibility-and-complete-candidates)
+accepts bounded soft-tail-only visibility and
+[rolling prefetch](design.md#rolling-prefetch-and-resource-priority), including
+background refill during dragging and separate speculative-error handling.
+Those changes are not yet implemented: the behavior and tests described below
+still use aligned-span-only eligibility and release-time retrieval.
+
 ## Prerequisites
 
 Use an Apple Silicon Mac running macOS 15 or newer, with Xcode 16.4 or newer
