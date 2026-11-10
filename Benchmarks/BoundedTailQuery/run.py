@@ -39,12 +39,7 @@ def digest(path):
     return result.hexdigest()
 
 
-def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: python3 Benchmarks/BoundedTailQuery/run.py EXECUTABLE NEW_OUTPUT_DIRECTORY")
-    executable = pathlib.Path(sys.argv[1]).resolve()
-    out = pathlib.Path(sys.argv[2]).resolve()
-    out.mkdir(parents=True, exist_ok=False)
+def provenance_hashes(executable, extra_sources):
     hashes = {str(executable): digest(executable)}
     for relative, expected in INPUTS.values():
         actual = digest(ROOT / relative)
@@ -54,8 +49,18 @@ def main():
         hashes[relative + ".bai"] = digest(ROOT / (relative + ".bai"))
     for path in [ROOT / "Package.swift", *sorted((ROOT / "Sources").rglob("*.swift")),
                  *sorted((ROOT / "Sources/CBAM").rglob("*.c")), *sorted((ROOT / "Sources/CBAM").rglob("*.h")),
-                 pathlib.Path(__file__), pathlib.Path(__file__).with_name("main.swift")]:
+                 pathlib.Path(__file__), *extra_sources]:
         hashes[str(path.relative_to(ROOT))] = digest(path)
+    return hashes
+
+
+def main():
+    if len(sys.argv) != 3:
+        raise SystemExit("usage: python3 Benchmarks/BoundedTailQuery/run.py EXECUTABLE NEW_OUTPUT_DIRECTORY")
+    executable = pathlib.Path(sys.argv[1]).resolve()
+    out = pathlib.Path(sys.argv[2]).resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    hashes = provenance_hashes(executable, [pathlib.Path(__file__).with_name("main.swift")])
     (out / "sha256.json").write_text(json.dumps(hashes, indent=2) + "\n")
     environment = {}
     for name, command in {

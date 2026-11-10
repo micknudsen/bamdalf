@@ -8,7 +8,7 @@ import statistics
 import subprocess
 import sys
 
-from run import CASES, INPUTS, ROOT, digest
+from run import CASES, INPUTS, ROOT, provenance_hashes
 
 EXPECTED_QUERIED = {
     "ordinary_1000": 1349, "ordinary_10000": 7448,
@@ -23,18 +23,7 @@ def main():
     executable = pathlib.Path(sys.argv[1]).resolve()
     out = pathlib.Path(sys.argv[2]).resolve()
     out.mkdir(parents=True, exist_ok=False)
-    hashes = {str(executable): digest(executable)}
-    for relative, expected in INPUTS.values():
-        actual = digest(ROOT / relative)
-        if actual != expected:
-            raise SystemExit(f"Unexpected input checksum: {relative}")
-        hashes[relative] = actual
-        hashes[relative + ".bai"] = digest(ROOT / (relative + ".bai"))
-    for path in [ROOT / "Package.swift", ROOT / "Benchmarks/VisibilityBaseline.swift",
-                 *sorted((ROOT / "Sources").rglob("*.swift")),
-                 *sorted((ROOT / "Sources/CBAM").rglob("*.c")), *sorted((ROOT / "Sources/CBAM").rglob("*.h")),
-                 pathlib.Path(__file__), pathlib.Path(__file__).with_name("run.py")]:
-        hashes[str(path.relative_to(ROOT))] = digest(path)
+    hashes = provenance_hashes(executable, [ROOT / "Benchmarks/VisibilityBaseline.swift", pathlib.Path(__file__)])
     (out / "sha256.json").write_text(json.dumps(hashes, indent=2) + "\n")
     (out / "worktree.patch").write_bytes(subprocess.check_output(["git", "diff", "HEAD"], cwd=ROOT))
     (out / "commit.txt").write_bytes(subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT))
