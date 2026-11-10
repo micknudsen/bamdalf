@@ -248,6 +248,13 @@ were finalized, the isolated BAI success case completed with a successful
 one-test summary in 0.289 seconds. That result does not substitute for the CSI,
 failure-path, and complete-suite CI requirements.
 
+A subsequent CI run exposed a synthetic-event assumption when native layout
+changed the viewport width. A controlled 15-point resize reproduced the exact
+one-base coordinate error. Constructing each event from the captured physical
+pointer-down anchor corrected the test while retaining its exact genomic and
+fractional assertions. The isolated corrected BAI test completed successfully;
+the production implementation and all recorded measurement inputs were unchanged.
+
 ## Reproduction
 
 Build with the documented native prerequisites and use a fresh output directory:

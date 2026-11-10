@@ -71,10 +71,16 @@ struct NativeRollingPrefetchTests {
         session.editInterval("tiny:9-2")
         session.submitInterval()
         workspace.layoutSubtreeIfNeeded()
-        stack.mouseDown(with: try rollingMouse(.leftMouseDown, fraction: 0.75, in: stack, window: window))
-        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, fraction: 0.2475, in: stack, window: window))
+        let originalWidth = stack.bounds.width
+        let pointerDown = try rollingMouse(.leftMouseDown, displacement: 0, from: originalWidth * 0.75,
+                                           in: stack, window: window)
+        let originalAnchor = stack.convert(pointerDown.locationInWindow, from: nil).x
+        stack.mouseDown(with: pointerDown)
+        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, displacement: -0.5025, from: originalAnchor,
+                                                  in: stack, window: window))
         #expect(session.presentation.target?.formatted == "tiny:1,500-1,599")
-        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, fraction: -0.2525, in: stack, window: window))
+        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, displacement: -1.0025, from: originalAnchor,
+                                                  in: stack, window: window))
         #expect(session.presentation.target?.formatted == "tiny:1,550-1,649")
         #expect(abs(session.presentation.previewOffsetInBases - 0.25) < 0.000001)
         try rollingWheel(-5000, in: stack)
@@ -117,18 +123,27 @@ struct NativeRollingPrefetchTests {
         #expect(min(interior.redComponent, interior.greenComponent, interior.blueComponent) > 0.95)
 
         // Further displacement still uses the original pointer-down anchor.
-        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, fraction: -0.7525, in: stack, window: window))
+        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, displacement: -1.5025, from: originalAnchor,
+                                                  in: stack, window: window))
         #expect(session.presentation.target?.formatted == "tiny:1,600-1,699")
         #expect(abs(session.presentation.previewOffsetInBases - 0.25) < 0.000001)
         try rollingWheel(-90, in: stack)
         #expect(session.presentation.verticalOffset > offset)
         #expect(stack.visibleRect.contains(NSPoint(x: stack.bounds.midX, y: CGFloat(missing.row * 18 + 9))),
                 "New tail rows become visible through real native scrolling during the same gesture")
-        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, fraction: -4.2525, in: stack, window: window))
+        // Layout may change viewport width during a gesture. Displacement must
+        // still be measured from the physical pointer-down position.
+        window.setContentSize(NSSize(width: workspace.bounds.width - 15, height: workspace.bounds.height))
+        workspace.layoutSubtreeIfNeeded()
+        #expect(stack.bounds.width < originalWidth)
+        stack.mouseDragged(with: try rollingMouse(.leftMouseDragged, displacement: -5.0025, from: originalAnchor,
+                                                  in: stack, window: window))
         #expect(session.presentation.target?.formatted == "tiny:1,950-2,049")
+        #expect(abs(session.presentation.previewOffsetInBases - 0.25) < 0.000001)
         #expect(!session.presentation.isLoading && spinner.isHidden)
         let releaseOffset = session.presentation.verticalOffset
-        stack.mouseUp(with: try rollingMouse(.leftMouseUp, fraction: -4.2525, in: stack, window: window))
+        stack.mouseUp(with: try rollingMouse(.leftMouseUp, displacement: -5.0025, from: originalAnchor,
+                                             in: stack, window: window))
         let pending = session.submitInterval()
         await optional.waitForRequired()
         try Task.checkCancellation()
@@ -223,8 +238,9 @@ private actor RollingNativeGate {
 }
 
 @MainActor
-private func rollingMouse(_ type: NSEvent.EventType, fraction: CGFloat, in view: NSView, window: NSWindow) throws -> NSEvent {
-    try #require(NSEvent.mouseEvent(with: type, location: view.convert(NSPoint(x: view.bounds.width * fraction,
+private func rollingMouse(_ type: NSEvent.EventType, displacement: CGFloat, from anchor: CGFloat,
+                          in view: NSView, window: NSWindow) throws -> NSEvent {
+    try #require(NSEvent.mouseEvent(with: type, location: view.convert(NSPoint(x: anchor + view.bounds.width * displacement,
                                                                             y: view.bounds.minY + 8), to: nil),
                                    modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber,
                                    context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
