@@ -69,6 +69,7 @@ public final class ViewerSession {
     private var regionalRequestID = UUID()
     private var regionalTask: Task<Void, Never>?
     private var dragOrigin: ViewerPresentation?
+    private var dragFraction = 0.0
     private var deferredRegionalCompletion: (@MainActor () -> Void)?
     private var regionalData = RegionalData()
     private let alignmentVisibilityLimit: Int64
@@ -78,8 +79,15 @@ public final class ViewerSession {
     private let loadPrefetchRegion: @Sendable (BAMFile, GenomicInterval, RegionalQueryBudget) async throws -> [Alignment]
     private var prefetchTask: Task<Void, Never>?
     private var prefetchID = UUID()
-    private var prefetchAfterRequired = false
-    private var failedPrefetch: [GenomicInterval] = []
+    private struct PrefetchDemand {
+        let required: GenomicInterval
+        let desired: GenomicInterval
+        let direction: PanDirection?
+    }
+    private var prefetchDemand: PrefetchDemand?
+    private var prefetchMotionOrigin: GenomicInterval?
+    private var requiredReadID: UUID?
+    private var blockedPrefetch: [GenomicInterval] = []
     private var stoppedPrefetch = false
     private let loadFile: @Sendable (URL, URL) async throws -> BAMFile
 
@@ -121,23 +129,33 @@ public final class ViewerSession {
     public func beginAlignmentDrag() {
         guard presentation.target != nil, !presentation.isOpening, dragOrigin == nil else { return }
         dragOrigin = presentation
+        dragFraction = 0
     }
 
     /// Pointer displacement as a fraction of the viewport width, from pointer-down.
     public func previewAlignmentDrag(horizontalFraction: Double) {
-        guard horizontalFraction.isFinite, let origin = dragOrigin, let target = origin.target,
+        guard horizontalFraction.isFinite else { return }
+        dragFraction = horizontalFraction
+        let previous = presentation.target
+        let previousOffset = presentation.previewOffsetInBases
+        refreshDragPreview()
+        if presentation.target != previous || presentation.previewOffsetInBases != previousOffset {
+            startPrefetch(rollingFrom: previous)
+        }
+    }
+
+    private func refreshDragPreview() {
+        guard let origin = dragOrigin, let target = origin.target,
               let reference = presentation.references.first(where: { $0.name == target.reference }) else { return }
         let minimum = 1 - target.start
         let maximum = reference.length - target.end
-        let exactShift = min(Double(maximum), max(Double(minimum), -horizontalFraction * Double(target.end - target.start + 1)))
+        let exactShift = min(Double(maximum), max(Double(minimum), -dragFraction * Double(target.end - target.start + 1)))
         let displacement = exactShift.rounded(.toNearestOrAwayFromZero)
         let shift = displacement <= Double(minimum) ? minimum
             : displacement >= Double(maximum) ? maximum : Int64(displacement)
         let preview = GenomicInterval(reference: target.reference, start: target.start + shift, end: target.end + shift)
         let remainder = exactShift - Double(shift)
-        let visibleBases = GenomicInterval(reference: preview.reference,
-                                           start: remainder < 0 ? max(1, preview.start - 1) : preview.start,
-                                           end: remainder > 0 ? min(reference.length, preview.end + 1) : preview.end)
+        let visibleBases = Self.fractionalVisibleInterval(for: preview, offset: remainder, referenceLength: reference.length)
         let available = regionalData.available(for: requiredInterval(for: visibleBases))
         var next = presentation
         next.target = preview
@@ -248,11 +266,29 @@ public final class ViewerSession {
     }
 
     private func admit(_ records: [Alignment], for interval: GenomicInterval) {
+        let refreshPreview = dragOrigin != nil && previewRequired.map {
+            !regionalData.missingCoverage(for: $0).isEmpty
+        } == true
         let required = committedRequired
         regionalData.insert(records, for: interval, keeping: required ?? interval)
         if prefetch.maximumBytes > 0 {
             regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage, maximumBytes: prefetch.maximumBytes)
         }
+        if refreshPreview { refreshDragPreview() }
+    }
+
+    private var previewRequired: GenomicInterval? {
+        guard let target = presentation.target, !presentation.isAlignmentSuppressed else { return nil }
+        let length = presentation.references.first { $0.name == target.reference }!.length
+        let visible = Self.fractionalVisibleInterval(for: target, offset: presentation.previewOffsetInBases, referenceLength: length)
+        return requiredInterval(for: visible)
+    }
+
+    private static func fractionalVisibleInterval(for target: GenomicInterval, offset: Double,
+                                                 referenceLength: Int64) -> GenomicInterval {
+        GenomicInterval(reference: target.reference,
+                        start: offset < 0 ? max(1, target.start - 1) : target.start,
+                        end: offset > 0 ? min(referenceLength, target.end + 1) : target.end)
     }
 
     private func trimOptional() {
@@ -266,22 +302,43 @@ public final class ViewerSession {
         prefetchID = UUID()
         prefetchTask?.cancel()
         prefetchTask = nil
+        prefetchDemand = nil
     }
 
-    /// Optional completion admits complete coverage only. It never publishes a
-    /// presentation, including when a pointer gesture has moved the preview.
-    private func startPrefetch() {
-        guard prefetch.maximumBytes > 0, !stoppedPrefetch, dragOrigin == nil,
+    private func suppressPrefetch(in interval: GenomicInterval) {
+        blockedPrefetch.append(interval)
+        // Failed reads and unretainable results share a bounded quiet backoff.
+        // Required loads never consult it and may retry these ranges normally.
+        if blockedPrefetch.count >= 64 { stoppedPrefetch = true }
+    }
+
+    /// Initial/jump/zoom fills establish both buffers. Rolling motion refreshes
+    /// the latest demand only when a completed R-edge buffer runs low.
+    private func startPrefetch(rollingFrom previous: GenomicInterval? = nil) {
+        guard prefetch.maximumBytes > 0, !stoppedPrefetch, requiredReadID == nil,
               !presentation.isLoading, let bam, let target = presentation.target,
               !presentation.isAlignmentSuppressed else { return }
-        retirePrefetch()
-        let id = prefetchID
-        let required = requiredInterval(for: target)
+        let required = previewRequired!
         let buffer = max(target.end - target.start + 1, tailSearchMargin)
         let length = presentation.references.first { $0.name == target.reference }!.length
         let desired = GenomicInterval(reference: target.reference,
                                        start: required.start - min(buffer, required.start - 1),
                                        end: required.end + min(buffer, length - required.end))
+        let direction: PanDirection? = previous.flatMap {
+            guard $0.reference == target.reference, $0.start != target.start else { return nil }
+            return target.start > $0.start ? .right : .left
+        }
+        if previous != nil {
+            let threshold = Int64(Double(buffer) * prefetch.refillFraction)
+            guard regionalData.missingCoverage(for: desired).contains(where: {
+                max(0, $0.distance(to: required) - 1) <= threshold
+            }) else { return }
+        }
+        prefetchDemand = PrefetchDemand(required: required, desired: desired, direction: direction)
+        // A useful in-flight chunk can complete while motion coalesces into
+        // this latest demand. Foreground reads retire the task separately.
+        guard prefetchTask == nil else { return }
+        let id = prefetchID
         prefetchTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             defer { if prefetchID == id { prefetchTask = nil } }
@@ -289,11 +346,21 @@ public final class ViewerSession {
             // Even failed/evicted chunks consume an attempt. This bounds work
             // without ever representing partial results as completed coverage.
             while prefetchID == id, !Task.isCancelled, !stoppedPrefetch, attempted.count < 80 {
-                let missing = regionalData.missingCoverage(for: desired)
-                let candidates = missing.flatMap { Self.subtract(attempted + failedPrefetch, from: $0) }
-                guard let gap = candidates.min(by: { $0.distance(to: required) < $1.distance(to: required) }) else { break }
+                guard let demand = prefetchDemand else { break }
+                let required = demand.required
+                let missing = regionalData.missingCoverage(for: demand.desired)
+                let candidates = missing.flatMap { Self.subtract(attempted + blockedPrefetch, from: $0) }
+                guard let gap = candidates.min(by: {
+                    let first = $0.distance(to: required), second = $1.distance(to: required)
+                    if first != second { return first < second }
+                    return demand.direction == .right ? $0.start > $1.start : $0.start < $1.start
+                }) else { break }
                 let interval: GenomicInterval
-                if gap.end < required.start {
+                if gap.start <= required.end && gap.end >= required.start {
+                    let start = max(gap.start, required.start)
+                    interval = GenomicInterval(reference: gap.reference, start: start,
+                                                end: min(required.end, start + min(prefetch.chunkBases - 1, gap.end - start)))
+                } else if gap.end < required.start {
                     interval = GenomicInterval(reference: gap.reference,
                                                 start: max(gap.start, gap.end - min(prefetch.chunkBases - 1, gap.end - gap.start)), end: gap.end)
                 } else {
@@ -307,17 +374,18 @@ public final class ViewerSession {
                     let records = try await loadPrefetchRegion(bam, interval, budget)
                     guard self.bam === bam, prefetchID == id, !Task.isCancelled else { break }
                     admit(records, for: interval)
-                    // If the chunk could not survive the byte budget, stop.
-                    // Evicted ranges are not immediately read in a loop.
-                    if !regionalData.missingCoverage(for: interval).isEmpty { break }
+                    // Remember failed retention across motion updates, not
+                    // just within this task. Otherwise each fractional pointer
+                    // change can repeatedly read the same unretainable chunk.
+                    if !regionalData.missingCoverage(for: interval).isEmpty {
+                        suppressPrefetch(in: interval)
+                        break
+                    }
                 } catch is CancellationError {
                     break
                 } catch {
                     guard self.bam === bam, prefetchID == id, !Task.isCancelled else { break }
-                    failedPrefetch.append(interval)
-                    // Failure metadata has its own bound. At the cap, required
-                    // navigation remains available but speculation stops.
-                    if failedPrefetch.count >= 64 { stoppedPrefetch = true }
+                    suppressPrefetch(in: interval)
                 }
                 await Task.yield()
             }
@@ -341,9 +409,8 @@ public final class ViewerSession {
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
             if target == presentation.target { return regionalTask }
-            retirePrefetch()
+            if prefetchAfterLoad { retirePrefetch() }
             regionalTask?.cancel()
-            prefetchAfterRequired = prefetchAfterLoad
             let requestID = UUID()
             regionalRequestID = requestID
             presentation.regionalError = nil
@@ -351,6 +418,7 @@ public final class ViewerSession {
             let initialScrollGeneration = scrollGeneration
             let suppressed = target.end - target.start + 1 > alignmentVisibilityLimit
             let previous = presentation.target
+            prefetchMotionOrigin = prefetchAfterLoad ? nil : previous
             let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
                 && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
             let required = requiredInterval(for: target)
@@ -359,6 +427,7 @@ public final class ViewerSession {
                                           maximumBytes: prefetch.maximumBytes)
             }
             let available = regionalData.available(for: required)
+            if suppressed || !available.missing.isEmpty { retirePrefetch() }
             var next = presentation
             next.target = target
             next.message = suppressed ? "Zoom in to see alignments" : ""
@@ -387,10 +456,17 @@ public final class ViewerSession {
                 lastSuccessfulCoverage = required
                 lastSuccessful = presentation
                 trimOptional()
-                if prefetchAfterLoad { startPrefetch() }
+                startPrefetch(rollingFrom: prefetchMotionOrigin)
                 return nil
             }
+            requiredReadID = requestID
             regionalTask = Task {
+                defer {
+                    if requiredReadID == requestID {
+                        requiredReadID = nil
+                        startPrefetch(rollingFrom: dragOrigin?.target ?? prefetchMotionOrigin)
+                    }
+                }
                 do {
                     var records = available.records
                     for (index, missing) in available.missing.enumerated() {
@@ -433,11 +509,13 @@ public final class ViewerSession {
     private func completeRegionalLoad(_ result: Result<[Alignment], RegionalLoadError>, requestID: UUID,
                                       generation: UInt64, initialScrollGeneration: UInt64, continuous: Bool) {
         guard regionalRequestID == requestID else { return }
+        if requiredReadID == requestID { requiredReadID = nil }
         if dragOrigin != nil {
             deferredRegionalCompletion = { [weak self] in
                 self?.completeRegionalLoad(result, requestID: requestID, generation: generation,
                                            initialScrollGeneration: initialScrollGeneration, continuous: continuous)
             }
+            startPrefetch(rollingFrom: dragOrigin?.target)
             return
         }
         switch result {
@@ -454,7 +532,7 @@ public final class ViewerSession {
             presentation.isLoading = false
             lastSuccessful = presentation
             trimOptional()
-            if prefetchAfterRequired { startPrefetch() }
+            startPrefetch(rollingFrom: prefetchMotionOrigin)
         case .failure(let error):
             restoreSuccessfulView(for: error, generation: generation)
         }
@@ -608,12 +686,15 @@ public final class ViewerSession {
             guard requestID == openingID else { return }
             retirePrefetch()
             regionalTask?.cancel()
-            failedPrefetch = []
+            blockedPrefetch = []
             stoppedPrefetch = false
             bam = file
             regionalRequestID = UUID()
             regionalTask = nil
+            requiredReadID = nil
+            prefetchMotionOrigin = nil
             dragOrigin = nil
+            dragFraction = 0
             deferredRegionalCompletion = nil
             lastSuccessful = nil
             lastSuccessfulRecords = []

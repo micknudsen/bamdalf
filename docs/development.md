@@ -5,9 +5,12 @@ This document describes the current implementation. The
 accepts bounded soft-tail-only visibility and
 [rolling prefetch](design.md#rolling-prefetch-and-resource-priority). The bounded
 visibility slice uses a fixed 250-base search margin, supported by the
-[2026-11-10 measurements](performance/bounded-tail-2026-11-10.md). Rolling
-prefetch, background refill during dragging, and separate speculative-error
-handling remain pending. This slice retains release-time retrieval during dragging.
+[2026-11-10 measurements](performance/bounded-tail-2026-11-10.md).
+[Adjacent prefetch](performance/adjacent-prefetch-2026-11-10.md) adds bounded
+optional loading and separate speculative-error handling.
+[Rolling refill](performance/rolling-prefetch-2026-11-10.md) extends that buffer
+during pans and refreshes active drag previews as data arrives, superseding
+release-only retrieval. Integrated qualification remains pending.
 
 ## Prerequisites
 
@@ -251,14 +254,34 @@ replacement-session results cannot.
 After an initial target, typed jump, or zoom becomes ready, optional prefetch
 expands R by P = max(visible width, 250) on each side to form desired coverage C.
 It queries only missing C coverage in chunks of at most 1,000 bases, visiting the
-nearest uncovered side first. Both sides can become reusable by a nearby pan.
+nearest uncovered side first, with ties favoring motion. Both sides can become reusable by a nearby pan.
 The target becomes ready when R completes; optional work never changes a
 stationary candidate set, sample, layout, scroll position, spinner, warning,
-or recovery snapshot. A drag can use completed buffered data on subsequent
-pointer movement. Proactive pan/drag refill and completion-driven preview updates
-remain the next increment.
+or recovery snapshot. During rolling pans and active drags, refill starts when
+the remaining contiguous completed buffer at an R edge falls to at most half P.
+An exhausted reference edge has no missing desired coverage and causes no work.
+Repeated motion coalesces into the latest desired C while a useful chunk stays
+in flight; it does not restart a whole-region query for every coordinate change.
+Missing preview R receives priority within optional work, then nearby leading
+and trailing gaps load under the same budgets. A reversal can reuse the buffer
+left behind by the preceding motion.
+
+Completed same-BAM data can refresh an incomplete active preview at its latest
+fractional pointer position. The pointer-down anchor stays fixed; visible
+selection and packing retain surviving rows, row extent, and newer manual
+scrolling. Completion preserves drafts and adds no preview loading decoration.
+Even a fully covered preview remains provisional until release commits it. A
+changed release loads any missing R with the normal spinner/error policy;
+failure restores the last successful committed view, never the preview. An
+older committed request's success/failure presentation stays deferred during
+the gesture and applies on unchanged release only while its target is current.
+This delivers the 2026-11-10 design revision superseding release-only loading.
 
 A changed committed target cancels optional work before requesting missing R.
+Covered rolling navigation can retain useful in-flight optional work. Active
+required reading and deferred presentation are tracked separately: preview
+refill cannot race the remaining fragments of an older foreground read, but
+can proceed after that reading finishes while its presentation remains deferred.
 The same native reader owns the BAM handle, header, index, and iterator. Its
 synchronous loop checks cancellation before opening and around every native
 record read, and every 256 sequence/CIGAR decoding operations. It never suspends
@@ -272,8 +295,8 @@ Optional malformed-data or budget failures leave the successful presentation
 intact, establish no coverage, and suppress further speculative attempts for
 that range. Other missing ranges can still load. A required request retries the
 range normally and uses ordinary failure restoration if necessary. Failure
-metadata is capped at 64 ranges; reaching that cap stops optional loading for
-the open BAM. Each optional plan also has an 80-query work cap, including failed
+and cache-pressure backoff metadata is capped at 64 ranges; reaching that cap
+stops optional loading for the open BAM. Each optional plan also has an 80-query work cap, including failed
 attempts. At the selected 1,000-base chunk size, an unobstructed 10 kb viewport
 needs at most 20 optional queries; reference clamping reduces that count.
 
@@ -281,7 +304,11 @@ The optional cache budget is 32 MiB. Coverage is partitioned into disjoint
 completed fragments, split at current required and committed recovery bounds.
 Those protected bounds retain complete unsampled data independently of the
 optional budget. Distant optional fragments are evicted before nearer ones;
-optional work stops when its new fragment cannot survive that budget. Every
+optional work stops when its new fragment cannot survive that budget. Such a
+range remains suppressed across later motion updates, so fractional movement
+cannot repeatedly read data that the cache immediately evicts. This shares the
+bounded quiet backoff used for optional query failures; required loading still
+retries normally, and a replacement BAM starts with fresh state. Every
 optional query additionally has a 20,000-decoded-record and 8 MiB conservative
 app-storage budget. Required queries have neither cap and are never silently
 truncated. Optional queries that exceed a cap throw away the partial result.
@@ -305,6 +332,16 @@ controlled events. Native checks preserve accessible warnings, hidden spinners,
 rows, scrolling, and absence of speculative alerts. Earlier no-prefetch query
 ordering/candidate comparisons explicitly disable optional loading; ordinary
 opening/rendering checks retain the production default.
+
+Rolling tests add independently expected R-edge thresholds, coalesced motion,
+quick reversals, reference-end clamps, fractional completion-driven previews,
+sampling changes, deferred foreground outcomes, and quiet failures whose visible
+tail geometry does not establish required coverage. Native tests send actual
+pointer and scroll events while new forward/reverse and outlined tails arrive;
+they check the latest position, original anchor, retained rows, drafts, and
+release status. The [focused rolling comparison](performance/rolling-prefetch-2026-11-10.md) records threshold candidates and
+ordinary/dense pan-and-reversal measurements separately from final integrated
+qualification.
 
 The `bounded-tails.sam` fixture independently specifies exact 250-base search
 boundaries, longer excluded tails, both strands, D/N-only overlaps, missing
