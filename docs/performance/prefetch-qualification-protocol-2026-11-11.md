@@ -220,5 +220,5 @@ measurement is resolved, the native demonstration and raw evidence are retained,
 the full guarded suite has a real completion summary, and required CI passes on
 the final PR head. Report the dense 10 kb tradeoff from the predecessor alongside
 new measurements: earlier enabled pan p95 was 145.57 ms versus 107.00 ms disabled,
-with additional decoded work and lower peak RSS. A faster release or improved
+with additional returned alignment work and lower peak RSS. A faster release or improved
 preview coverage does not erase that cost.

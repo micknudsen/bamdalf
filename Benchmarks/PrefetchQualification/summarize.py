@@ -100,6 +100,12 @@ def main():
         'memory_target_met': all(row['primary_memory_target_met'] for row in completions),
         'all_cases_completed': True, 'timing_summary_groups': len(summaries),
     }
+    # Preserve the original all-modes outcome. The disabled engineering
+    # comparator is reported separately from the shipping enabled configuration.
+    result['enabled_timing_cases_passed'] = all(row['observed_target_met'] for row in summaries if row['prefetch_enabled'])
+    result['disabled_timing_cases_passed'] = all(row['observed_target_met'] for row in summaries if not row['prefetch_enabled'])
+    result['enabled_memory_target_met'] = all(row['primary_memory_target_met'] for row in completions if row['prefetch_enabled'])
+    result['production_configuration_meets_targets'] = result['enabled_timing_cases_passed'] and result['enabled_memory_target_met']
     result['qualified'] = result['timing_cases_passed'] and result['memory_target_met']
     (args.output / 'completion.json').write_text(json.dumps(result, indent=2) + '\n')
     print(f'Summarized {len(completions)} cases and {len(all_rows)} observations; qualified={result["qualified"]}')

@@ -27,7 +27,7 @@ let package = Package(
         .executableTarget(name: "RollingPrefetch", dependencies: ["BamdalfKit"], path: "Benchmarks/RollingPrefetch",
                           exclude: ["run.py"], sources: ["main.swift"]),
         .executableTarget(name: "PrefetchQualification", dependencies: ["BamdalfKit"], path: "Benchmarks/PrefetchQualification",
-                          exclude: ["run.py", "protocol.py", "summarize.py"], sources: ["main.swift"]),
+                          exclude: ["run.py", "protocol.py", "summarize.py", "audit.py"], sources: ["main.swift"]),
         .testTarget(name: "BamdalfKitTests", dependencies: ["BamdalfKit"], resources: [.copy("Fixtures")]),
     ]
 )
