@@ -24,14 +24,16 @@ struct NativeMouseTests {
         session.editInterval("keep the draft")
         let tick = try #require(session.presentation.rulerTicks(availableWidth: 1000).first { $0.coordinate == 102 })
         let x = Int(stack.bounds.width * 0.25)
-        let before = try renderedPixel(in: stack, window: window, x: x, y: 9)
+        let lead = try #require(session.presentation.alignments.first { $0.name == "lead" })
+        let leadY = lead.row * 18 + 9
+        let before = try renderedPixel(in: stack, window: window, x: x, y: leadY)
         #expect(before.redComponent < 0.2)
         stack.mouseDown(with: try mouse(.leftMouseDown, fraction: 0.5, in: stack, window: window))
         stack.mouseDragged(with: try mouse(.leftMouseDragged, fraction: 0.58, in: stack, window: window))
         #expect(session.presentation.target?.formatted == "tiny:100-104")
         let moved = try #require(session.presentation.rulerTicks(availableWidth: 1000).first { $0.coordinate == 102 })
         #expect(abs(moved.fraction - tick.fraction - 0.08) < 0.000001)
-        let preview = try renderedPixel(in: stack, window: window, x: x, y: 9)
+        let preview = try renderedPixel(in: stack, window: window, x: x, y: leadY)
         #expect(preview.redComponent > 0.95, "An 0.4-base displacement moves the actual body before integer rounding changes the target")
         stack.mouseUp(with: try mouse(.leftMouseUp, fraction: 0.58, in: stack, window: window))
         #expect(session.presentation.intervalText == "keep the draft")
@@ -47,7 +49,7 @@ struct NativeMouseTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Older native load failed") }
             }
@@ -107,7 +109,7 @@ struct NativeMouseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 249 { await gate.pause(249) }
+            if target.end == 499 { await gate.pause(249) }
             return records
         })
         try await files.openedSession(fixture: "rows", session: session)
@@ -223,7 +225,7 @@ struct NativeMouseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 159 { await gate.pause(159) }
+            if target.end == 409 { await gate.pause(159) }
             return records
         })
         try await files.openedSession(fixture: "navigation", session: session)
@@ -244,7 +246,9 @@ struct NativeMouseTests {
         session.submitInterval()
         workspace.layoutSubtreeIfNeeded()
         let sampleX = Int(stack.bounds.width / 8)
-        let before = try renderedPixel(in: stack, window: window, x: sampleX, y: 9)
+        let lead = try #require(original.first { $0.name == "lead" })
+        let leadY = lead.row * 18 + 9
+        let before = try renderedPixel(in: stack, window: window, x: sampleX, y: leadY)
         #expect(max(before.redComponent, before.greenComponent, before.blueComponent) < 0.2)
         let down = try mouse(.leftMouseDown, fraction: 0.75, in: stack, window: window)
         let dragged = try mouse(.leftMouseDragged, fraction: 0.25, in: stack, window: window)
@@ -258,7 +262,7 @@ struct NativeMouseTests {
         #expect(session.presentation.alignments == original)
         #expect(await gate.count(159) == 0)
         #expect(!session.presentation.isLoading)
-        let preview = try renderedPixel(in: stack, window: window, x: sampleX, y: 9)
+        let preview = try renderedPixel(in: stack, window: window, x: sampleX, y: leadY)
         #expect(min(preview.redComponent, preview.greenComponent, preview.blueComponent) > 0.95,
                 "The first alignment moves left with the pointer; it is not just a ruler-label change")
         stack.mouseUp(with: try mouse(.leftMouseUp, fraction: 0.25, in: stack, window: window))

@@ -1,5 +1,20 @@
 # Native alignment visibility baseline
 
+For the 2026-11-10 bounded-tail retrieval change, use the
+[margin comparison and focused native report](../docs/performance/bounded-tail-2026-11-10.md)
+and its [query](BoundedTailQuery/run.py) and [native](BoundedTailQuery/native.py)
+runners. They distinguish expanded required query records from visible
+candidates, and verify that the full required interval lies inside complete
+source extraction.
+
+The 2026-11-08 qualification protocols and sampling-budget runner below preserve
+historical fixed-count evidence. Their aligned-span-only candidate/query counts
+describe the pre-margin implementation and must be run against that report's
+recorded source revision. They do not qualify the bounded-tail implementation;
+in particular, `run-sampling-baseline.sh` deliberately rejects the expanded
+query counts. Keep those historical expectations intact when reproducing the
+old reports. Issue #36 supplies a new integrated prefetch qualification protocol.
+
 For the completed viewer workload, see the
 [2026-11-08 qualification report](../docs/performance/qualification-2026-11-08.md),
 its [fixed v2 protocol](qualification-protocol-v2.json), and the

@@ -13,7 +13,7 @@ struct NativePanTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 250 { await gate.pause(250) }
+            if target.end == 500 { await gate.pause(250) }
             return records
         })
         try await files.openedSession(fixture: "rows", session: session)

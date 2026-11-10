@@ -91,7 +91,7 @@ struct SamplingTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.start == 451 { await gate.pause(451) }
+            if target.start == 701 { await gate.pause(451) }
             return records
         }, samplingGroupBudget: 7, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
         try await files.openedSession(fixture: "sampling", session: session)
@@ -104,7 +104,12 @@ struct SamplingTests {
         let pending = session.submitInterval()
         await gate.waitFor(451)
         #expect(session.presentation.isLoading)
-        #expect(session.presentation.alignments == original)
+        // The earlier R already fetched the newly visible group. It participates
+        // immediately, while the missing outer search edge still keeps loading.
+        #expect(session.presentation.alignments.map(\.referenceStart) == [101, 102, 103, 106, 107, 108, 109, 110, 401, 501])
+        for record in session.presentation.alignments {
+            if let previous = original.first(where: { $0.id == record.id }) { #expect(record.row == previous.row) }
+        }
         session.scrollVertically(to: 200)
         await gate.release(451)
         await pending?.value
@@ -136,7 +141,7 @@ struct SamplingTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.start == 451 {
+            if target.start == 701 {
                 await gate.pause(451)
                 throw RegionalLoadError(interval: target, message: "Controlled sampling failure")
             }
@@ -198,7 +203,7 @@ struct SamplingTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.start == 100 { await gate.pause(100) }
+            if target.end == 700 { await gate.pause(100) }
             return records
         }, samplingGroupBudget: 4, samplingSeed: { 42 })
         try await files.openedSession(fixture: "sampling", session: session)

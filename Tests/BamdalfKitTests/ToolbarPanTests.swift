@@ -17,8 +17,8 @@ struct ToolbarPanTests {
         session.scrollVertically(to: 100)
         #expect(session.pan(.right) == nil)
         #expect(session.presentation.target?.formatted == "tiny:121-121")
-        #expect(session.presentation.alignments.map(\.name) == ["anchor"])
-        #expect(session.presentation.alignments.first?.row == anchor.row)
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["anchor", "new_tail"])
+        #expect(session.presentation.alignments.first { $0.id == anchor.id }?.row == anchor.row)
         #expect(session.presentation.rowCount == extent)
         #expect(session.presentation.verticalOffset == 100)
     }
@@ -53,7 +53,7 @@ struct ToolbarPanTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 throw RegionalLoadError(interval: target, message: "Pan region failed")
             }
@@ -91,7 +91,7 @@ struct ToolbarPanTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 if failLate { throw RegionalLoadError(interval: target, message: "Old pan failed") }
             }
@@ -123,14 +123,14 @@ struct ToolbarPanTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 159 { await gate.pause(159) }
+            if target.end == 409 { await gate.pause(159) }
             return records
         })
         try await files.openedSession(fixture: "navigation", indexFormat: indexFormat, session: session)
         session.editInterval("tiny:100-139")
         await session.submitInterval()?.value
         let original = session.presentation.alignments
-        #expect(Set(original.map(\.name)) == ["lead", "anchor"])
+        #expect(Set(original.map(\.name)) == ["lead", "anchor", "new_tail"])
         session.scrollVertically(to: 100)
         let pending = session.pan(.right)
         #expect(session.presentation.target?.formatted == "tiny:120-159")
@@ -149,7 +149,7 @@ struct ToolbarPanTests {
         }
         let tail = try #require(withNewcomer.first { $0.name == "new_tail" })
         #expect(tail.drawnStart == 50)
-        #expect(!original.map(\.row).contains(tail.row))
+        #expect(original.first { $0.id == tail.id }?.row == tail.row)
         let extent = session.presentation.rowCount
         await session.pan(.right)?.value
         #expect(session.presentation.target?.formatted == "tiny:140-179")
@@ -173,7 +173,7 @@ struct ToolbarPanTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 2000 { await gate.pause(2000) }
+            if target.start == 1741 { await gate.pause(2000) }
             return records
         })
         try await files.openedSession(session: session)
@@ -187,7 +187,11 @@ struct ToolbarPanTests {
         #expect(session.presentation.intervalText == "tiny:1,986-1,995")
         #expect(session.presentation.intervalError == nil)
 
-        let pending = session.pan(.right)
+        // Padding already covers the boundary after a nearby pan. Reopen to
+        // exercise a boundary no-op while its first required query is pending.
+        try await files.openedSession(session: session)
+        session.editInterval("tiny:1991-2000")
+        let pending = session.submitInterval()
         await gate.waitFor(2000)
         session.editInterval("tiny:3-2")
         session.submitInterval()

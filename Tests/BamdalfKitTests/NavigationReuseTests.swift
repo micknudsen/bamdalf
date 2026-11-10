@@ -11,7 +11,7 @@ struct NavigationReuseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if (300..<400).contains(target.end) { await gate.pause(target.end) }
+            if (550..<650).contains(target.end) { await gate.pause(target.end - 250) }
             return records
         })
         try await files.openedSession(fixture: "rows", indexFormat: "bai", session: session)
@@ -54,12 +54,12 @@ struct NavigationReuseTests {
 
     @Test
     @MainActor
-    func newlyLoadedPartialRecordsStayProvisionalAndFileReplacementOwnsCoverage() async throws {
+    func expandedViewsStayProvisionalAndFileReplacementOwnsCoverage() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 300 {
+            if target.end == 550 {
                 await gate.pause(300)
                 throw RegionalLoadError(interval: target, message: "Second missing interval failed")
             }
@@ -73,7 +73,7 @@ struct NavigationReuseTests {
         let pending = session.submitInterval()
         await gate.waitFor(300)
         #expect(session.presentation.isLoading)
-        #expect(Set(session.presentation.alignments.map(\.name)) == ["anchor", "new_tail", "lead"])
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["anchor", "new_tail", "lead", "late"])
         await gate.release(300)
         await pending?.value
         #expect(session.presentation.alignments == saved)
@@ -114,7 +114,7 @@ struct NavigationReuseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 200 {
+            if target.end == 450 {
                 await gate.pause(200)
                 if failLate { throw RegionalLoadError(interval: target, message: "Late missing-region failure") }
             }
@@ -127,7 +127,7 @@ struct NavigationReuseTests {
         let old = session.submitInterval()
         await gate.waitFor(200)
         #expect(session.presentation.isLoading)
-        #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor"])
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor", "new_tail"])
         session.editInterval("tiny:100-110")
         #expect(session.submitInterval() == nil)
         let accepted = session.presentation.alignments
@@ -177,8 +177,8 @@ struct NavigationReuseTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end > 300 {
-                await gate.pause(target.end)
+            if target.end > 550 {
+                await gate.pause(target.end - 250)
                 throw RegionalLoadError(interval: target, message: "Controlled missing-region failure")
             }
             return try await file.alignments(in: target)
@@ -225,7 +225,7 @@ struct NavigationReuseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 155 { await gate.pause(155) }
+            if target.end == 405 { await gate.pause(155) }
             return records
         })
         try await files.openedSession(fixture: "navigation", indexFormat: "bai", session: session)
@@ -237,14 +237,14 @@ struct NavigationReuseTests {
         session.scrollVertically(to: 30)
         session.editInterval("tiny:145-155")
         let pending = session.submitInterval()
-        #expect(session.presentation.alignments.map(\.name) == ["anchor"])
-        #expect(session.presentation.alignments.first?.row == 0, "Disjoint targets reset even a spanning record")
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["anchor", "new_tail"])
+        #expect(session.presentation.alignments.first { $0.name == "new_tail" }?.row == 0, "Disjoint targets freshly pack full drawn extents")
         #expect(session.presentation.verticalOffset == 0)
         await gate.waitFor(155)
         session.scrollVertically(to: 15)
         await gate.release(155)
         await pending?.value
-        #expect(session.presentation.alignments.first { $0.name == "anchor" }?.row == 0)
+        #expect(session.presentation.alignments.first { $0.name == "anchor" }?.row == 1)
         #expect(session.presentation.verticalOffset == 15)
 
         session.editInterval("other_reference:101-120")
@@ -281,12 +281,12 @@ struct NavigationReuseTests {
         session.editInterval("tiny:100-120")
         await session.submitInterval()?.value
         let original = session.presentation.alignments
-        #expect(Set(original.map(\.name)) == ["lead", "anchor"])
+        #expect(Set(original.map(\.name)) == ["lead", "anchor", "new_tail"])
         session.scrollVertically(to: 20)
 
         session.editInterval("tiny:115-270")
         let pending = session.submitInterval()
-        #expect(session.presentation.alignments == original)
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor", "new_tail", "late"])
         await pending?.value
         let expanded = session.presentation.alignments
         #expect(Set(expanded.map(\.name)) == ["lead", "anchor", "new_tail", "late"])
@@ -294,7 +294,7 @@ struct NavigationReuseTests {
             #expect(expanded.first { $0.id == record.id }?.row == record.row)
         }
         let tail = try #require(expanded.first { $0.name == "new_tail" })
-        #expect(original.allSatisfy { $0.row != tail.row }, "Full tail collides with both retained rows")
+        #expect(original.first { $0.id == tail.id }?.row == tail.row, "The already visible full tail retains its row")
         #expect(session.presentation.verticalOffset == 20)
         let extent = session.presentation.rowCount
 
@@ -329,7 +329,7 @@ struct NavigationReuseTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 180 { await gate.pause(180) }
+            if target.end == 430 { await gate.pause(180) }
             return records
         })
         try await files.openedSession(fixture: "rows", indexFormat: indexFormat, session: session)
@@ -378,7 +378,7 @@ struct NavigationReuseTests {
         session.onPresentationChange = { showedLoading = showedLoading || session.presentation.isLoading }
 
         for (text, expected) in [
-            ("tiny:95-100", Set<String>()),
+            ("tiny:95-100", Set(["forward", "reverse"])),
             ("tiny:100-105", Set(["forward", "reverse", "supplementary"])),
             ("tiny:2050-2060", Set(["skip"])),
             ("tiny:1500-1510", Set<String>()),

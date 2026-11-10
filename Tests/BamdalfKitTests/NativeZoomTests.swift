@@ -58,12 +58,11 @@ struct NativeZoomTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
+        let requests = NativeZoomRequests()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end - target.start + 1 > 100 {
-                throw RegionalLoadError(interval: target, message: "Wide zoom must not query")
-            }
+            await requests.record(target.formatted)
             let records = try await file.alignments(in: target)
-            if target.end == 250 { await gate.pause(250) }
+            if target.end == 500 { await gate.pause(250) }
             return records
         }, alignmentVisibilityLimit: 100)
         try await files.openedSession(fixture: "rows", session: session)
@@ -82,12 +81,15 @@ struct NativeZoomTests {
         await session.submitInterval()?.value
         workspace.layoutSubtreeIfNeeded()
         #expect(session.presentation.alignments.count == 80)
+        let initialRequests = await requests.values
+        #expect(initialRequests == ["tiny:1-449"])
         scroll.contentView.scroll(to: NSPoint(x: 0, y: 300))
         scroll.reflectScrolledClipView(scroll.contentView)
         minus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:50-249")
         #expect(session.submitInterval() == nil)
         #expect(session.presentation.isAlignmentSuppressed && spinner.isHidden)
+        #expect(await requests.values == initialRequests, "The cutoff uses visible width, not expanded query width")
         #expect(session.presentation.alignments.isEmpty)
         let messages = workspace.subviews.compactMap { $0 as? NSTextField }
         #expect(messages.contains { $0.stringValue == "Zoom in to see alignments" && !$0.isHidden })
@@ -103,6 +105,7 @@ struct NativeZoomTests {
         plus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:101-300")
         #expect(session.presentation.isAlignmentSuppressed && session.presentation.alignments.isEmpty)
+        #expect(await requests.values == initialRequests)
         plus.performClick(nil)
         #expect(session.presentation.target?.formatted == "tiny:151-250")
         let returning = session.submitInterval()
@@ -203,4 +206,9 @@ struct NativeZoomTests {
         #expect(ordered.last!.frame.maxX < field.frame.minX)
         #expect(workspace.bounds.contains(field.frame))
     }
+}
+
+private actor NativeZoomRequests {
+    private(set) var values: [String] = []
+    func record(_ value: String) { values.append(value) }
 }

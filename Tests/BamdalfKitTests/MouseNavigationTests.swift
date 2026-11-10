@@ -8,17 +8,17 @@ struct MouseNavigationTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let session = try await files.openedSession(fixture: "navigation", indexFormat: indexFormat)
-        // Cache the newcomer, then enter a fresh layout containing only lead/anchor.
-        for target in ["tiny:120-159", "tiny:500-539", "tiny:100-139"] {
+        // Cache the tail, then enter a fresh layout beyond its drawn end.
+        for target in ["tiny:120-159", "tiny:500-539", "tiny:160-199"] {
             session.editInterval(target)
             await session.submitInterval()?.value
         }
         session.beginAlignmentDrag()
-        session.previewAlignmentDrag(horizontalFraction: -0.5)
+        session.previewAlignmentDrag(horizontalFraction: 0.5)
         let newcomer = try #require(session.presentation.alignments.first { $0.name == "new_tail" })
-        #expect(newcomer.row == 2)
+        #expect(newcomer.row == 1)
         let extent = session.presentation.rowCount
-        session.previewAlignmentDrag(horizontalFraction: -0.75)
+        session.previewAlignmentDrag(horizontalFraction: 0.75)
         #expect(session.presentation.target?.formatted == "tiny:130-169")
         #expect(session.presentation.alignments.first { $0.id == newcomer.id }?.row == newcomer.row)
         #expect(session.presentation.rowCount >= extent)
@@ -91,7 +91,7 @@ struct MouseNavigationTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Existing request failed") }
             }
@@ -117,7 +117,7 @@ struct MouseNavigationTests {
         #expect(session.presentation.intervalError != nil)
         #expect(!session.presentation.isLoading)
         #expect((session.presentation.regionalError != nil) == failOlder)
-        #expect(session.presentation.alignments.contains { $0.name == "new_tail" } == !failOlder)
+        #expect(session.presentation.alignments.contains { $0.name == "new_tail" })
     }
 
     @Test
@@ -157,11 +157,11 @@ struct MouseNavigationTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Older failed") }
             }
-            if target.end == 199 { throw RegionalLoadError(interval: target, message: "Committed drag failed") }
+            if target.end == 449 { throw RegionalLoadError(interval: target, message: "Committed drag failed") }
             return try await file.alignments(in: target)
         })
         try await files.openedSession(fixture: "navigation", session: session)
@@ -198,7 +198,7 @@ struct MouseNavigationTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 if fail { throw RegionalLoadError(interval: target, message: "Drag target failed") }
             }
@@ -265,7 +265,7 @@ struct MouseNavigationTests {
         session.beginAlignmentDrag()
         session.previewAlignmentDrag(horizontalFraction: -0.5)
         #expect(session.presentation.target?.formatted == "tiny:120-159")
-        #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor"])
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor", "new_tail"])
         for retained in original {
             #expect(session.presentation.alignments.first { $0.id == retained.id }?.row == retained.row)
         }

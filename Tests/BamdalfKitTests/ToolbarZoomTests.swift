@@ -71,7 +71,7 @@ struct ToolbarZoomTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 throw RegionalLoadError(interval: target, message: "Zoom region failed")
             }
@@ -112,7 +112,7 @@ struct ToolbarZoomTests {
         let session = ViewerSession(loadRegion: { file, target in
             await requests.record(target.formatted)
             let records = try await file.alignments(in: target)
-            if target.end == 159 {
+            if target.end == 409 {
                 await gate.pause(159)
                 let attempt = await gate.count(159)
                 if failLate && attempt == 1 {
@@ -170,30 +170,30 @@ struct ToolbarZoomTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 159 { await gate.pause(159) }
+            if target.end == 469 { await gate.pause(159) }
             return records
         })
         try await files.openedSession(fixture: "navigation", indexFormat: indexFormat, session: session)
-        session.editInterval("tiny:100-139")
+        session.editInterval("tiny:160-199")
         await session.submitInterval()?.value
         let original = session.presentation.alignments
-        #expect(Set(original.map(\.name)) == ["lead", "anchor"])
+        #expect(Set(original.map(\.name)) == ["anchor"])
         session.scrollVertically(to: 100)
         #expect(session.zoom(.in) == nil)
-        #expect(session.presentation.target?.formatted == "tiny:110-129")
+        #expect(session.presentation.target?.formatted == "tiny:170-189")
         #expect(session.presentation.alignments == original)
         #expect(session.presentation.verticalOffset == 100)
         #expect(session.zoom(.out) == nil)
         let pending = session.zoom(.out)
-        #expect(session.presentation.target?.formatted == "tiny:80-159")
+        #expect(session.presentation.target?.formatted == "tiny:140-219")
         await gate.waitFor(159)
         #expect(session.presentation.isLoading)
-        #expect(session.presentation.alignments == original)
+        #expect(Set(session.presentation.alignments.map(\.name)) == ["anchor", "new_tail"])
         session.scrollVertically(to: 200)
         await gate.release(159)
         await pending?.value
         let expanded = session.presentation.alignments
-        #expect(Set(expanded.map(\.name)) == ["lead", "anchor", "new_tail"])
+        #expect(Set(expanded.map(\.name)) == ["anchor", "new_tail"])
         for retained in original { #expect(expanded.first { $0.id == retained.id }?.row == retained.row) }
         let tail = try #require(expanded.first { $0.name == "new_tail" })
         #expect(tail.drawnStart == 50)
@@ -201,7 +201,7 @@ struct ToolbarZoomTests {
         #expect(session.presentation.verticalOffset == 200)
         let extent = session.presentation.rowCount
         #expect(session.zoom(.in) == nil)
-        #expect(session.presentation.target?.formatted == "tiny:100-139")
+        #expect(session.presentation.target?.formatted == "tiny:160-199")
         #expect(session.presentation.alignments == original)
         #expect(session.presentation.rowCount == extent)
         #expect(session.presentation.verticalOffset == 200)

@@ -11,7 +11,7 @@ struct AlignmentLayoutTests {
         let gate = RegionGate()
         let session = ViewerSession(loadRegion: { file, target in
             let records = try await file.alignments(in: target)
-            if target.end == 301 { await gate.pause(301) }
+            if target.end == 551 { await gate.pause(301) }
             return records
         })
         let bam = files.sources.appendingPathComponent("rows.bam")
