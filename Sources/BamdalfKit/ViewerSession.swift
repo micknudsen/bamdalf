@@ -155,9 +155,7 @@ public final class ViewerSession {
             : displacement >= Double(maximum) ? maximum : Int64(displacement)
         let preview = GenomicInterval(reference: target.reference, start: target.start + shift, end: target.end + shift)
         let remainder = exactShift - Double(shift)
-        let visibleBases = GenomicInterval(reference: preview.reference,
-                                           start: remainder < 0 ? max(1, preview.start - 1) : preview.start,
-                                           end: remainder > 0 ? min(reference.length, preview.end + 1) : preview.end)
+        let visibleBases = Self.fractionalVisibleInterval(for: preview, offset: remainder, referenceLength: reference.length)
         let available = regionalData.available(for: requiredInterval(for: visibleBases))
         var next = presentation
         next.target = preview
@@ -282,10 +280,15 @@ public final class ViewerSession {
     private var previewRequired: GenomicInterval? {
         guard let target = presentation.target, !presentation.isAlignmentSuppressed else { return nil }
         let length = presentation.references.first { $0.name == target.reference }!.length
-        let visible = GenomicInterval(reference: target.reference,
-                                      start: presentation.previewOffsetInBases < 0 ? max(1, target.start - 1) : target.start,
-                                      end: presentation.previewOffsetInBases > 0 ? min(length, target.end + 1) : target.end)
+        let visible = Self.fractionalVisibleInterval(for: target, offset: presentation.previewOffsetInBases, referenceLength: length)
         return requiredInterval(for: visible)
+    }
+
+    private static func fractionalVisibleInterval(for target: GenomicInterval, offset: Double,
+                                                 referenceLength: Int64) -> GenomicInterval {
+        GenomicInterval(reference: target.reference,
+                        start: offset < 0 ? max(1, target.start - 1) : target.start,
+                        end: offset > 0 ? min(referenceLength, target.end + 1) : target.end)
     }
 
     private func trimOptional() {

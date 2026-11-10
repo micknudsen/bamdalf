@@ -267,3 +267,10 @@ python3 Benchmarks/RollingPrefetch/run.py .build/release/RollingPrefetch OUTPUT_
 Use the archived source snapshot and its recorded HTSlib prerequisites for an
 exact historical implementation comparison. The parent commit alone does not
 include the uncommitted implementation measured in the initial archive.
+
+The final selected production-source hashes match commit `2b5c692`. Subsequent
+review consolidated identical fractional visible-range arithmetic into one
+private helper and registered the synthetic fixture in the canonical generation
+script. The interval rules and measured inputs were unchanged; the report keeps
+the original source hashes and timings rather than attributing them to a later
+binary. Focused boundary and native regression checks cover the review changes.

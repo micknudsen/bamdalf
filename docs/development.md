@@ -5,9 +5,12 @@ This document describes the current implementation. The
 accepts bounded soft-tail-only visibility and
 [rolling prefetch](design.md#rolling-prefetch-and-resource-priority). The bounded
 visibility slice uses a fixed 250-base search margin, supported by the
-[2026-11-10 measurements](performance/bounded-tail-2026-11-10.md). Rolling
-prefetch, background refill during dragging, and separate speculative-error
-handling remain pending. This slice retains release-time retrieval during dragging.
+[2026-11-10 measurements](performance/bounded-tail-2026-11-10.md).
+[Adjacent prefetch](performance/adjacent-prefetch-2026-11-10.md) adds bounded
+optional loading and separate speculative-error handling.
+[Rolling refill](performance/rolling-prefetch-2026-11-10.md) extends that buffer
+during pans and refreshes active drag previews as data arrives, superseding
+release-only retrieval. Integrated qualification remains pending.
 
 ## Prerequisites
 

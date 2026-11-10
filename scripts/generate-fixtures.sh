@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 bash scripts/build-htslib.sh
 xcrun clang -I .build/htslib/include scripts/generate-fixtures.c \
     .build/htslib/lib/libhts.a -lz -o .build/generate-fixtures
-for fixture in opening coordinates alignments rows navigation zoom sampling sampling-unicode density malformed-rg bounded-tails; do
+for fixture in opening coordinates alignments rows navigation zoom sampling sampling-unicode density malformed-rg bounded-tails rolling; do
     .build/generate-fixtures "Tests/BamdalfKitTests/Fixtures/$fixture.sam" "Tests/BamdalfKitTests/Fixtures/$fixture.bam"
 done
 xcrun clang -I .build/htslib/include scripts/generate-defect-fixtures.c \
