@@ -90,7 +90,7 @@ struct MouseNavigationTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Existing request failed") }
@@ -156,7 +156,7 @@ struct MouseNavigationTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Older failed") }
@@ -197,7 +197,7 @@ struct MouseNavigationTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 if fail { throw RegionalLoadError(interval: target, message: "Drag target failed") }
@@ -249,7 +249,7 @@ struct MouseNavigationTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let requests = MouseRequests()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             await requests.record(target.formatted)
             return try await file.alignments(in: target)
         })

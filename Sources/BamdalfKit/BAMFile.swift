@@ -6,6 +6,21 @@ public struct ReferenceSequence: Equatable, Sendable {
     public let length: Int64
 }
 
+/// Optional-query limits. Mandatory queries omit this budget and remain complete.
+public struct RegionalQueryBudget: Sendable {
+    public let maximumRecords: Int
+    public let maximumBytes: Int
+
+    public init(maximumRecords: Int, maximumBytes: Int) {
+        precondition(maximumRecords > 0 && maximumBytes > 0)
+        self.maximumRecords = maximumRecords
+        self.maximumBytes = maximumBytes
+    }
+}
+
+/// A stopped optional query contributes no records or completed coverage.
+public struct RegionalQueryBudgetExceeded: Error, Sendable {}
+
 /// Owns one opened BAM/header/index. Native access stays inside this actor.
 public actor BAMFile {
     public nonisolated let url: URL
@@ -17,36 +32,62 @@ public actor BAMFile {
         try await Task.detached { try BAMFile(url, indexURL: indexURL) }.value
     }
 
-    public func alignments(in interval: GenomicInterval) throws -> [Alignment] {
+    public func alignments(in interval: GenomicInterval, budget: RegionalQueryBudget? = nil) throws -> [Alignment] {
+        try Task.checkCancellation()
         guard let query = bamdalf_query_open(handle.pointer, interval.reference, interval.start - 1, interval.end) else {
             throw RegionalLoadError(interval: interval, message: "Could not query the selected BAM index.")
         }
         defer { bamdalf_query_close(query) }
         var result: [Alignment] = []
+        var decodedRecords = 0
+        var retainedBytes = 0
         while true {
+            // The actor never suspends with a live iterator. Cancellation closes
+            // it before another task can seek the shared native BAM handle.
+            // A blocking HTSlib read itself cannot be interrupted here.
+            try Task.checkCancellation()
             let status = bamdalf_query_next(query)
+            try Task.checkCancellation()
             if status == -1 { return result }
             guard status >= 0 else {
                 throw RegionalLoadError(interval: interval, message: "Could not decode alignment data from the selected BAM/index.")
             }
+            decodedRecords += 1
+            if let budget, decodedRecords > budget.maximumRecords { throw RegionalQueryBudgetExceeded() }
             let flags = bamdalf_record_flags(query)
             if flags & 0x704 != 0 { continue }
-            let name = String(cString: bamdalf_record_name(query))
+            let namePointer = bamdalf_record_name(query)!
             var readGroup: UnsafePointer<CChar>?
             guard bamdalf_record_read_group(query, &readGroup) == 0 else {
-                throw RegionalLoadError(interval: interval, message: "Alignment \(name) has an invalid RG tag; expected a string (Z).")
+                throw RegionalLoadError(interval: interval, message: "Alignment \(String(cString: namePointer)) has an invalid RG tag; expected a string (Z).")
             }
-            guard bamdalf_record_cigar_count(query) > 0 else {
+            let cigarCount = bamdalf_record_cigar_count(query)
+            let sequenceLength = Int(bamdalf_record_sequence_length(query))
+            if let budget {
+                // Bound app allocations before expanding sequence/CIGAR. HTSlib
+                // has already decoded one native record; its I/O buffers and a
+                // pathological raw record are not a process-memory guarantee.
+                let strings = Int(strlen(namePointer)) + (readGroup.map { Int(strlen($0)) } ?? 0)
+                let workingBytes = 2 * MemoryLayout<Alignment>.stride + 256 + 2 * strings
+                    + 8 * sequenceLength
+                    + Int(cigarCount) * (2 * MemoryLayout<AlignmentSegment>.stride + 64)
+                guard workingBytes <= budget.maximumBytes - retainedBytes else { throw RegionalQueryBudgetExceeded() }
+            }
+            let name = String(cString: namePointer)
+            guard cigarCount > 0 else {
                 throw RegionalLoadError(interval: interval, message: "Mapped alignment \(name) has no CIGAR.")
             }
             let start = bamdalf_record_start(query) + 1
             var reference = start
             var queryOffset = 0
-            let sequenceLength = Int(bamdalf_record_sequence_length(query))
-            let sequence = (0..<sequenceLength).map { UInt8(bitPattern: bamdalf_record_base(query, Int32($0))) }
+            let sequence = try (0..<sequenceLength).map { index in
+                if index & 255 == 0 { try Task.checkCancellation() }
+                return UInt8(bitPattern: bamdalf_record_base(query, Int32(index)))
+            }
             var segments: [AlignmentSegment] = []
             var cigar = ""
-            for index in 0..<bamdalf_record_cigar_count(query) {
+            for index in 0..<cigarCount {
+                if index & 255 == 0 { try Task.checkCancellation() }
                 let operation = bamdalf_record_cigar(query, index)
                 let length = Int(operation >> 4)
                 guard length > 0 else {
@@ -92,8 +133,14 @@ public actor BAMFile {
                 throw RegionalLoadError(interval: interval, message: "Alignment \(name) exceeds the reference bounds.")
             }
             if reference > start && start <= interval.end && reference > interval.start {
-                result.append(Alignment(id: bamdalf_record_id(query), name: name, readGroup: readGroup.map { String(cString: $0) }, cigar: cigar, isReverse: flags & 16 != 0,
-                                        referenceStart: start, referenceEnd: reference - 1, segments: segments))
+                let alignment = Alignment(id: bamdalf_record_id(query), name: name, readGroup: readGroup.map { String(cString: $0) }, cigar: cigar, isReverse: flags & 16 != 0,
+                                          referenceStart: start, referenceEnd: reference - 1, segments: segments)
+                if let budget {
+                    let bytes = alignment.estimatedStorageBytes
+                    guard bytes <= budget.maximumBytes - retainedBytes else { throw RegionalQueryBudgetExceeded() }
+                    retainedBytes += bytes
+                }
+                result.append(alignment)
             }
         }
     }

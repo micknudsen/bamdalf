@@ -1,5 +1,14 @@
 # Native alignment visibility baseline
 
+For initial/jump/zoom adjacent prefetch, use the
+[focused comparison and interruption report](../docs/performance/adjacent-prefetch-2026-11-10.md).
+The [native comparison runner](AdjacentPrefetch/run.py) measures production
+first-ready/raster and nearby-pan behavior with prefetch disabled/enabled. The
+[interruption runner](AdjacentPrefetch/instrument.py) builds an archived source
+snapshot instrumented immediately after actual native optional-record decoding;
+it does not delay result delivery to imitate reader preemption. Their finite
+workloads do not replace the later rolling-pan/drag and ten-minute qualification.
+
 For the 2026-11-10 bounded-tail retrieval change, use the
 [margin comparison and focused native report](../docs/performance/bounded-tail-2026-11-10.md)
 and its [query](BoundedTailQuery/run.py) and [native](BoundedTailQuery/native.py)

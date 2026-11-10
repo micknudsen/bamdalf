@@ -59,7 +59,7 @@ struct NativeZoomTests {
         defer { files.remove() }
         let gate = RegionGate()
         let requests = NativeZoomRequests()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             await requests.record(target.formatted)
             let records = try await file.alignments(in: target)
             if target.end == 500 { await gate.pause(250) }
@@ -141,7 +141,7 @@ struct NativeZoomTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
+        let session = ViewerSession(prefetch: .disabled)
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)

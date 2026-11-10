@@ -11,7 +11,7 @@ struct NativeSamplingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 850 { await gate.pause(451) }
             if target.end == 950 { throw RegionalLoadError(interval: target, message: "Native sampled rollback") }
             return try await file.alignments(in: target)
