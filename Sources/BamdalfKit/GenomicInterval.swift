@@ -10,6 +10,23 @@ public struct GenomicInterval: Equatable, Sendable {
         "\(reference):\(formatCoordinate(start))-\(formatCoordinate(end))"
     }
 
+    func subtracting(_ excluded: GenomicInterval) -> [GenomicInterval] {
+        guard reference == excluded.reference, excluded.end >= start, excluded.start <= end else { return [self] }
+        var remaining: [GenomicInterval] = []
+        if excluded.start > start {
+            remaining.append(GenomicInterval(reference: reference, start: start, end: excluded.start - 1))
+        }
+        if excluded.end < end {
+            remaining.append(GenomicInterval(reference: reference, start: excluded.end + 1, end: end))
+        }
+        return remaining
+    }
+
+    func distance(to other: GenomicInterval) -> Int64 {
+        guard reference == other.reference else { return .max }
+        return max(0, max(start - other.end, other.start - end))
+    }
+
     static func parse(_ input: String, references: [ReferenceSequence]) throws -> GenomicInterval {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.contains(where: \.isWhitespace), let separator = text.lastIndex(of: ":") else {

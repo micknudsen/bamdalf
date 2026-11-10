@@ -3,6 +3,58 @@ import Testing
 import BamdalfKit
 
 struct AdjacentPrefetchTests {
+    @Test
+    @MainActor
+    func rulerOnlyTransitionReleasesPriorRequiredProtection() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = ViewerSession(prefetch: .init(maximumBytes: 1))
+        try await files.openedSession(fixture: "rows", session: session)
+        session.editInterval("tiny:100-200")
+        await session.submitInterval()?.value
+        let saved = Set(session.presentation.alignments.map(\.id))
+        session.editInterval("tiny:1-20000")
+        #expect(session.submitInterval() == nil)
+        #expect(session.presentation.isAlignmentSuppressed)
+        #expect(!session.presentation.isLoading)
+        session.editInterval("tiny:100-200")
+        let reload = session.submitInterval()
+        #expect(reload != nil, "A ruler-only view no longer protects the former alignment region")
+        await reload?.value
+        #expect(Set(session.presentation.alignments.map(\.id)) == saved)
+        #expect(session.presentation.alignments.count == 80)
+        #expect(session.presentation.regionalError == nil)
+    }
+
+    @Test
+    @MainActor
+    func failedTargetPartialDataLosesRequiredProtectionAfterRestoration() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = ViewerSession(prefetch: .init(maximumBytes: 1), loadRegion: { file, interval in
+            if interval.start == 1261 {
+                throw RegionalLoadError(interval: interval, message: "Expanded right edge failed")
+            }
+            return try await file.alignments(in: interval)
+        })
+        try await files.openedSession(fixture: "rows", session: session)
+        session.editInterval("tiny:1000-1010")
+        await session.submitInterval()?.value
+        let saved = session.presentation
+        session.editInterval("tiny:100-1500")
+        await session.submitInterval()?.value
+        #expect(session.presentation.regionalError != nil)
+        #expect(session.presentation.target == saved.target)
+        #expect(session.presentation.alignments == saved.alignments)
+        session.editInterval("tiny:100-200")
+        let reload = session.submitInterval()
+        #expect(reload != nil, "The failed target's old left edge must no longer bypass the optional byte budget")
+        await reload?.value
+        #expect(session.presentation.alignments.count == 80)
+        #expect(Set(session.presentation.alignments.map(\.id)).count == 80)
+        #expect(session.presentation.regionalError == nil)
+    }
+
     @Test(arguments: ["bai", "csi"], [3, 100])
     @MainActor
     func budgetedPrefetchAndMixedCoveragePreserveCompleteCandidatesAndSamples(indexFormat: String, budget: Int) async throws {

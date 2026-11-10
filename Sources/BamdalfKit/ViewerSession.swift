@@ -291,7 +291,7 @@ public final class ViewerSession {
             while prefetchID == id, !Task.isCancelled, !stoppedPrefetch, attempted.count < 80 {
                 let missing = regionalData.missingCoverage(for: desired)
                 let candidates = missing.flatMap { Self.subtract(attempted + failedPrefetch, from: $0) }
-                guard let gap = candidates.min(by: { Self.distance($0, from: required) < Self.distance($1, from: required) }) else { break }
+                guard let gap = candidates.min(by: { $0.distance(to: required) < $1.distance(to: required) }) else { break }
                 let interval: GenomicInterval
                 if gap.end < required.start {
                     interval = GenomicInterval(reference: gap.reference,
@@ -324,26 +324,10 @@ public final class ViewerSession {
         }
     }
 
-    private static func distance(_ interval: GenomicInterval, from required: GenomicInterval) -> Int64 {
-        max(0, max(required.start - interval.end, interval.start - required.end))
-    }
-
     private static func subtract(_ exclusions: [GenomicInterval], from interval: GenomicInterval) -> [GenomicInterval] {
-        var remaining = [interval]
-        for excluded in exclusions where excluded.reference == interval.reference {
-            remaining = remaining.flatMap { piece -> [GenomicInterval] in
-                guard excluded.end >= piece.start, excluded.start <= piece.end else { return [piece] }
-                var parts: [GenomicInterval] = []
-                if excluded.start > piece.start {
-                    parts.append(GenomicInterval(reference: piece.reference, start: piece.start, end: excluded.start - 1))
-                }
-                if excluded.end < piece.end {
-                    parts.append(GenomicInterval(reference: piece.reference, start: excluded.end + 1, end: piece.end))
-                }
-                return parts
-            }
+        exclusions.reduce([interval]) { remaining, excluded in
+            remaining.flatMap { $0.subtracting(excluded) }
         }
-        return remaining
     }
 
     private func submitInterval(preservingPanContinuity: Bool, prefetchAfterLoad: Bool) -> Task<Void, Never>? {
@@ -394,6 +378,7 @@ public final class ViewerSession {
                 lastSuccessful = presentation
                 lastSuccessfulRecords = []
                 lastSuccessfulCoverage = nil
+                trimOptional()
                 return nil
             }
             if available.missing.isEmpty {
@@ -568,6 +553,7 @@ public final class ViewerSession {
         }
         restored.regionalError = RegionalLoadError(id: regionalRequestID, interval: error.interval, message: error.message)
         presentation = restored
+        trimOptional()
     }
 
     public func dismissRegionalError(_ id: UUID) {

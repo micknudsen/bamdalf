@@ -42,7 +42,13 @@ Measurements used Apple M4 / 16 GiB, macOS 27.2 build 26B123, Swift 6.4.2,
 HTSlib 1.25, and release builds of
 `micknudsen/bamdalf@0d78619298ec4b86987ee51a6555ee4ac2828d9b` plus the issue #34
 working changes. Source/executable/input checksums and working patches were
-archived. No competing builds or native tests ran during observations. System
+archived. The selected production paths were subsequently committed as
+`5077c04977a689bee8463ec5970d5c23cfee4841`. Review then corrected budget trimming
+when failed/ruler-only transitions release protection and shared inclusive
+interval helpers. The timing tables retain their measured source provenance;
+those later correctness changes were checked by the affected behavioral tests,
+not presented as remeasured timings. Reader cancellation code was unchanged.
+No competing builds or native tests ran during observations. System
 activity and OS file caches were uncontrolled; these are finite observations
 with warmed storage, not cold-disk guarantees or independent machine samples.
 

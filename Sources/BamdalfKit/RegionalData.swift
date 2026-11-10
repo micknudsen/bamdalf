@@ -18,16 +18,9 @@ struct RegionalData {
             // Maintain disjoint completed coverage. Overlapping historical
             // snapshots must not all become protected just because each touches R.
             entries = entries.flatMap { entry -> [Entry] in
-                guard entry.interval.reference == interval.reference,
-                      entry.interval.end >= interval.start, entry.interval.start <= interval.end else { return [entry] }
-                var residual: [Entry] = []
-                if entry.interval.start < interval.start {
-                    residual.append(Self.fragment(entry, start: entry.interval.start, end: interval.start - 1))
+                entry.interval.subtracting(interval).map {
+                    Self.fragment(entry, start: $0.start, end: $0.end)
                 }
-                if entry.interval.end > interval.end {
-                    residual.append(Self.fragment(entry, start: interval.end + 1, end: entry.interval.end))
-                }
-                return residual
             }
             entries.append(Entry(interval: interval, records: records))
             return
@@ -103,8 +96,8 @@ struct RegionalData {
             }
         }
         func distance(_ entry: Entry) -> Int64 {
-            guard let required, entry.interval.reference == required.reference else { return .max }
-            return max(0, max(required.start - entry.interval.end, entry.interval.start - required.end))
+            guard let required else { return .max }
+            return entry.interval.distance(to: required)
         }
         var optionalBytes = entries.filter { !protected($0) }.reduce(0) { $0 + $1.storageBytes }
         let evictionOrder = entries.indices.filter { !protected(entries[$0]) }.sorted {
