@@ -1,0 +1,54 @@
+{
+  "cases": [
+    [
+      "ordinary_1000",
+      "ordinary",
+      10024501,
+      10025500,
+      9830401,
+      10354688
+    ],
+    [
+      "ordinary_10000",
+      "ordinary",
+      10020001,
+      10030000,
+      9830401,
+      10354688
+    ],
+    [
+      "dense_1000",
+      "dense",
+      29892101,
+      29893100,
+      29818881,
+      30081024
+    ],
+    [
+      "dense_10000",
+      "dense",
+      29887601,
+      29897600,
+      29818881,
+      30081024
+    ]
+  ],
+  "refill_fractions": [
+    -1,
+    0.5
+  ],
+  "repetitions": 5,
+  "margin_bases": 250,
+  "buffer": "max(viewport_width, 250)",
+  "chunk_bases": 1000,
+  "maximum_cache_bytes": 33554432,
+  "maximum_query_bytes": 8388608,
+  "maximum_query_records": 20000,
+  "pan_period_ms": 100,
+  "drag_period_ms": 33,
+  "pan_route": "8 right half-width pans, 8 left, 8 right; at most +4W from initial",
+  "drag_route": "Two cycles: quarter-width displacement 1...8 then 7...0, plus 0.0025W fractional displacement; maximum +2.0025W from drag origin",
+  "order": "Alternate forward/reversed configuration order per repetition within each case",
+  "cache_conditions": "Fresh process and session per observation, OS file cache uncontrolled; initial buffer allowed to settle before motion; motion never waits for optional idle",
+  "source": "Full extended unsampled regional source for dense routes, derived approximately100x panel for ordinary; no small original-dense extraction"
+}
