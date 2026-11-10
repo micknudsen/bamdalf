@@ -28,7 +28,7 @@ struct ToolbarPanTests {
     func rulerOnlyPansUpdateCoordinatesWithoutQueryingOrDrawing() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(loadRegion: { _, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { _, target in
             throw RegionalLoadError(interval: target, message: "A ruler-only pan must not query")
         })
         try await files.openedSession(fixture: "navigation", session: session)
@@ -52,7 +52,7 @@ struct ToolbarPanTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 throw RegionalLoadError(interval: target, message: "Pan region failed")
@@ -89,7 +89,7 @@ struct ToolbarPanTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 409 {
                 await gate.pause(159)
@@ -121,7 +121,7 @@ struct ToolbarPanTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 409 { await gate.pause(159) }
             return records
@@ -171,7 +171,7 @@ struct ToolbarPanTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.start == 1741 { await gate.pause(2000) }
             return records

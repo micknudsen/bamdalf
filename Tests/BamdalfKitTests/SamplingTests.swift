@@ -8,7 +8,7 @@ struct SamplingTests {
     func byteDistinctReadGroupsRemainSeparateDespiteUnicodeCanonicalEquivalence(index: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(samplingGroupBudget: 1, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: 1, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
         try await files.openedSession(fixture: "sampling-unicode", indexFormat: index, session: session)
         session.editInterval("tiny:100-120")
         await session.submitInterval()?.value
@@ -26,7 +26,7 @@ struct SamplingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         // All priorities tie: stable identity ordering excludes only RG=ab, QNAME=c.
-        let session = ViewerSession(samplingGroupBudget: 7, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: 7, samplingSeed: { 42 }, samplingPriority: { _, _ in 1 })
         try await files.openedSession(fixture: "sampling", indexFormat: index, session: session)
         session.editInterval("tiny:100-450")
         await session.submitInterval()?.value
@@ -43,7 +43,7 @@ struct SamplingTests {
     func tiedPrioritiesUseStableUnambiguousIdentitiesRegardlessOfRetrievalOrder(reversed: Bool) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             return reversed ? records.reversed() : records
         }, samplingGroupBudget: 5, samplingSeed: { 42 }, samplingPriority: { _, _ in 99 })
@@ -66,7 +66,7 @@ struct SamplingTests {
     func exactBudgetBoundaryAndEmptyTargetsSucceedWithoutSamplingOrOutsideMembers() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(samplingGroupBudget: 8, samplingSeed: { 42 })
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: 8, samplingSeed: { 42 })
         try await files.openedSession(fixture: "sampling", session: session)
         session.editInterval("tiny:100-450")
         await session.submitInterval()?.value
@@ -89,7 +89,7 @@ struct SamplingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.start == 701 { await gate.pause(451) }
             return records
@@ -140,7 +140,7 @@ struct SamplingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.start == 701 {
                 await gate.pause(451)
                 throw RegionalLoadError(interval: target, message: "Controlled sampling failure")
@@ -174,7 +174,7 @@ struct SamplingTests {
     func seedReproducesTheSameSampleAfterEvictionReloadAndReopening(seed: UInt64) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(samplingGroupBudget: 4, samplingSeed: { seed })
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: 4, samplingSeed: { seed })
         try await files.openedSession(fixture: "sampling", session: session)
         session.editInterval("tiny:100-450")
         await session.submitInterval()?.value
@@ -201,7 +201,7 @@ struct SamplingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 700 { await gate.pause(100) }
             return records
@@ -227,7 +227,7 @@ struct SamplingTests {
         defer { files.remove() }
         // Controlled priorities a=97...h=104. Dense block has six groups and
         // sparse block two, but the highest four are e,f,g,h across the whole view.
-        let session = ViewerSession(samplingGroupBudget: 4, samplingSeed: { 42 },
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: 4, samplingSeed: { 42 },
                                     samplingPriority: { _, identity in UInt64(identity.last!) })
         try await files.openedSession(fixture: "density", session: session)
         session.editInterval("tiny:1000-2100")

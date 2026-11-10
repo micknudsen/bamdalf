@@ -35,7 +35,7 @@ struct ToolbarZoomTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             await gate.pause(1)
             return records
@@ -70,7 +70,7 @@ struct ToolbarZoomTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 throw RegionalLoadError(interval: target, message: "Zoom region failed")
@@ -109,7 +109,7 @@ struct ToolbarZoomTests {
         defer { files.remove() }
         let gate = RegionGate()
         let requests = ZoomRequests()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             await requests.record(target.formatted)
             let records = try await file.alignments(in: target)
             if target.end == 409 {
@@ -147,9 +147,11 @@ struct ToolbarZoomTests {
         #expect(session.presentation.intervalText == "tiny:80-159")
         #expect(!session.presentation.isAlignmentSuppressed)
         #expect(session.presentation.verticalOffset == 0)
-        await gate.waitFor(159)
+        #expect((returning != nil) == failLate,
+                "A completed stale success supplies coverage; a stale failure requires a new query")
+        if failLate { await gate.waitFor(159) }
         session.scrollVertically(to: 200)
-        await gate.release(159)
+        if failLate { await gate.release(159) }
         await returning?.value
         #expect(session.presentation.verticalOffset == 200)
         #expect(Set(session.presentation.alignments.map(\.name)) == ["lead", "anchor", "new_tail"])
@@ -168,7 +170,7 @@ struct ToolbarZoomTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 469 { await gate.pause(159) }
             return records

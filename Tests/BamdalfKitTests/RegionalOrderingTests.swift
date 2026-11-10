@@ -9,7 +9,7 @@ struct RegionalOrderingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let alignments = try await file.alignments(in: target)
             await gate.pause(target.end == 360 ? 101 : 1001)
             if failLate && target.end == 360 {
@@ -49,7 +49,7 @@ struct RegionalOrderingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 2260 {
                 await gate.pause(2001)
                 throw RegionalLoadError(interval: target, message: "Controlled selected-index failure")
@@ -93,7 +93,7 @@ struct RegionalOrderingTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             await gate.pause(101)
             if failLate { throw RegionalLoadError(interval: target, message: "Old BAM failed") }

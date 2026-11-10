@@ -11,7 +11,7 @@ struct NativeContinuityTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 550 { await gate.pause(300) }
             return records

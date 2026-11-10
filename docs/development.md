@@ -244,19 +244,67 @@ allowance. Cached geometry alone cannot prove complete R coverage. Each
 completed fragment can update the provisional view; the target becomes the
 successful recovery view only after all missing coverage completes. Failures
 restore the saved presentation without a query, preserving its adequate data
-for later reuse. Stale completions cannot update either the view or its cache.
+for later reuse. Stale completions cannot publish an older target, status, or
+error. Completed same-BAM required results may still enter the bounded cache;
+replacement-session results cannot.
 
-The session keeps at most eight inactive historical completed-query snapshots,
-dropping the oldest when admitting another and replacing contained snapshots
-when a complete broader result is available. Snapshots supplying active query
-coverage or eligible candidates remain available independently of that historical
-limit. The active/provisional view and last successful recovery view also retain
-their complete unsampled required-query records separately from displayed samples. This
-bounds inactive snapshot count, not active data, bytes, or
-records in a dense region; no hard memory or latency limit is claimed. Wide views
-and fresh layouts do not clear this data; only a successful BAM replacement
-starts a new cache. Eviction permits a later reload, without promising historical
-row positions.
+After an initial target, typed jump, or zoom becomes ready, optional prefetch
+expands R by P = max(visible width, 250) on each side to form desired coverage C.
+It queries only missing C coverage in chunks of at most 1,000 bases, visiting the
+nearest uncovered side first. Both sides can become reusable by a nearby pan.
+The target becomes ready when R completes; optional work never changes a
+stationary candidate set, sample, layout, scroll position, spinner, warning,
+or recovery snapshot. A drag can use completed buffered data on subsequent
+pointer movement. Proactive pan/drag refill and completion-driven preview updates
+remain the next increment.
+
+A changed committed target cancels optional work before requesting missing R.
+The same native reader owns the BAM handle, header, index, and iterator. Its
+synchronous loop checks cancellation before opening and around every native
+record read, and every 256 sequence/CIGAR decoding operations. It never suspends
+with an iterator open; all exits close the iterator. Cancellation cannot interrupt
+one blocking HTSlib call or its native allocation. Task priority alone is not
+the scheduling guarantee. Successful BAM replacement retires work and clears
+coverage; failed/canceled replacement preserves the existing session.
+
+Only complete successful queries, including empty queries, establish coverage.
+Optional malformed-data or budget failures leave the successful presentation
+intact, establish no coverage, and suppress further speculative attempts for
+that range. Other missing ranges can still load. A required request retries the
+range normally and uses ordinary failure restoration if necessary. Failure
+metadata is capped at 64 ranges; reaching that cap stops optional loading for
+the open BAM. Each optional plan also has an 80-query work cap, including failed
+attempts. At the selected 1,000-base chunk size, an unobstructed 10 kb viewport
+needs at most 20 optional queries; reference clamping reduces that count.
+
+The optional cache budget is 32 MiB. Coverage is partitioned into disjoint
+completed fragments, split at current required and committed recovery bounds.
+Those protected bounds retain complete unsampled data independently of the
+optional budget. Distant optional fragments are evicted before nearer ones;
+optional work stops when its new fragment cannot survive that budget. Every
+optional query additionally has a 20,000-decoded-record and 8 MiB conservative
+app-storage budget. Required queries have neither cap and are never silently
+truncated. Optional queries that exceed a cap throw away the partial result.
+
+Accounting includes twice the inline alignment/segment storage and string
+payloads, 256 bytes per alignment, 32 bytes per segment, and query-entry/reference
+metadata. Shared copy-on-write payloads are deliberately counted again for each
+retaining fragment. A reader preflight also accounts for transient sequence and
+CIGAR expansion before Swift materialization. These conservative app-storage
+limits do not promise a hard bound on process RSS, HTSlib buffers, one pathological
+native record, or mandatory dense-region data. The display-group count is not a
+cache-byte limit. The [focused comparison](performance/adjacent-prefetch-2026-11-10.md)
+records the chosen limits, real-reader interruption evidence, and remaining
+qualification boundaries. Prefetch-disabled measurement/test configurations
+retain the historical eight-inactive-snapshot baseline.
+
+Enabled-prefetch session tests exercise complete/empty reuse, quiet failure and
+required retry, incomplete R readiness, overlapping-cache pressure, replacement,
+supersession, and drag/draft/recovery protection with real BAI/CSI records and
+controlled events. Native checks preserve accessible warnings, hidden spinners,
+rows, scrolling, and absence of speculative alerts. Earlier no-prefetch query
+ordering/candidate comparisons explicitly disable optional loading; ordinary
+opening/rendering checks retain the production default.
 
 The `bounded-tails.sam` fixture independently specifies exact 250-base search
 boundaries, longer excluded tails, both strands, D/N-only overlaps, missing

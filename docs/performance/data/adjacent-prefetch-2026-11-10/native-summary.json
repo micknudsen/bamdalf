@@ -1,0 +1,222 @@
+[
+  {
+    "case": "ordinary_1000",
+    "enabled": "disabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 89.1807079911232,
+    "first_ready_and_raster_max_ms": 133.86637496948242,
+    "pan_ready_and_raster_median_ms": 57.328583002090454,
+    "pan_ready_and_raster_max_ms": 65.55175000429153,
+    "pan_required_queries": [
+      1
+    ],
+    "optional_query_count": [
+      0
+    ],
+    "optional_returned_records": [
+      0
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 132186112
+  },
+  {
+    "case": "ordinary_1000",
+    "enabled": "enabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 40.87604194879532,
+    "first_ready_and_raster_max_ms": 101.92829096317291,
+    "pan_ready_and_raster_median_ms": 9.63983404636383,
+    "pan_ready_and_raster_max_ms": 10.621791005134583,
+    "pan_required_queries": [
+      0
+    ],
+    "optional_query_count": [
+      2
+    ],
+    "optional_returned_records": [
+      1649
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 122978304
+  },
+  {
+    "case": "ordinary_10000",
+    "enabled": "disabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 99.24920797348022,
+    "first_ready_and_raster_max_ms": 104.35945802927017,
+    "pan_ready_and_raster_median_ms": 85.24562501907349,
+    "pan_ready_and_raster_max_ms": 109.04516702890396,
+    "pan_required_queries": [
+      1
+    ],
+    "optional_query_count": [
+      0
+    ],
+    "optional_returned_records": [
+      0
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 153632768
+  },
+  {
+    "case": "ordinary_10000",
+    "enabled": "enabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 91.3880410194397,
+    "first_ready_and_raster_max_ms": 99.01945799589157,
+    "pan_ready_and_raster_median_ms": 20.982041001319885,
+    "pan_ready_and_raster_max_ms": 22.62575000524521,
+    "pan_required_queries": [
+      0
+    ],
+    "optional_query_count": [
+      20
+    ],
+    "optional_returned_records": [
+      15912
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 139575296
+  },
+  {
+    "case": "dense_1000",
+    "enabled": "disabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 92.72858399152756,
+    "first_ready_and_raster_max_ms": 111.71070897579193,
+    "pan_ready_and_raster_median_ms": 70.56600004434586,
+    "pan_ready_and_raster_max_ms": 104.704833984375,
+    "pan_required_queries": [
+      1
+    ],
+    "optional_query_count": [
+      0
+    ],
+    "optional_returned_records": [
+      0
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 146259968
+  },
+  {
+    "case": "dense_1000",
+    "enabled": "enabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 96.86620903015137,
+    "first_ready_and_raster_max_ms": 108.33383399248123,
+    "pan_ready_and_raster_median_ms": 15.681540966033936,
+    "pan_ready_and_raster_max_ms": 17.558207988739014,
+    "pan_required_queries": [
+      0
+    ],
+    "optional_query_count": [
+      2
+    ],
+    "optional_returned_records": [
+      5093
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 129859584
+  },
+  {
+    "case": "dense_10000",
+    "enabled": "disabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 106.35425001382828,
+    "first_ready_and_raster_max_ms": 109.19775003194809,
+    "pan_ready_and_raster_median_ms": 69.19508397579193,
+    "pan_ready_and_raster_max_ms": 100.62366598844528,
+    "pan_required_queries": [
+      1
+    ],
+    "optional_query_count": [
+      0
+    ],
+    "optional_returned_records": [
+      0
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 160481280
+  },
+  {
+    "case": "dense_10000",
+    "enabled": "enabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 116.18312501907349,
+    "first_ready_and_raster_max_ms": 122.60929101705551,
+    "pan_ready_and_raster_median_ms": 26.10979199409485,
+    "pan_ready_and_raster_max_ms": 27.579625010490417,
+    "pan_required_queries": [
+      0
+    ],
+    "optional_query_count": [
+      20
+    ],
+    "optional_returned_records": [
+      36965
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 159465472
+  },
+  {
+    "case": "original_dense_1000",
+    "enabled": "disabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 150.36837500333786,
+    "first_ready_and_raster_max_ms": 155.78350001573563,
+    "pan_ready_and_raster_median_ms": 137.96233397722244,
+    "pan_ready_and_raster_max_ms": 154.51183301210403,
+    "pan_required_queries": [
+      1
+    ],
+    "optional_query_count": [
+      0
+    ],
+    "optional_returned_records": [
+      0
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 157351936
+  },
+  {
+    "case": "original_dense_1000",
+    "enabled": "enabled",
+    "chunk_bases": 1000,
+    "first_ready_and_raster_median_ms": 133.13075000047684,
+    "first_ready_and_raster_max_ms": 143.2637500166893,
+    "pan_ready_and_raster_median_ms": 23.41004103422165,
+    "pan_ready_and_raster_max_ms": 23.858667016029358,
+    "pan_required_queries": [
+      0
+    ],
+    "optional_query_count": [
+      2
+    ],
+    "optional_returned_records": [
+      15127
+    ],
+    "optional_errors": [
+      0
+    ],
+    "peak_rss_max_bytes": 145997824
+  }
+]

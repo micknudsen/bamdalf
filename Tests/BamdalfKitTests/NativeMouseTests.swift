@@ -48,7 +48,7 @@ struct NativeMouseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 409 {
                 await gate.pause(159)
                 if failOlder { throw RegionalLoadError(interval: target, message: "Older native load failed") }
@@ -107,7 +107,7 @@ struct NativeMouseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 499 { await gate.pause(249) }
             return records
@@ -161,7 +161,7 @@ struct NativeMouseTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(alignmentVisibilityLimit: 40)
+        let session = ViewerSession(prefetch: .disabled, alignmentVisibilityLimit: 40)
         try await files.openedSession(session: session)
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
@@ -223,7 +223,7 @@ struct NativeMouseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 409 { await gate.pause(159) }
             return records

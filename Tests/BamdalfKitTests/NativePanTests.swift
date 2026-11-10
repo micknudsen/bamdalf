@@ -11,7 +11,7 @@ struct NativePanTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 500 { await gate.pause(250) }
             return records
@@ -85,7 +85,7 @@ struct NativePanTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession()
+        let session = ViewerSession(prefetch: .disabled)
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)

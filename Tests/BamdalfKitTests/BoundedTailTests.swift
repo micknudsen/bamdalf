@@ -52,7 +52,7 @@ struct BoundedTailTests {
     func freshPanCachedMixedAndEvictedViewsSelectTheSameEligibleGroups(index: String, budget: Int) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = ViewerSession(samplingGroupBudget: budget, samplingSeed: { 42 },
+        let session = ViewerSession(prefetch: .disabled, samplingGroupBudget: budget, samplingSeed: { 42 },
                                     samplingPriority: { _, identity in UInt64(identity.last!) })
         try await files.openedSession(fixture: "bounded-tails", indexFormat: index, session: session)
         session.editInterval("tiny:10001-10010")
@@ -95,7 +95,7 @@ struct BoundedTailTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let requests = TailQueries()
-        let session = ViewerSession(loadRegion: { file, query in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, query in
             await requests.record(query.formatted)
             return try await file.alignments(in: query)
         })
@@ -119,7 +119,7 @@ struct BoundedTailTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, query in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, query in
             if query.end == 10260 { await gate.pause(1) }
             return try await file.alignments(in: query)
         })

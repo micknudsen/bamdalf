@@ -74,21 +74,34 @@ public final class ViewerSession {
     private let alignmentVisibilityLimit: Int64
     private let tailSearchMargin: Int64 = 250
     private let loadRegion: @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment]
+    private let prefetch: PrefetchConfiguration
+    private let loadPrefetchRegion: @Sendable (BAMFile, GenomicInterval, RegionalQueryBudget) async throws -> [Alignment]
+    private var prefetchTask: Task<Void, Never>?
+    private var prefetchID = UUID()
+    private var prefetchAfterRequired = false
+    private var failedPrefetch: [GenomicInterval] = []
+    private var stoppedPrefetch = false
     private let loadFile: @Sendable (URL, URL) async throws -> BAMFile
 
-    public init(loadBAM: @escaping @Sendable (URL, URL) async throws -> BAMFile = {
+    public init(prefetch: PrefetchConfiguration = .init(), loadBAM: @escaping @Sendable (URL, URL) async throws -> BAMFile = {
         try await BAMFile.open($0, indexURL: $1)
     }, loadRegion: @escaping @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment] = {
         try await $0.alignments(in: $1)
     }, alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
                 samplingSeed: @escaping @Sendable () -> UInt64 = { UInt64.random(in: .min ... .max) },
-                samplingPriority: (@Sendable (UInt64, [UInt8]) -> UInt64)? = nil) {
+                samplingPriority: (@Sendable (UInt64, [UInt8]) -> UInt64)? = nil,
+                loadPrefetchRegion: @escaping @Sendable (BAMFile, GenomicInterval, RegionalQueryBudget) async throws -> [Alignment] = {
+                    try await $0.alignments(in: $1, budget: $2)
+                }) {
         precondition(alignmentVisibilityLimit > 0)
         self.alignmentVisibilityLimit = alignmentVisibilityLimit
         self.sampling = AlignmentSampling(budget: samplingGroupBudget, priority: samplingPriority)
         self.samplingSeed = samplingSeed
         loadFile = loadBAM
         self.loadRegion = loadRegion
+        self.prefetch = prefetch
+        self.loadPrefetchRegion = loadPrefetchRegion
+        regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)
     }
 
     public func editInterval(_ text: String) {
@@ -146,7 +159,7 @@ public final class ViewerSession {
             presentation.alignments = preview.alignments
             presentation.rowCount = preview.rowCount
             presentation.intervalText = target.formatted
-            return submitInterval(preservingPanContinuity: true)
+            return submitInterval(preservingPanContinuity: true, prefetchAfterLoad: false)
         }
         let task = regionalTask
         restored.completion?()
@@ -180,7 +193,7 @@ public final class ViewerSession {
         guard shift != 0 else { return nil }
         presentation.intervalText = GenomicInterval(reference: target.reference,
                                                     start: target.start + shift, end: target.end + shift).formatted
-        return submitInterval(preservingPanContinuity: true)
+        return submitInterval(preservingPanContinuity: true, prefetchAfterLoad: false)
     }
 
     /// Halve (rounding up) or double width, breaking center ties toward lower coordinates.
@@ -213,12 +226,12 @@ public final class ViewerSession {
         let start = min(max(1, locus - newWidth / 2), reference.length - newWidth + 1)
         presentation.intervalText = GenomicInterval(reference: target.reference,
                                                     start: start, end: start + (newWidth - 1)).formatted
-        return submitInterval(preservingPanContinuity: true)
+        return submitInterval(preservingPanContinuity: true, prefetchAfterLoad: true)
     }
 
     @discardableResult
     public func submitInterval() -> Task<Void, Never>? {
-        submitInterval(preservingPanContinuity: false)
+        submitInterval(preservingPanContinuity: false, prefetchAfterLoad: true)
     }
 
     private func requiredInterval(for visible: GenomicInterval) -> GenomicInterval {
@@ -228,7 +241,112 @@ public final class ViewerSession {
                                end: visible.end + min(tailSearchMargin, length - visible.end))
     }
 
-    private func submitInterval(preservingPanContinuity: Bool) -> Task<Void, Never>? {
+    private var committedRequired: GenomicInterval? {
+        let committed = dragOrigin ?? presentation
+        guard let target = committed.target, !committed.isAlignmentSuppressed else { return nil }
+        return requiredInterval(for: target)
+    }
+
+    private func admit(_ records: [Alignment], for interval: GenomicInterval) {
+        let required = committedRequired
+        regionalData.insert(records, for: interval, keeping: required ?? interval)
+        if prefetch.maximumBytes > 0 {
+            regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage, maximumBytes: prefetch.maximumBytes)
+        }
+    }
+
+    private func trimOptional() {
+        if prefetch.maximumBytes > 0 {
+            regionalData.trimOptional(keeping: committedRequired, recovery: lastSuccessfulCoverage,
+                                      maximumBytes: prefetch.maximumBytes)
+        }
+    }
+
+    private func retirePrefetch() {
+        prefetchID = UUID()
+        prefetchTask?.cancel()
+        prefetchTask = nil
+    }
+
+    /// Optional completion admits complete coverage only. It never publishes a
+    /// presentation, including when a pointer gesture has moved the preview.
+    private func startPrefetch() {
+        guard prefetch.maximumBytes > 0, !stoppedPrefetch, dragOrigin == nil,
+              !presentation.isLoading, let bam, let target = presentation.target,
+              !presentation.isAlignmentSuppressed else { return }
+        retirePrefetch()
+        let id = prefetchID
+        let required = requiredInterval(for: target)
+        let buffer = max(target.end - target.start + 1, tailSearchMargin)
+        let length = presentation.references.first { $0.name == target.reference }!.length
+        let desired = GenomicInterval(reference: target.reference,
+                                       start: required.start - min(buffer, required.start - 1),
+                                       end: required.end + min(buffer, length - required.end))
+        prefetchTask = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            defer { if prefetchID == id { prefetchTask = nil } }
+            var attempted: [GenomicInterval] = []
+            // Even failed/evicted chunks consume an attempt. This bounds work
+            // without ever representing partial results as completed coverage.
+            while prefetchID == id, !Task.isCancelled, !stoppedPrefetch, attempted.count < 80 {
+                let missing = regionalData.missingCoverage(for: desired)
+                let candidates = missing.flatMap { Self.subtract(attempted + failedPrefetch, from: $0) }
+                guard let gap = candidates.min(by: { Self.distance($0, from: required) < Self.distance($1, from: required) }) else { break }
+                let interval: GenomicInterval
+                if gap.end < required.start {
+                    interval = GenomicInterval(reference: gap.reference,
+                                                start: max(gap.start, gap.end - min(prefetch.chunkBases - 1, gap.end - gap.start)), end: gap.end)
+                } else {
+                    interval = GenomicInterval(reference: gap.reference, start: gap.start,
+                                                end: gap.start + min(prefetch.chunkBases - 1, gap.end - gap.start))
+                }
+                attempted.append(interval)
+                do {
+                    let budget = RegionalQueryBudget(maximumRecords: prefetch.maximumQueryRecords,
+                                                     maximumBytes: min(prefetch.maximumQueryBytes, prefetch.maximumBytes))
+                    let records = try await loadPrefetchRegion(bam, interval, budget)
+                    guard self.bam === bam, prefetchID == id, !Task.isCancelled else { break }
+                    admit(records, for: interval)
+                    // If the chunk could not survive the byte budget, stop.
+                    // Evicted ranges are not immediately read in a loop.
+                    if !regionalData.missingCoverage(for: interval).isEmpty { break }
+                } catch is CancellationError {
+                    break
+                } catch {
+                    guard self.bam === bam, prefetchID == id, !Task.isCancelled else { break }
+                    failedPrefetch.append(interval)
+                    // Failure metadata has its own bound. At the cap, required
+                    // navigation remains available but speculation stops.
+                    if failedPrefetch.count >= 64 { stoppedPrefetch = true }
+                }
+                await Task.yield()
+            }
+        }
+    }
+
+    private static func distance(_ interval: GenomicInterval, from required: GenomicInterval) -> Int64 {
+        max(0, max(required.start - interval.end, interval.start - required.end))
+    }
+
+    private static func subtract(_ exclusions: [GenomicInterval], from interval: GenomicInterval) -> [GenomicInterval] {
+        var remaining = [interval]
+        for excluded in exclusions where excluded.reference == interval.reference {
+            remaining = remaining.flatMap { piece -> [GenomicInterval] in
+                guard excluded.end >= piece.start, excluded.start <= piece.end else { return [piece] }
+                var parts: [GenomicInterval] = []
+                if excluded.start > piece.start {
+                    parts.append(GenomicInterval(reference: piece.reference, start: piece.start, end: excluded.start - 1))
+                }
+                if excluded.end < piece.end {
+                    parts.append(GenomicInterval(reference: piece.reference, start: excluded.end + 1, end: piece.end))
+                }
+                return parts
+            }
+        }
+        return remaining
+    }
+
+    private func submitInterval(preservingPanContinuity: Bool, prefetchAfterLoad: Bool) -> Task<Void, Never>? {
         guard let bam else { return nil }
         do {
             let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
@@ -239,6 +357,9 @@ public final class ViewerSession {
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
             if target == presentation.target { return regionalTask }
+            retirePrefetch()
+            regionalTask?.cancel()
+            prefetchAfterRequired = prefetchAfterLoad
             let requestID = UUID()
             regionalRequestID = requestID
             presentation.regionalError = nil
@@ -249,6 +370,10 @@ public final class ViewerSession {
             let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
                 && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
             let required = requiredInterval(for: target)
+            if prefetch.maximumBytes > 0 {
+                regionalData.trimOptional(keeping: suppressed ? nil : required, recovery: lastSuccessfulCoverage,
+                                          maximumBytes: prefetch.maximumBytes)
+            }
             let available = regionalData.available(for: required)
             var next = presentation
             next.target = target
@@ -276,6 +401,8 @@ public final class ViewerSession {
                 lastSuccessfulRecords = available.records
                 lastSuccessfulCoverage = required
                 lastSuccessful = presentation
+                trimOptional()
+                if prefetchAfterLoad { startPrefetch() }
                 return nil
             }
             regionalTask = Task {
@@ -283,8 +410,9 @@ public final class ViewerSession {
                     var records = available.records
                     for (index, missing) in available.missing.enumerated() {
                         let loaded = try await loadRegion(bam, missing)
+                        guard self.bam === bam else { return }
+                        admit(loaded, for: missing)
                         guard regionalRequestID == requestID else { return }
-                        regionalData.insert(loaded, for: missing, keeping: required)
                         records = RegionalData.eligible(records + loaded, for: required)
                         if dragOrigin == nil && index + 1 < available.missing.count {
                             let selected = sampling.select(RegionalData.visible(records, in: target))
@@ -295,7 +423,7 @@ public final class ViewerSession {
                                 ? max(presentation.rowCount, requiredRows) : requiredRows
                         }
                     }
-                    regionalData.insert(records, for: required, keeping: required)
+                    admit(records, for: required)
                     completeRegionalLoad(.success(records), requestID: requestID, generation: generation,
                                          initialScrollGeneration: initialScrollGeneration, continuous: continuous)
                 } catch let error as RegionalLoadError {
@@ -340,6 +468,8 @@ public final class ViewerSession {
                 ? max(presentation.rowCount, requiredRows) : requiredRows
             presentation.isLoading = false
             lastSuccessful = presentation
+            trimOptional()
+            if prefetchAfterRequired { startPrefetch() }
         case .failure(let error):
             restoreSuccessfulView(for: error, generation: generation)
         }
@@ -490,6 +620,10 @@ public final class ViewerSession {
         do {
             let file = try await loadFile(url, index)
             guard requestID == openingID else { return }
+            retirePrefetch()
+            regionalTask?.cancel()
+            failedPrefetch = []
+            stoppedPrefetch = false
             bam = file
             regionalRequestID = UUID()
             regionalTask = nil
@@ -499,7 +633,7 @@ public final class ViewerSession {
             lastSuccessfulRecords = []
             lastSuccessfulCoverage = nil
             sampling.seed = samplingSeed()
-            regionalData = RegionalData()
+            regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)
             draftGeneration = nil
             presentation = ViewerPresentation()
             presentation.bamURL = file.url

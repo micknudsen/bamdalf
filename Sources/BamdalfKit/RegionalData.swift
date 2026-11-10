@@ -4,14 +4,39 @@ struct RegionalData {
     private struct Entry {
         let interval: GenomicInterval
         let records: [Alignment]
+        var storageBytes: Int {
+            256 + 2 * interval.reference.utf8.count + records.reduce(0) { $0 + $1.estimatedStorageBytes }
+        }
     }
     private var entries: [Entry] = []
+    private let historicalLimit: Int?
+
+    init(historicalLimit: Int? = 8) { self.historicalLimit = historicalLimit }
 
     mutating func insert(_ records: [Alignment], for interval: GenomicInterval, keeping activeTarget: GenomicInterval) {
+        if historicalLimit == nil {
+            // Maintain disjoint completed coverage. Overlapping historical
+            // snapshots must not all become protected just because each touches R.
+            entries = entries.flatMap { entry -> [Entry] in
+                guard entry.interval.reference == interval.reference,
+                      entry.interval.end >= interval.start, entry.interval.start <= interval.end else { return [entry] }
+                var residual: [Entry] = []
+                if entry.interval.start < interval.start {
+                    residual.append(Self.fragment(entry, start: entry.interval.start, end: interval.start - 1))
+                }
+                if entry.interval.end > interval.end {
+                    residual.append(Self.fragment(entry, start: interval.end + 1, end: entry.interval.end))
+                }
+                return residual
+            }
+            entries.append(Entry(interval: interval, records: records))
+            return
+        }
         entries.removeAll {
             $0.interval.reference == interval.reference && $0.interval.start >= interval.start && $0.interval.end <= interval.end
         }
         entries.append(Entry(interval: interval, records: records))
+        guard let historicalLimit else { return }
         // Active coverage/candidates remain available independently of the
         // bounded historical snapshots. Even a disjoint query may hold a long
         // alignment eligible for the active target.
@@ -22,7 +47,7 @@ struct RegionalData {
         }
         var historicalCount = entries.filter { !isActive($0) }.count
         entries.removeAll { entry in
-            guard historicalCount > 8, !isActive(entry) else { return false }
+            guard historicalCount > historicalLimit, !isActive(entry) else { return false }
             historicalCount -= 1
             return true
         }
@@ -31,6 +56,11 @@ struct RegionalData {
     func available(for target: GenomicInterval) -> (records: [Alignment], missing: [GenomicInterval]) {
         let applicable = entries.filter { $0.interval.reference == target.reference }
         let records = Self.eligible(applicable.flatMap(\.records), for: target)
+        return (records, missingCoverage(for: target))
+    }
+
+    func missingCoverage(for target: GenomicInterval) -> [GenomicInterval] {
+        let applicable = entries.filter { $0.interval.reference == target.reference }
         var missing: [GenomicInterval] = []
         var next = target.start
         for entry in applicable.sorted(by: { $0.interval.start < $1.interval.start }) {
@@ -39,11 +69,60 @@ struct RegionalData {
             if covered.start > next {
                 missing.append(GenomicInterval(reference: target.reference, start: next, end: covered.start - 1))
             }
-            if covered.end >= target.end { return (records, missing) }
+            if covered.end >= target.end { return missing }
             next = covered.end + 1
         }
         if next <= target.end { missing.append(GenomicInterval(reference: target.reference, start: next, end: target.end)) }
-        return (records, missing)
+        return missing
+    }
+
+    /// Current required coverage and committed recovery data are never charged
+    /// to (or discarded for) the optional budget. All other retained queries are.
+    mutating func trimOptional(keeping required: GenomicInterval?, recovery: GenomicInterval?, maximumBytes: Int) {
+        // Split at protection boundaries so optional tails of a once-required
+        // query also consume the optional budget. Full records remain attached
+        // to every fragment whose aligned coverage they intersect.
+        for target in [required, recovery].compactMap({ $0 }) {
+            entries = entries.flatMap { entry -> [Entry] in
+                guard entry.interval.reference == target.reference else { return [entry] }
+                var fragments: [Entry] = []
+                var start = entry.interval.start
+                let boundaries = target.end == .max ? [target.start] : [target.start, target.end + 1]
+                for boundary in boundaries where boundary > start && boundary <= entry.interval.end {
+                    fragments.append(Self.fragment(entry, start: start, end: boundary - 1))
+                    start = boundary
+                }
+                fragments.append(Self.fragment(entry, start: start, end: entry.interval.end))
+                return fragments
+            }
+        }
+        func protected(_ entry: Entry) -> Bool {
+            [required, recovery].compactMap { $0 }.contains { target in
+                entry.interval.reference == target.reference
+                    && entry.interval.start <= target.end && entry.interval.end >= target.start
+            }
+        }
+        func distance(_ entry: Entry) -> Int64 {
+            guard let required, entry.interval.reference == required.reference else { return .max }
+            return max(0, max(required.start - entry.interval.end, entry.interval.start - required.end))
+        }
+        var optionalBytes = entries.filter { !protected($0) }.reduce(0) { $0 + $1.storageBytes }
+        let evictionOrder = entries.indices.filter { !protected(entries[$0]) }.sorted {
+            let left = distance(entries[$0]), right = distance(entries[$1])
+            return left == right ? $0 < $1 : left > right
+        }
+        var evicted = Set<Int>()
+        for index in evictionOrder where optionalBytes > maximumBytes {
+            optionalBytes -= entries[index].storageBytes
+            evicted.insert(index)
+        }
+        entries = entries.enumerated().filter { !evicted.contains($0.offset) }.map(\.element)
+    }
+
+    private static func fragment(_ entry: Entry, start: Int64, end: Int64) -> Entry {
+        guard start != entry.interval.start || end != entry.interval.end else { return entry }
+        let interval = GenomicInterval(reference: entry.interval.reference, start: start, end: end)
+        return Entry(interval: interval, records: eligible(entry.records, for: interval))
     }
 
     static func eligible(_ records: [Alignment], for target: GenomicInterval) -> [Alignment] {

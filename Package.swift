@@ -17,11 +17,13 @@ let package = Package(
         .target(name: "BamdalfKit", dependencies: ["CBAM"]),
         .executableTarget(name: "Bamdalf", dependencies: ["BamdalfKit"]),
         .executableTarget(name: "VisibilityBaseline", dependencies: ["BamdalfKit"], path: "Benchmarks",
-                          exclude: ["Qualification.swift", "run-qualification.sh", "qualification-protocol-v1.json", "qualification-protocol-v2.json", "summarize-qualification.py", "run-visibility-baseline.sh", "run-sampling-baseline.sh", "README.md", "Data", "BoundedTailQuery"], sources: ["VisibilityBaseline.swift"]),
+                          exclude: ["Qualification.swift", "run-qualification.sh", "qualification-protocol-v1.json", "qualification-protocol-v2.json", "summarize-qualification.py", "run-visibility-baseline.sh", "run-sampling-baseline.sh", "README.md", "Data", "BoundedTailQuery", "AdjacentPrefetch"], sources: ["VisibilityBaseline.swift"]),
         .executableTarget(name: "Qualification", dependencies: ["BamdalfKit"], path: "Benchmarks",
-                          exclude: ["VisibilityBaseline.swift", "run-qualification.sh", "qualification-protocol-v1.json", "qualification-protocol-v2.json", "summarize-qualification.py", "run-visibility-baseline.sh", "run-sampling-baseline.sh", "README.md", "Data", "BoundedTailQuery"], sources: ["Qualification.swift"]),
+                          exclude: ["VisibilityBaseline.swift", "run-qualification.sh", "qualification-protocol-v1.json", "qualification-protocol-v2.json", "summarize-qualification.py", "run-visibility-baseline.sh", "run-sampling-baseline.sh", "README.md", "Data", "BoundedTailQuery", "AdjacentPrefetch"], sources: ["Qualification.swift"]),
         .executableTarget(name: "BoundedTailQuery", dependencies: ["BamdalfKit"], path: "Benchmarks/BoundedTailQuery",
                           exclude: ["run.py", "native.py"], sources: ["main.swift"]),
+        .executableTarget(name: "AdjacentPrefetch", dependencies: ["BamdalfKit"], path: "Benchmarks/AdjacentPrefetch",
+                          exclude: ["run.py", "instrument.py"], sources: ["main.swift"]),
         .testTarget(name: "BamdalfKitTests", dependencies: ["BamdalfKit"], resources: [.copy("Fixtures")]),
     ]
 )

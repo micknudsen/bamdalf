@@ -9,7 +9,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if (550..<650).contains(target.end) { await gate.pause(target.end - 250) }
             return records
@@ -58,7 +58,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end == 550 {
                 await gate.pause(300)
                 throw RegionalLoadError(interval: target, message: "Second missing interval failed")
@@ -112,7 +112,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 450 {
                 await gate.pause(200)
@@ -147,7 +147,8 @@ struct NavigationReuseTests {
     func revisitingEvictedDataReconstructsTheCompleteDistinctRecordSet(indexFormat: String) async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let session = try await files.openedSession(fixture: "rows", indexFormat: indexFormat)
+        let session = ViewerSession(prefetch: .init(maximumBytes: 1024))
+        try await files.openedSession(fixture: "rows", indexFormat: indexFormat, session: session)
         session.editInterval("tiny:100-300")
         await session.submitInterval()?.value
         let original = session.presentation.alignments
@@ -176,7 +177,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             if target.end > 550 {
                 await gate.pause(target.end - 250)
                 throw RegionalLoadError(interval: target, message: "Controlled missing-region failure")
@@ -223,7 +224,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 405 { await gate.pause(155) }
             return records
@@ -327,7 +328,7 @@ struct NavigationReuseTests {
         let files = try FixtureFiles()
         defer { files.remove() }
         let gate = RegionGate()
-        let session = ViewerSession(loadRegion: { file, target in
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, target in
             let records = try await file.alignments(in: target)
             if target.end == 430 { await gate.pause(180) }
             return records
