@@ -10,7 +10,7 @@ visibility slice uses a fixed 250-base search margin, supported by the
 optional loading and separate speculative-error handling.
 [Rolling refill](performance/rolling-prefetch-2026-11-10.md) extends that buffer
 during pans and refreshes active drag previews as data arrives, superseding
-release-only retrieval. Integrated qualification remains pending.
+release-only retrieval. The [2026-11-11 integrated measurements](performance/prefetch-qualification-2026-11-11.md) meet every unchanged target with production prefetch enabled, including two completed ten-minute memory routes. The disabled dense 10 kb drag comparator misses its target; the report preserves that result, the dense-pan tradeoff, and delivery-gate status.
 
 ## Prerequisites
 
@@ -340,8 +340,7 @@ tail geometry does not establish required coverage. Native tests send actual
 pointer and scroll events while new forward/reverse and outlined tails arrive;
 they check the latest position, original anchor, retained rows, drafts, and
 release status. The [focused rolling comparison](performance/rolling-prefetch-2026-11-10.md) records threshold candidates and
-ordinary/dense pan-and-reversal measurements separately from final integrated
-qualification.
+ordinary/dense pan-and-reversal measurements. The [integrated report](performance/prefetch-qualification-2026-11-11.md) adds complete-source paired native routes, actual-reader interruption, observed-coordinate auditing, and sustained memory traces on the final production source.
 
 The `bounded-tails.sam` fixture independently specifies exact 250-base search
 boundaries, longer excluded tails, both strands, D/N-only overlaps, missing

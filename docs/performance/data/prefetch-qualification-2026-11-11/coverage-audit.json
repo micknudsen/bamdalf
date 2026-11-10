@@ -1,0 +1,1583 @@
+{
+  "protocol_id": "prefetch-qualification-v1-2026-11-11",
+  "cases": [
+    {
+      "case": "uncached_ordinary_a_1000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10026750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_a_1000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10026750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_a_10000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_a_10000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_b_1000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20048251,
+          20051750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_b_1000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20048251,
+          20051750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_b_10000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20034751,
+          20065250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_ordinary_b_10000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20034751,
+          20065250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_derived_dense_1000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_derived_dense_1000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_derived_dense_10000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_derived_dense_10000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_original_dense_1000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_original_dense_1000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_original_dense_10000_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "uncached_original_dense_10000_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_ordinary_a_disabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_ordinary_a_enabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_ordinary_b_enabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20034751,
+          20065250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_ordinary_b_disabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          20034751,
+          20065250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_derived_dense_disabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_derived_dense_enabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_original_dense_enabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "cached_original_dense_disabled",
+      "audited_presentations": 84,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_ordinary_a_1000_disabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023238,
+          10026763
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_ordinary_a_1000_enabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023238,
+          10026763
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_ordinary_a_1000_enabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10026750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_ordinary_a_1000_disabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10026750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_ordinary_a_1000_disabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10032756
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_ordinary_a_1000_enabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10023251,
+          10032756
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_ordinary_a_10000_enabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009648,
+          10040353
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_ordinary_a_10000_disabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009648,
+          10040353
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_ordinary_a_10000_disabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_ordinary_a_10000_enabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10040250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_ordinary_a_10000_enabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10100278
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_ordinary_a_10000_disabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10009751,
+          10100278
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_original_dense_1000_disabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890838,
+          29894363
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_original_dense_1000_enabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890838,
+          29894363
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_original_dense_1000_enabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_original_dense_1000_disabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29894350
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_original_dense_1000_disabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29900356
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_original_dense_1000_enabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29890851,
+          29900356
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_original_dense_10000_enabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877248,
+          29907953
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "drag_original_dense_10000_disabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877248,
+          29907953
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_original_dense_10000_disabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "scroll_original_dense_10000_enabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29907850
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_original_dense_10000_enabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29967878
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "rolling_original_dense_10000_disabled",
+      "audited_presentations": 300,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          29877351,
+          29967878
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "large_group_uncached_disabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "large_group_uncached_enabled",
+      "audited_presentations": 20,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "drag_large_group_enabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2763
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "drag_large_group_disabled",
+      "audited_presentations": 125,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2763
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "scroll_large_group_disabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "scroll_large_group_enabled",
+      "audited_presentations": 122,
+      "desired_coverage_envelopes": {
+        "stress": [
+          1,
+          2750
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "stress",
+          "start": 1,
+          "end": 10000
+        }
+      ]
+    },
+    {
+      "case": "integrated_workflow_enabled",
+      "audited_presentations": 15,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10008498,
+          10044028
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "integrated_workflow_disabled",
+      "audited_presentations": 15,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          10008498,
+          10044028
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "empty_recovery_reference_limits_disabled",
+      "audited_presentations": 9,
+      "desired_coverage_envelopes": {
+        "tiny": [
+          1,
+          20000
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "tiny",
+          "start": 1,
+          "end": 20000
+        }
+      ]
+    },
+    {
+      "case": "empty_recovery_reference_limits_enabled",
+      "audited_presentations": 9,
+      "desired_coverage_envelopes": {
+        "tiny": [
+          1,
+          20000
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "tiny",
+          "start": 1,
+          "end": 20000
+        }
+      ]
+    },
+    {
+      "case": "tail_workflow_enabled",
+      "audited_presentations": 8,
+      "desired_coverage_envelopes": {
+        "tiny": [
+          949,
+          2150
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "tiny",
+          "start": 1,
+          "end": 60000
+        }
+      ]
+    },
+    {
+      "case": "tail_workflow_disabled",
+      "audited_presentations": 8,
+      "desired_coverage_envelopes": {
+        "tiny": [
+          949,
+          2150
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "tiny",
+          "start": 1,
+          "end": 60000
+        }
+      ]
+    },
+    {
+      "case": "memory_600_seconds_disabled",
+      "audited_presentations": 204,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          9839751,
+          29980250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    },
+    {
+      "case": "memory_600_seconds_enabled",
+      "audited_presentations": 204,
+      "desired_coverage_envelopes": {
+        "chr20": [
+          9839751,
+          29980250
+        ]
+      },
+      "complete_regions": [
+        {
+          "reference": "chr20",
+          "start": 9830401,
+          "end": 10354688
+        },
+        {
+          "reference": "chr20",
+          "start": 19988481,
+          "end": 20119552
+        },
+        {
+          "reference": "chr20",
+          "start": 29818881,
+          "end": 30081024
+        }
+      ]
+    }
+  ],
+  "case_count": 62,
+  "audited_presentations": 6374,
+  "scope": "Conservative target and full desired C route audit; actual queries and C are independently validated by native harness.",
+  "protocol_sha256": "cd18bdd8ea6dcc54d3253b1061aaf9c96aa65862b5d9f30c0844bf1a561c6aad"
+}
