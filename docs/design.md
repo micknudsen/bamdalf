@@ -1,6 +1,6 @@
 # bamdalf MVP design
 
-Updated 2026-11-08. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 were finalized on 2026-11-07; D3/D4 were finalized in Q97–Q110 and confirmed by the user on 2026-11-08. Native navigation was delivered through PR #20. The issue #7 sampling implementation and measurements accompany this revision; final qualification remains a separate issue #11 task.
+Updated 2026-11-10. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 were finalized on 2026-11-07; D3/D4 were finalized in Q97–Q110 and confirmed by the user on 2026-11-08. On 2026-11-10, the user accepted the D1 revision below: bounded soft-tail visibility and rolling prefetch, including background refill during dragging and separate handling of speculative failures. This revision is accepted design, pending implementation and measurement; [Native development](development.md) describes the existing implementation.
 
 Use US English in documentation and UI text. Terms are defined in [GLOSSARY.md](../GLOSSARY.md); deferred features are in [backlog.md](backlog.md). The [decision index](#decision-index) preserves the identifiers used in research notes without requiring the interview transcript.
 
@@ -38,7 +38,7 @@ If the chosen index cannot be read or loaded, stop the open attempt and show an 
 
 A failed or canceled open, including cancellation of the index chooser, preserves the existing BAM, genomic interval, zoom, and vertical scroll position. A successful open replaces the previous view with **Enter a genomic interval**, focuses the interval field, and waits for a valid interval before requesting alignments. Opening a BAM/index is distinct from successfully loading a region.
 
-Validate the BAM header and selected index on opening and records as regions are read, without an upfront whole-file scan. A mapped record with unavailable CIGAR or a detected malformed/inconsistent record fails the regional load and restores the previous successful view; do not invent geometry or silently omit it. Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported. Preserve stored sequence = in neutral gray with a literal = when readable, without inferring a nucleotide. A detected corrupt, stale, or mismatched chosen index stops the open/load, reports the known problem, and preserves/restores the appropriate previous view without automatic fallback. An older timestamp alone proves no mismatch; successful opening/loading does not certify exhaustive index integrity or sorting. See the [index research](research/bam-index-discovery-2026-11-01.md).
+Validate the BAM header and selected index on opening and records as regions are read, without an upfront whole-file scan. A mapped record with unavailable CIGAR or a detected malformed/inconsistent record fails the affected query; do not invent geometry, silently omit the record, or claim complete coverage. Failures in required regional coverage restore the previous successful view; optional queries follow the separate [speculative-failure policy](#regional-loading-failures). Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported. Preserve stored sequence = in neutral gray with a literal = when readable, without inferring a nucleotide. A detected corrupt, stale, or mismatched chosen index stops the affected open/load without automatic fallback; opening and required-load failures report the known problem and preserve/restore the appropriate previous view. An older timestamp alone proves no mismatch; successful opening/loading does not certify exhaustive index integrity or sorting. See the [index research](research/bam-index-discovery-2026-11-01.md).
 
 ## Interval input and editing
 
@@ -94,7 +94,7 @@ For toolbar zoom, halve the inclusive width rounding an odd half up, or double i
 
 Mouse zoom uses the base hit by the pointer: divide the alignment area's width into one cell per visible base, include the cell's left edge, and clamp an edge hit to the first/last base. Double-click halves width (rounding an odd half up); Option + left-click doubles width, with that hit base as the center. Use the lower-coordinate placement for an even-width center tie and shift the complete interval inside the reference. For example, clicking one-quarter across `101-140` hits base 111 and zooms in to `101-120`; Option-clicking halfway across it hits base 121 and zooms out to `81-160`. A width-limit no-op preserves input/loading. Right-click and text-field interaction do not invoke these gestures. The ruler-only alignment area remains available for mouse navigation.
 
-A drag's displacement is measured from pointer-down, not accumulated between events. Moving right shifts the genomic target left. Ruler ticks and loaded geometry follow fractional-base pointer motion continuously; the displayed/committed interval rounds the displacement to the nearest whole base, with exact half-base ties away from zero. Clamp the displacement at reference ends without shrinking the span. For example, dragging right by 10% of a five-base viewport shifts the target one base left; an 8% drag previews a 0.4-base shift but releases at the unchanged target. Unchanged release retains the existing load and draft; changed release commits the rounded target and fetches missing coverage. An older completion during a drag is held until release: apply it for an unchanged target, or supersede it for a changed target. Explicit valid navigation or successful BAM replacement retires the preview. These gesture rounding choices were specified with issue #10 on 2026-11-07; they add no custom drag-cancel command.
+A drag's displacement is measured from pointer-down, not accumulated between events. Moving right shifts the genomic target left. Ruler ticks and loaded geometry follow fractional-base pointer motion continuously; the displayed/committed interval rounds the displacement to the nearest whole base, with exact half-base ties away from zero. Clamp the displacement at reference ends without shrinking the span. For example, dragging right by 10% of a five-base viewport shifts the target one base left; an 8% drag previews a 0.4-base shift but releases at the unchanged target. Unchanged release retains the existing load and draft; changed release commits the rounded target and finishes any missing required coverage. Completed data may enter the cache during dragging, but an older request must not publish its target over the latest preview. Keep its committed success/failure presentation deferred until release: apply it only if its target remains current. Explicit valid navigation or successful BAM replacement retires the preview. The gesture rounding choices from issue #10 remain unchanged; the 2026-11-10 revision permits background refill during the gesture. There is no custom drag-cancel command.
 
 Above the alignment-visibility threshold, retain the ruler and location field and show **Zoom in to see alignments**. Do not query or draw alignments, including already-cached or sampled ones. This is distinct from a loaded empty region. The threshold is independent of the maximum navigable interval and takes precedence over downsampling; sampling does not make arbitrarily wide views readable. The initial implementation cutoff is 10,000 bases, selected from the [2026-11-07 native baseline](performance/visibility-2026-11-07.md); wider views are suppressed. This is an initial readability tradeoff, not final WGS qualification. See the [navigation research](research/navigation-and-visibility-2026-11-01.md).
 
@@ -142,9 +142,23 @@ Indicate strand with a small pointed end inside the mapped body: right for forwa
 
 ### Viewport eligibility and complete candidates
 
-Eligibility requires overlap of the aligned reference span, including deletion-only or reference-skip-only overlap. A soft-clipped tail alone never makes a record eligible, including cached records. Eligible records retain their full tails and full-extent packing. POS 101 with 10S10M is excluded at 95–100 and included at 100–105; POS 101 with 10M100N10M is included at 150–160. Completed targets require complete reference-overlapping candidates; fresh and reused/new data must agree, with distinct records preserved and repeated retrievals deduplicated. Completed empty coverage is successful; drawn extensions or sampled survivors do not establish query coverage.
+An alignment may be eligible when only its soft-clipped tail overlaps the viewport. Use a fixed internal search margin `M` in reference bases on both sides of the visible interval. Use the same margin for every BAM and zoom level where alignments are displayed, with no new user setting or opening-time read-length sample. Choose its numerical value through representative measurements. Read-length estimation is deferred; it can be compared later if measurements suggest a useful navigation benefit.
 
-These D1 rules were accepted on 2026-11-07. They supersede the earlier unresolved policy and the subsequently withdrawn proposal to include soft-tail-only overlaps. Query planning, coverage representation, and record deduplication are engineering choices within this contract.
+Define three intervals, all clamped to the selected reference's bounds:
+
+| Interval | Definition | Purpose |
+| --- | --- | --- |
+| Visible interval `V`, inclusive width `W` | The selected coordinates | Position and clip the display |
+| Required search interval `R` | `V` padded by `M` on both sides | Establish complete candidates for readiness and sampling |
+| Desired prefetch interval `C` | `R` padded by an optional buffer `P` on both sides | Keep spare completed data for upcoming pans |
+
+A candidate must have aligned-reference-span overlap with `R` and drawn-extent overlap with `V`, subject to the existing record filters. Then apply whole-view sampling. Deletion-only and reference-skip-only overlap remain eligible. POS 101 with 10S10M is eligible at 95–100 when the margin reaches its aligned span, and at 100–105; POS 101 with 10M100N10M remains eligible at 150–160. Selected records retain full tails and full-extent packing; the margin does not truncate drawings.
+
+The same target-based rule applies to fresh, cached, and mixed data. Cached records whose aligned spans lie outside `R` cannot broaden the candidate set, even if their tails reach `V`. Offscreen buffer-only records do not consume the current sampling allowance. Preserve distinct records and deduplicate repeated retrievals. With the same session seed and settings, complete fresh and reused targets must agree on candidates and sample; fresh layout can differ under the existing continuity rules.
+
+A target is ready only when all of `R` has completed query coverage and adequate unsampled candidates. Completed empty coverage is successful; drawn extensions or sampled survivors do not establish coverage. The 10,000-base alignment-display cutoff applies to `W`, not the expanded intervals. The accepted completeness limit is explicit: tails anchored beyond `R` can be missed even if they extend into `V`. A finite margin is not proof of a maximum clip length in the BAM.
+
+This D1 revision was accepted on 2026-11-10 after panning exposed distracting sudden appearances under the 2026-11-07 aligned-span-only eligibility rule. It supersedes that exclusion and the earlier withdrawal of tail-only visibility. Query planning, coverage representation, and record deduplication remain engineering choices within this contract.
 
 Format evidence is retained in the [CIGAR](research/cigar-errors-2026-11-02.md), [reference-skip](research/skipped-reference-2026-11-02.md), [missing-sequence](research/missing-sequence-2026-11-01.md), [hard-clipping](research/hard-clipping-2026-11-01.md), and [clipping/BWA](research/clipping-indicators-and-bwa-2026-11-01.md) research notes. The accepted future BWA preparation check concerns supplementary split-read alignments only and is recorded in the backlog; alignment execution is outside the viewer milestone.
 
@@ -152,19 +166,31 @@ Format evidence is retained in the [CIGAR](research/cigar-errors-2026-11-02.md),
 
 ### Target presentation and request precedence
 
-Keep navigation available during loading. A valid changed target supersedes the previous request; only the latest valid request may update the view, spinner, downsampling status, or error. Ignore stale completions and failures. A wide ruler-only target also supersedes earlier loading, although it needs no alignment query. Same-target Enter is the exception described above. This does not promise immediately cancellable I/O or add a manual cancellation control.
+Keep navigation available during loading. A valid changed target supersedes the previous request; only the latest valid request may update the view, spinner, downsampling status, or error. Stale completions and failures must not publish obsolete presentation; useful completed results from the same open BAM may enter the cache. A wide ruler-only target also supersedes earlier loading, although it needs no alignment query. Same-target Enter is the exception described above. This does not promise immediately cancellable I/O or add a manual cancellation control.
 
 On valid typed navigation, toolbar navigation, or click-to-zoom, immediately show target coordinates and ruler. Reuse applicable loaded data, drawing alignments selected for the target at the correct positions and scale. Keep missing data blank; an entirely unloaded target is blank while loading. Do not blank useful available data solely because more data is needed. A changed sample may omit previously displayed groups even when they are cached.
 
-During horizontal dragging, move the ruler and already-loaded alignments immediately with the pointer, preserving relative genomic positions. Load any missing data on release, subject to the visibility threshold. Older load completions must not replace an active drag preview.
+During horizontal dragging, move the ruler and already-loaded alignments immediately with the pointer, preserving relative genomic positions. Allow background refill while dragging, subject to the visibility threshold and resource budget. Completed data may update the preview using the latest pointer coordinates, current eligibility rule, and retained rows. It must not snap back to an older target, reset scrolling, compact retained rows, or replace the last successful committed view. The gesture still commits on release. If motion outruns coverage, keep useful loaded data visible and finish missing required loading on release under the normal spinner/error policy. Add no loading decoration during the preview. This explicitly supersedes the previous release-only loading rule.
 
-A pending or drag-preview view is provisional. It becomes the last successful view only when the target is ready; retain the previous successful view for failure restoration. Determine readiness from completed query coverage and adequate candidate/sampling information, not from the presence or absence of drawn shapes. Loaded reads can extend into regions whose query is incomplete. An already-complete target needs no alignment-loading spinner. Successful empty queries and completed samples are valid results.
+A pending or drag-preview view is provisional. It becomes the last successful view only when the target is committed and ready; retain the previous successful view for failure restoration. Determine readiness from completed coverage of `R` and adequate candidate/sampling information, not from the presence or absence of drawn shapes. Loaded reads can extend into regions whose query is incomplete. An already-complete target needs no alignment-loading spinner. Successful empty queries and completed samples are valid results.
+
+### Rolling prefetch and resource priority
+
+Fetch missing required coverage before optional work and mark the target ready as soon as `R` is complete. On initial loads, jumps, and zoom changes, then fill missing parts of `C` in small background chunks. Fill both sides, prioritizing the direction of motion while preserving a trailing buffer for reversals. During ordinary rolling pans, refill an edge before its completed buffer runs out; do not chase every small shift by reloading the whole interval. Measure remaining contiguous completed coverage from the edge of `R`, not from `V`. Coalesce repeated motion requests and fetch only missing coverage.
+
+Initial tuning candidates are `M = 1,000` bases, `P = max(W, M)`, and refill when remaining buffer is at or below `P / 2`. These values are unmeasured candidates, not selected defaults. For a 1 kb viewport at 10,001–11,000, they give required coverage 9,001–12,000 (3 kb) and desired prefetched coverage 8,001–13,000 (5 kb). A 10 kb viewport gives 12 kb required and 32 kb desired coverage before reference-end clamping. These are width calculations, not latency predictions.
+
+Every changed committed target takes priority over speculative work. Retire irrelevant prefetch on large jumps, reference changes, ruler-only targets, and successful BAM replacement. Bound speculative work and provide suitable interruption/yield boundaries so a large background query cannot monopolize the reader. Task priority alone does not establish this property; scheduling and reader ownership remain engineering choices.
+
+Give optional data a memory/work budget. Evict distant speculative data before current required data or protected recovery state; shrink or stop prefetch under pressure. Never silently truncate required candidates or mark partial/canceled queries complete. The display group budget and a count of cached snapshots do not bound unsampled cache bytes. Prefetch costs additional I/O and memory and cannot guarantee smooth panning at every speed, depth, or storage latency.
+
+Before selecting constants, compare fixed-margin loading with and without prefetch. Measure first-ready latency, sustained pans/drags, reversals, foreground jumps interrupting optional work, decoded-record/I/O work, and memory under ordinary and deep coverage. Check tail-only visibility, missing sequence, margin/reference boundaries, and fresh/reused candidate and sample equality independently of performance. Benchmark extracts must cover the full requested prefetch range. Use the existing qualification targets as starting criteria; no integrated expanded-query or prefetch result is established by this design decision.
 
 ### One status spot beside the interval field
 
 | State | Visible indicator |
 | --- | --- |
-| Loading missing alignment data | Spinner |
+| Loading missing required alignment data for the committed target | Spinner |
 | Ready and downsampled | Small amber warning triangle |
 | Ready without downsampling | Empty |
 
@@ -172,11 +198,13 @@ The spinner is the sole visible loading indicator: no Loading text or stripes, d
 
 Keep the sampling status with reused or restored views. Loading, intentional sampling omissions, the wide-view message, validation errors, and actual load failures are distinct states; the status spot remains dedicated to loading/sampling.
 
+Optional prefetch alone never starts or prolongs the spinner or replaces a ready downsampling warning. It must not change a complete stationary target's sample or repack its rows. A changed viewport can change candidate membership and the sample under the normal rules.
+
 ## Downsampling
 
 A **sampling group** contains eligible, loaded records from one query template, including mates and supplementary pieces. It is distinct from SAM/BAM `@RG` metadata and does not combine duplicate molecules or UMI families. For example, eligible loaded R1 primary, R1 supplementary, and R2 primary records can form one group of three records.
 
-Keep or omit all eligible loaded members of a group together, including members in different parts of the interval; when a group leaves the sample, remove its retained members together. Filters apply first. Do not fetch records outside the regional query just to complete groups, and continue to draw their members independently. The same identity rules apply across separately loaded and cached data.
+Keep or omit all eligible loaded members of a group together, including members in different parts of the interval; when a group leaves the sample, remove its retained members together. Apply the current target's `V`/`R` eligibility rule and record filters before grouping. Offscreen prefetched members do not become display candidates merely because another member is eligible. Do not fetch records outside the regional query just to complete groups, and continue to draw their members independently. The same identity rules apply across separately loaded and cached data.
 
 D3 resolved 2026-11-08 (Q97–Q102): For named records, sampling identity is the exact pair (RG, QNAME). A missing RG uses a distinct no-read-group namespace; never infer it from other records. Each record with unavailable QNAME (*) is its own group with stable per-record identity across reloads. Reused (RG, QNAME) keys remain one group even for unrelated fragments; do not split by position or sequence. This is a limitation of available identity, not a guarantee of biological uniqueness. Different RGs never combine merely because QNAME matches.
 
@@ -212,7 +240,7 @@ Continuity protects records that remain visible and selected; sampling may still
 
 ## Regional loading failures
 
-When the latest valid regional request fails:
+When loading required coverage for the latest valid committed target fails:
 
 1. Stop its spinner and restore the current BAM's last successful view, with that view's coordinates and sampling status. This can be an alignment view, a successful empty/sampled result, or a wide ruler-only view. If none exists, restore the empty interval-entry state.
 2. Start a restored alignment stack at the top; do not restore the prior vertical scroll offset. This does not require a new sample.
@@ -221,19 +249,21 @@ When the latest valid regional request fails:
 
 Recheck request identity before restoring or presenting a queued alert. Stale failures must not restore a view, change the field, or show an alert. If application state changes while an alert is open, an obsolete alert must not remain presented as current. New valid requests supersede old ones; editing alone and invalid submissions do not.
 
-This regional-load policy is separate from inline validation and file-opening errors. On 2026-11-07, the user resolved D2 as follows: Validate the BAM header and selected index on opening and records as regions are read, without an upfront whole-file scan. A mapped record with unavailable CIGAR or a detected malformed/inconsistent record fails the regional load and restores the previous successful view; do not invent geometry or silently omit it. Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported. Preserve stored sequence = in neutral gray with a literal = when readable, without inferring a nucleotide. A detected corrupt, stale, or mismatched chosen index stops the open/load, reports the known problem, and preserves/restores the appropriate previous view without automatic fallback. An older timestamp alone proves no mismatch; successful opening/loading does not certify exhaustive index integrity or sorting.
+A speculative failure outside the currently required committed coverage leaves the successful view and status intact, shows no alert, and establishes no completed coverage for the failed query. Stop automatic speculative retries for that range. If it becomes required, attempt normal foreground loading and apply the failure policy above if that load fails. This separate speculative-error policy was accepted on 2026-11-10; it must never turn a failed or partial query into apparently complete data.
+
+This regional-load policy is separate from inline validation and file-opening errors. The 2026-11-07 D2 contract still requires header/index validation on opening and record validation as regions are read, without an upfront whole-file scan. Unavailable CIGAR or detected malformed/inconsistent data fails the affected query, and a detected corrupt, stale, or mismatched chosen index stops the affected open/load without automatic fallback. The 2026-11-10 revision distinguishes required-load restoration and reporting from quiet speculative failure; neither path may invent geometry, silently omit bad records from a successful result, or claim partial coverage as complete. Otherwise-valid missing sequence and all valid standard CIGAR operations remain supported, with stored sequence = preserved in neutral gray and a literal = when readable. An older timestamp alone proves no index mismatch; successful opening/loading does not certify exhaustive index integrity or sorting.
 
 ## Remaining specification work
 
-The following are open choices, not accepted implementation requirements. Resolve material correctness gaps before treating a specification as implementation-ready; routine native interaction details need no separate interview.
+The following separates accepted contracts from remaining engineering and measurement work. Resolve material correctness gaps before treating a specification as implementation-ready; routine native interaction details need no separate interview.
 
 | Area | Work remaining |
 | --- | --- |
-| Input and rendering correctness | D1/D2 resolved on 2026-11-07 above; implement incremental validation and reference-overlap completeness |
+| Input and rendering correctness | Implement the accepted 2026-11-10 D1 revision: bounded tail-only candidates and complete required coverage; preserve the 2026-11-07 D2 validation contract |
 | Coordinates and layout | Internal representation/conversion boundaries; integer rounding; ruler spacing; marker bounds/crowding; row packing consistent with continuity; narrow-body drawing |
-| Sampling and resources | Implement resolved D1/D3 identity, complete candidates, and stable selection; choose/document hash and encoding, selection structures, cache and active row state, scheduling, and resource mechanisms |
+| Sampling and resources | Preserve resolved D3 identity and stable selection under revised D1 candidates; implement rolling prefetch, foreground priority, drag refill, speculative failures, and resource budgets |
 | File handling | Engineering detection mechanisms within the accepted incremental-validation and explicit-index contracts |
-| Benchmark and validation | Prepare the agreed D4 panel and fixed protocol; measure provisional targets and record justified revisions; tune numerical group budget/visibility cutoff |
+| Benchmark and validation | Apply the agreed D4 criteria to expanded retrieval/prefetch, with complete source coverage; choose numerical search margin, buffer, refill trigger, chunk sizes, and resource budgets from measurements |
 | Native application and delivery | Toolchain and dependency choices; build/CI setup; effective repository protection and checks; ticket/tracker configuration |
 
 Swift, SwiftUI/AppKit, a narrow HTSlib adapter, and native drawing are candidate architecture choices. No specific adapter, hash, streaming algorithm, cache design, or renderer is selected by this record. Introduce Metal or other specialized optimization only when measurements justify it. The installed tools and repository settings must be verified during setup; historical local tool observations are not a portable build guarantee.
@@ -293,3 +323,4 @@ These identifiers preserve traceability for research references. The topical sec
 | Q94–Q96 | 100× WGS, approximately 2 × 150 bp, hg38 benchmark |
 | Q97–Q102 | D3 fragment identity, absent metadata, reused names, deterministic priority ties, and delegated hash/encoding |
 | Q103–Q110 | D4 hardware/data plan, provisional performance targets, evidence-based revisions, and delegated protocol |
+| 2026-11-10 D1 revision | Bounded soft-tail-only visibility; fixed internal margin without estimation; rolling prefetch, drag refill, foreground priority, and speculative-error handling; numerical tuning pending |
