@@ -56,7 +56,7 @@ final class GenomicAlignmentView: NSView {
         for alignment in presentation.alignments {
             let y = CGFloat(alignment.row) * Self.rowHeight + 3
             guard y + 12 >= dirtyRect.minY, y <= dirtyRect.maxY else { continue }
-            let blocks = alignment.segments.filter { $0.kind == .aligned }
+            let blocks = alignment.segments.filter { $0.kind == .aligned || $0.kind == .softClip }
             let point = alignment.isReverse ? blocks.first : blocks.last
             for segment in alignment.segments {
                 let x = CGFloat(Double(segment.start - target.start) - presentation.previewOffsetInBases) * scale
@@ -65,27 +65,7 @@ final class GenomicAlignmentView: NSView {
                 case .aligned:
                     let rect = NSRect(x: x, y: y, width: width, height: 12)
                     NSColor.labelColor.setFill()
-                    if segment == point {
-                        let tip = min(4, width / 2)
-                        let path = NSBezierPath()
-                        if alignment.isReverse {
-                            path.move(to: NSPoint(x: rect.minX, y: rect.midY))
-                            path.line(to: NSPoint(x: rect.minX + tip, y: rect.minY))
-                            path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
-                            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
-                            path.line(to: NSPoint(x: rect.minX + tip, y: rect.maxY))
-                        } else {
-                            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
-                            path.line(to: NSPoint(x: rect.maxX - tip, y: rect.minY))
-                            path.line(to: NSPoint(x: rect.maxX, y: rect.midY))
-                            path.line(to: NSPoint(x: rect.maxX - tip, y: rect.maxY))
-                            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
-                        }
-                        path.close()
-                        path.fill()
-                    } else {
-                        rect.fill()
-                    }
+                    Self.bodyPath(in: rect, pointed: segment == point, reverse: alignment.isReverse).fill()
                 case .deletion, .skip:
                     (segment.kind == .deletion ? NSColor.labelColor : NSColor(calibratedRed: 0.40, green: 0.50, blue: 0.62, alpha: 1)).setStroke()
                     let path = NSBezierPath()
@@ -113,6 +93,11 @@ final class GenomicAlignmentView: NSView {
                     NSGraphicsContext.restoreGraphicsState()
                 case .softClip:
                     if let sequence = segment.sequence {
+                        NSGraphicsContext.saveGraphicsState()
+                        if segment == point {
+                            Self.bodyPath(in: NSRect(x: x, y: y, width: width, height: 12),
+                                          pointed: true, reverse: alignment.isReverse).addClip()
+                        }
                         let bases = Array(sequence.utf8)
                         let first = max(0, min(bases.count, Int(floor((dirtyRect.minX - x) / scale))))
                         let last = max(first, min(bases.count, Int(ceil((dirtyRect.maxX - x) / scale))))
@@ -131,15 +116,38 @@ final class GenomicAlignmentView: NSView {
                                 text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
                             }
                         }
+                        NSGraphicsContext.restoreGraphicsState()
                     } else {
                         NSColor.labelColor.setStroke()
-                        let outline = NSBezierPath(rect: NSRect(x: x, y: y + 0.5, width: width, height: 11))
+                        let outline = Self.bodyPath(in: NSRect(x: x, y: y + 0.5, width: width, height: 11),
+                                                    pointed: segment == point, reverse: alignment.isReverse)
                         outline.lineWidth = 1
                         outline.stroke()
                     }
                 }
             }
         }
+    }
+
+    private static func bodyPath(in rect: NSRect, pointed: Bool, reverse: Bool) -> NSBezierPath {
+        guard pointed else { return NSBezierPath(rect: rect) }
+        let tip = min(4, rect.width / 2)
+        let path = NSBezierPath()
+        if reverse {
+            path.move(to: NSPoint(x: rect.minX, y: rect.midY))
+            path.line(to: NSPoint(x: rect.minX + tip, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+            path.line(to: NSPoint(x: rect.minX + tip, y: rect.maxY))
+        } else {
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX - tip, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.midY))
+            path.line(to: NSPoint(x: rect.maxX - tip, y: rect.maxY))
+            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        }
+        path.close()
+        return path
     }
 
     private static func palette(_ base: UInt8) -> (NSColor, NSColor) {
