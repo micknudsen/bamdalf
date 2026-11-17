@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "markdownlint-cli2": "0.24.0",
+    "markdownlint-cli2": "0.24.1",
     "markdownlint-rule-relative-links": "5.1.4"
   },
   "overrides": {
