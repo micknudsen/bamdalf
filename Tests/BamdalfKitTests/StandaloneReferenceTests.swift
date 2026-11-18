@@ -122,7 +122,9 @@ extension StandaloneReferenceTests {
         #expect(session.submitInterval() == nil)
         #expect(session.presentation.target?.formatted == "one:1-8")
         #expect(session.presentation.referenceBases == nil && session.presentation.regionalError == nil)
+        session.editInterval("draft while the overview is visible")
         await session.setViewportWidth(8)?.value
+        #expect(session.presentation.intervalText == "draft while the overview is visible")
         #expect(session.presentation.target == nil)
         #expect(session.presentation.regionalError?.interval.formatted == "one:1-8")
         #expect(session.presentation.referenceURL == url)
@@ -154,5 +156,68 @@ extension StandaloneReferenceTests {
         #expect(session.presentation.target?.formatted == "one:3-6")
         #expect(session.presentation.referenceBases?.bases == Data("GtnR".utf8))
         #expect(session.presentation.regionalError == nil)
+    }
+}
+
+extension StandaloneReferenceTests {
+    @Test func failedTargetRestoresAReadableOverviewAtItsNewScale() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let url = try files.reference("selected.bref", fasta: ">one\nAaCGtnRY")
+        let gate = RegionGate()
+        let session = ViewerSession(loadReferenceRegion: { bundle, interval in
+            if interval.start == 4 {
+                await gate.pause(4)
+                throw RegionalLoadError(interval: interval, message: "Cannot read selected region")
+            }
+            return try await bundle.read(interval)
+        })
+        session.setViewportWidth(2)
+        await session.openReference(url)
+        session.editInterval("one:1-3")
+        await session.submitInterval()?.value
+        session.editInterval("one:4-5")
+        let pending = session.submitInterval()
+        await gate.waitFor(4)
+        session.setViewportWidth(8)
+        session.editInterval("newer edit")
+        await gate.release(4)
+        await pending?.value
+        #expect(session.presentation.target?.formatted == "one:1-3")
+        #expect(session.presentation.referenceBases?.bases == Data("AaC".utf8))
+        #expect(session.presentation.intervalText == "newer edit")
+        #expect(session.presentation.regionalError?.interval.formatted == "one:4-5")
+    }
+
+    @Test func returningToAFailedPreviewWaitsForRequiredNavigationToRetry() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let url = try files.reference("selected.bref", fasta: ">one\nAaCGtnRY")
+        let failure = FirstPreviewFailure()
+        let session = ViewerSession(loadReferenceRegion: { bundle, interval in
+            if interval.start == 2 && interval.end == 6, await failure.take() {
+                throw RegionalLoadError(interval: interval, message: "Optional read failed")
+            }
+            return try await bundle.read(interval)
+        })
+        session.setViewportWidth(32)
+        await session.openReference(url)
+        session.editInterval("one:2-5")
+        await session.submitInterval()?.value
+        session.beginAlignmentDrag()
+        await session.previewAlignmentDrag(horizontalFraction: -0.125)?.value
+        await session.previewAlignmentDrag(horizontalFraction: 0)?.value
+        await session.previewAlignmentDrag(horizontalFraction: -0.125)?.value
+        #expect(session.presentation.referenceBases?.bases == Data("aCGt".utf8))
+        await session.endAlignmentDrag()?.value
+        #expect(session.presentation.referenceBases?.bases == Data("CGtn".utf8))
+    }
+}
+
+private actor FirstPreviewFailure {
+    private var available = true
+    func take() -> Bool {
+        defer { available = false }
+        return available
     }
 }

@@ -16,6 +16,12 @@ public struct GenomicInterval: Equatable, Sendable {
         lhs.start == rhs.start && lhs.end == rhs.end && lhs.reference.utf8.elementsEqual(rhs.reference.utf8)
     }
 
+    /// Screen points per base when the viewport can show individual reference cells.
+    func referenceScale(in width: Double) -> Double? {
+        let scale = width / Double(end - start + 1)
+        return scale >= 1 ? scale : nil
+    }
+
     public var formatted: String {
         "\(reference):\(formatCoordinate(start))-\(formatCoordinate(end))"
     }

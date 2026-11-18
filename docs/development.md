@@ -75,7 +75,7 @@ sequence read. Opening another reference keeps a valid target and clears an
 unavailable one. **Close Reference** returns a standalone viewer to its empty
 state. Create Reference protects the selected file, including aliases.
 
-A successful open shows **Enter a genomic interval** and focuses the field.
+Opening the first source shows **Enter a genomic interval** and focuses the field.
 Enter a complete 1-based inclusive interval, for example `tiny:100-200` with
 the opening fixture. Enter validates against the selected contig dictionary, formats the field,
 and moves the ruler. Malformed or out-of-range input remains editable with an

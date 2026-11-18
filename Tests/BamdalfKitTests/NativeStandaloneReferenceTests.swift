@@ -5,11 +5,11 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct NativeStandaloneReferenceTests {
-    @Test func fileMenuBrowsesAndClosesWithAReadOnlyFieldAtBothWindowWidths() async throws {
+    @Test(arguments: [false, true]) func fileMenuBrowsesAndClosesWithAReadOnlyFieldAtBothWindowWidths(longName: Bool) async throws {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let name = String(repeating: "long assembly ", count: 9) + ".bref.v1"
+        let name = longName ? String(repeating: "long assembly ", count: 9) + ".bref.v1" : "GRCh38"
         let url = try files.reference(name + ".bref", fasta: ">seq\naCGtn")
         let session = ViewerSession()
         let (opened, signal) = AsyncStream<Void>.makeStream()
@@ -47,7 +47,7 @@ struct NativeStandaloneReferenceTests {
             #expect(field.stringValue == name && field.toolTip == url.lastPathComponent)
             #expect(entry.frame.maxX < field.frame.minX && workspace.bounds.contains(field.frame))
             #expect(field.frame.height == entry.frame.height && field.frame.width >= 100)
-            #expect(field.intrinsicContentSize.width > field.frame.width)
+            #expect((field.intrinsicContentSize.width > field.frame.width) == longName)
             #expect(field.lineBreakMode == .byTruncatingTail)
         }
         menu.performActionForItem(at: menu.index(of: close))
@@ -80,9 +80,10 @@ extension NativeStandaloneReferenceTests {
         try #require(row.bounds.width == 608)
         #expect(!row.isHidden && row.frame.maxY <= ruler.frame.minY)
         #expect(row.frame.minY >= scroll.frame.maxY && row.frame.minX == ruler.frame.minX)
-        let fixed = row.frame
+        let fixed = row.convert(row.bounds, to: nil)
         session.scrollVertically(to: 30)
-        #expect(row.frame == fixed)
+        #expect(scroll.contentView.bounds.origin.y == 30)
+        #expect(row.convert(row.bounds, to: nil) == fixed)
         let letters = try renderAlignmentBitmap(in: row, window: window)
         var glyphDifferences = 0
         for x in 0..<8 {
@@ -113,7 +114,7 @@ extension NativeStandaloneReferenceTests {
         await session.submitInterval()?.value
         let blank = try renderAlignmentBitmap(in: row, window: window)
         #expect(blank.colorAt(x: 1, y: 8) == blank.colorAt(x: 2, y: 8))
-        #expect(session.presentation.referenceBases == nil && row.frame == fixed)
+        #expect(session.presentation.referenceBases == nil && row.convert(row.bounds, to: nil) == fixed)
     }
 }
 

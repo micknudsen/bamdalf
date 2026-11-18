@@ -61,6 +61,8 @@ public final class ViewerSession {
     public private(set) var selectedReference: ReferenceBundle?
     private var previewRead: Task<Void, Never>?
     private var previewDemand: GenomicInterval?
+    private var failedPreviews: [GenomicInterval] = []
+    private var referenceNavigationGeneration: UInt64 = 0
     private var viewportWidth = 0.0
     private let loadReferenceRegion: @Sendable (ReferenceBundle, GenomicInterval) async throws -> Data
     private var bam: BAMFile?
@@ -189,8 +191,7 @@ public final class ViewerSession {
         let previousWidth = viewportWidth
         viewportWidth = width
         guard let bundle = selectedReference, let target = (dragOrigin ?? presentation).target else { return nil }
-        let span = Double(target.end - target.start + 1)
-        guard (previousWidth >= span) != (width >= span) else { return nil }
+        guard (target.referenceScale(in: previousWidth) == nil) != (target.referenceScale(in: width) == nil) else { return nil }
         _ = restoreDragOrigin()
         return loadReferenceTarget(target, from: bundle)
     }
@@ -204,14 +205,14 @@ public final class ViewerSession {
         next.message = ""
         next.regionalError = nil
         next.referenceBases = nil
-        next.isLoading = viewportWidth >= Double(target.end - target.start + 1)
+        next.isLoading = target.referenceScale(in: viewportWidth) != nil
         presentation = next
         guard next.isLoading else {
             lastSuccessful = next
             regionalTask = nil
             return nil
         }
-        let generation = editorGeneration
+        let generation = referenceNavigationGeneration
         regionalTask = Task {
             let result: Result<ReferenceRegion, RegionalLoadError>
             do {
@@ -221,32 +222,52 @@ public final class ViewerSession {
                 let message = (error as? RegionalLoadError)?.message ?? error.localizedDescription
                 result = .failure(RegionalLoadError(interval: target, message: message))
             }
-            guard regionalRequestID == request else { return }
-            let finish = { [weak self] in self?.completeReferenceLoad(result, generation: generation) }
-            if dragOrigin != nil {
-                deferredRegionalCompletion = { finish() }
-            } else {
-                finish()
-            }
+            await completeReferenceLoad(result, from: bundle, request: request, generation: generation)?.value
         }
         return regionalTask
     }
 
-    private func completeReferenceLoad(_ result: Result<ReferenceRegion, RegionalLoadError>, generation: UInt64) {
+    private func completeReferenceLoad(_ result: Result<ReferenceRegion, RegionalLoadError>, from bundle: ReferenceBundle,
+                                       request: UUID, generation: UInt64) -> Task<Void, Never>? {
+        guard regionalRequestID == request else { return nil }
+        if dragOrigin != nil {
+            deferredRegionalCompletion = { [weak self] in
+                _ = self?.completeReferenceLoad(result, from: bundle, request: request, generation: generation)
+            }
+            return nil
+        }
         regionalTask = nil
         switch result {
         case .success(let region):
-            presentation.referenceBases = region
-            presentation.isLoading = false
-            lastSuccessful = presentation
+            var next = presentation
+            next.referenceBases = region
+            next.isLoading = false
+            presentation = next
+            lastSuccessful = next
         case .failure(let error):
-            // A prior blank overview cannot restore detail newly exposed by a resize.
-            if let prior = lastSuccessful, let target = prior.target, prior.referenceBases == nil,
-               viewportWidth >= Double(target.end - target.start + 1) {
+            if let prior = lastSuccessful, let target = prior.target,
+               prior.referenceBases == nil, target.referenceScale(in: viewportWidth) != nil {
+                if target != error.interval {
+                    // The previous overview became detailed while the new target was
+                    // loading. Retrieve its newly visible bases before presenting the alert.
+                    regionalTask = Task {
+                        let bases = try? await loadReferenceRegion(bundle, target)
+                        guard regionalRequestID == request else { return }
+                        if let bases {
+                            lastSuccessful?.referenceBases = ReferenceRegion(interval: target, bases: bases)
+                        } else if target.referenceScale(in: viewportWidth) != nil {
+                            lastSuccessful = nil
+                        }
+                        await completeReferenceLoad(result, from: bundle, request: request, generation: generation)?.value
+                    }
+                    return regionalTask
+                }
+                // The failed read was the first detail requested for this overview.
                 lastSuccessful = nil
             }
             restoreSuccessfulView(for: error, generation: generation)
         }
+        return nil
     }
 
     public func editInterval(_ text: String) {
@@ -266,6 +287,7 @@ public final class ViewerSession {
     public func beginAlignmentDrag() {
         guard presentation.target != nil, !presentation.isOpening, dragOrigin == nil else { return }
         dragOrigin = presentation
+        failedPreviews.removeAll()
         dragFraction = 0
     }
 
@@ -305,7 +327,7 @@ public final class ViewerSession {
             }
             if let cached { next.referenceBases = cached }
             presentation = next
-            if cached == nil && viewportWidth >= Double(target.end - target.start + 1) {
+            if cached == nil && target.referenceScale(in: viewportWidth) != nil {
                 readPreview(visibleBases, from: bundle)
             } else {
                 stopPreviewRead()
@@ -329,11 +351,17 @@ public final class ViewerSession {
         guard previewRead == nil else { return }
         previewRead = Task {
             while !Task.isCancelled, let wanted = previewDemand {
-                let bases = try? await loadReferenceRegion(bundle, wanted)
-                guard !Task.isCancelled else { return }
-                if previewDemand != wanted { continue }
-                if let bases { presentation.referenceBases = ReferenceRegion(interval: wanted, bases: bases) }
-                break
+                guard failedPreviews.count < 64,
+                      !failedPreviews.contains(where: { $0.start <= wanted.end && $0.end >= wanted.start }) else { break }
+                do {
+                    let bases = try await loadReferenceRegion(bundle, wanted)
+                    guard !Task.isCancelled else { return }
+                    if previewDemand == wanted { presentation.referenceBases = ReferenceRegion(interval: wanted, bases: bases) }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    failedPreviews.append(wanted)
+                }
+                if previewDemand == wanted { break }
             }
             if !Task.isCancelled { previewRead = nil }
         }
@@ -358,7 +386,7 @@ public final class ViewerSession {
         }
         let task = regionalTask
         restored.completion?()
-        return task
+        return regionalTask ?? task
     }
 
     private func restoreDragOrigin() -> (origin: ViewerPresentation, completion: (@MainActor () -> Void)?)? {
@@ -587,7 +615,10 @@ public final class ViewerSession {
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
             if target == presentation.target { return regionalTask }
-            if let selectedReference { return loadReferenceTarget(target, from: selectedReference) }
+            if let selectedReference {
+                referenceNavigationGeneration = editorGeneration
+                return loadReferenceTarget(target, from: selectedReference)
+            }
             guard let bam else { return nil }
             if prefetchAfterLoad { retirePrefetch() }
             regionalTask?.cancel()

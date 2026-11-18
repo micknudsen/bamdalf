@@ -47,8 +47,7 @@ final class GenomicReferenceView: NSView {
         dirtyRect.fill()
         guard let target = presentation.target, let region = presentation.referenceBases,
               region.interval.reference.utf8.elementsEqual(target.reference.utf8) else { return }
-        let scale = bounds.width / CGFloat(target.end - target.start + 1)
-        guard scale >= 1 else { return }
+        guard let scale = target.referenceScale(in: bounds.width) else { return }
         for (index, base) in region.bases.enumerated() {
             let offset = Double(region.interval.start + Int64(index) - target.start) - presentation.previewOffsetInBases
             let rect = NSRect(x: offset * scale, y: 3, width: scale, height: 12)
