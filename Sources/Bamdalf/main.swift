@@ -25,12 +25,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(applicationItem)
 
         let fileItem = NSMenuItem()
-        let fileMenu = NSMenu(title: "File")
-        let openItem = fileMenu.addItem(withTitle: "Open BAM…", action: #selector(ViewerWindowController.openBAM(_:)), keyEquivalent: "o")
-        openItem.target = viewer
-        fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        fileItem.submenu = fileMenu
+        fileItem.submenu = viewer?.makeFileMenu()
         menu.addItem(fileItem)
 
         let editItem = NSMenuItem()

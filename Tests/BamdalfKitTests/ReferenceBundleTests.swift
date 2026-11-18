@@ -218,3 +218,121 @@ extension ReferenceBundleTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path) == ["changing.fa"])
     }
 }
+
+extension ReferenceBundleTests {
+    @Test func confirmedSaveReplacesOnlyAfterCreatingACompleteBundle() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let old = try makeBundle(in: files.directory)
+        let before = try Data(contentsOf: old)
+        let source = files.directory.appendingPathComponent("example.fa")
+        try Data(">replacement\ngTA".utf8).write(to: source)
+        let confirmed = try ReferenceSaveDestination(confirmedURL: old)
+        try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test") { _, _ in
+            let actual = try Data(contentsOf: old)
+            #expect(actual == before)
+        }
+        let replacement = try ReferenceBundle(opening: old)
+        #expect(try await replacement.read(GenomicInterval(reference: "replacement", start: 1, end: 3)) == Data("gTA".utf8))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
+    }
+}
+
+extension ReferenceBundleTests {
+    @Test func changedDestinationRequiresFreshConfirmationAndPreservesItsBytes() throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let destination = try makeBundle(in: files.directory)
+        let confirmed = try ReferenceSaveDestination(confirmedURL: destination)
+        let source = files.directory.appendingPathComponent("example.fa")
+        let changed = Data("a different file at the confirmed location".utf8)
+        try changed.write(to: destination, options: .atomic)
+        #expect(throws: (any Error).self) {
+            try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test")
+        }
+        #expect(try Data(contentsOf: destination) == changed)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
+    }
+}
+
+extension ReferenceBundleTests {
+    @Test func selectedBundleIsProtectedAcrossRenameAndAliases() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let original = try makeBundle(in: files.directory)
+        let selected = try ReferenceBundle(opening: original)
+        let moved = files.directory.appendingPathComponent("moved.bref")
+        let link = files.directory.appendingPathComponent("hard.bref")
+        let symlink = files.directory.appendingPathComponent("symbolic.bref")
+        let before = try Data(contentsOf: original)
+        try FileManager.default.moveItem(at: original, to: moved)
+        try FileManager.default.linkItem(at: moved, to: link)
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: moved)
+        for name in [moved, link, symlink] {
+            expectFailure(containing: "open reference") {
+                _ = try ReferenceSaveDestination(confirmedURL: name, protecting: selected)
+            }
+            #expect(try Data(contentsOf: name) == before)
+        }
+        let other = Data("new file at previous name".utf8)
+        try other.write(to: original)
+        _ = try ReferenceSaveDestination(confirmedURL: original, protecting: selected)
+        #expect(try await selected.read(GenomicInterval(reference: "one", start: 1, end: 4)) == Data("ATgC".utf8))
+    }
+}
+
+extension ReferenceBundleTests {
+    @Test func failedAtomicReplacementOfALockedFilePreservesItsBytes() throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let destination = try makeBundle(in: files.directory)
+        let before = try Data(contentsOf: destination)
+        let confirmed = try ReferenceSaveDestination(confirmedURL: destination)
+        let source = files.directory.appendingPathComponent("example.fa")
+        try Data(">new\nTTT".utf8).write(to: source)
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: destination.path)
+        defer { try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: destination.path) }
+        #expect(throws: (any Error).self) {
+            try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test")
+        }
+        #expect(try Data(contentsOf: destination) == before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
+    }
+}
+
+extension ReferenceBundleTests {
+    @Test(.timeLimit(.minutes(1))) func concurrentConfirmedSavesPublishOnlyOneReplacement() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let output = try makeBundle(in: files.directory)
+        let destination = try ReferenceSaveDestination(confirmedURL: output)
+        let (ready, signal) = AsyncStream<Void>.makeStream()
+        let release = DispatchSemaphore(value: 0)
+        var saves: [(String, Task<Void, Error>)] = []
+        for name in ["first", "second"] {
+            let source = files.directory.appendingPathComponent("\(name).fa")
+            try Data(">\(name)\nT".utf8).write(to: source)
+            saves.append((name, Task.detached {
+                try ReferenceBundle.create(from: source, at: destination, creator: "bamdalf/test") { read, _ in
+                    if read > 0 {
+                        signal.yield()
+                        release.wait()
+                    }
+                }
+            }))
+        }
+        var imports = ready.makeAsyncIterator()
+        _ = await imports.next()
+        _ = await imports.next()
+        release.signal()
+        release.signal()
+        var winners: [String] = []
+        for (name, save) in saves {
+            if case .success = await save.result { winners.append(name) }
+        }
+        try #require(winners.count == 1)
+        let bundle = try ReferenceBundle(opening: output)
+        #expect(bundle.contigs.map(\.name) == winners)
+        #expect(try await bundle.read(GenomicInterval(reference: winners[0], start: 1, end: 1)) == Data("T".utf8))
+    }
+}

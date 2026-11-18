@@ -6,19 +6,21 @@ extension ReferenceBundle {
     /// Creates a fully validated bundle at a fresh destination. Progress reports consumed and total FASTA bytes.
     public static func create(from source: URL, at destination: URL, creator: String,
                               progress: @Sendable (Int64, Int64) throws -> Void = { _, _ in }) throws {
-        try ReferenceFormat.checkURL(destination)
+        try create(from: source, at: ReferenceSaveDestination(freshURL: destination), creator: creator, progress: progress)
+    }
+
+    /// Publishes to a destination confirmed through the Save workflow.
+    public static func create(from source: URL, at destination: ReferenceSaveDestination, creator: String,
+                              progress: @Sendable (Int64, Int64) throws -> Void = { _, _ in }) throws {
         guard source.isFileURL else { throw ReferenceBundleError("Choose a local uncompressed FASTA file.") }
         let files = FileManager.default
-        let staging = destination.deletingLastPathComponent().appendingPathComponent(".bamdalf-\(UUID().uuidString)")
+        let staging = destination.url.deletingLastPathComponent().appendingPathComponent(".bamdalf-\(UUID().uuidString)")
         try files.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? files.removeItem(at: staging) }
         let candidate = staging.appendingPathComponent("reference.bref")
         try writeBundle(fromFASTA: source, to: candidate, creator: creator, progress: progress)
         _ = try ReferenceBundle(opening: candidate)
-        try Task.checkCancellation()
-        guard renamex_np(candidate.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
-            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-        }
+        try destination.publish(candidate)
     }
 }
 

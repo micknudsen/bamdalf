@@ -80,7 +80,12 @@ reopen read-only for structural validation before publishing the single file.
 Keep task-owned journals in staging. Cancellation, parse/read errors or
 publication failure preserve an existing destination and clear only task-owned
 files. The production workflow protects the active file's identity through
-aliases and uses the platform's confirmed replacement flow. Readers must work
+aliases and uses the platform's confirmed replacement flow. For an existing
+destination, a coordinated write rechecks the device and inode before the
+atomic rename. Coordinated writers serialize this final step. A writer that
+bypasses macOS file coordination can still rename a path between the identity
+check and the rename. For a fresh destination, exclusive rename rejects any
+file that appeared during the import. Readers must work
 in a nonwritable directory, without WAL, SHM, an external index or extraction.
 
 A v1 reader may ignore additional ordinary tables with no role in core

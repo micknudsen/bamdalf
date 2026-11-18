@@ -21,7 +21,17 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
 
-    public init(session: ViewerSession) {
+    public typealias PresentReferencePanel = @MainActor (NSSavePanel, NSWindow, @escaping @MainActor (URL?) -> Void) -> Void
+    let presentReferencePanel: PresentReferencePanel
+
+    public init(session: ViewerSession, presentReferencePanel: @escaping PresentReferencePanel = { panel, window, complete in
+        panel.beginSheetModal(for: window) { response in
+            let url = response == .OK ? panel.url : nil
+            panel.orderOut(nil)
+            complete(url)
+        }
+    }) {
+        self.presentReferencePanel = presentReferencePanel
         self.session = session
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
@@ -174,16 +184,27 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         }
     }
 
+    var canManageFiles: Bool { !session.presentation.isOpening && window?.attachedSheet == nil }
+
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // Popup choices also reach this validator while their sheet is open.
         switch menuItem.action {
-        case #selector(openBAM(_:)):
-            return !session.presentation.isOpening && window?.attachedSheet == nil
+        case #selector(openBAM(_:)), #selector(createReference(_:)):
+            return canManageFiles
         case #selector(goToInterval(_:)):
             return session.presentation.intervalEntryAvailable && window?.attachedSheet == nil
         default:
             return true
         }
+    }
+
+    public func makeFileMenu() -> NSMenu {
+        let menu = NSMenu(title: "File")
+        menu.addItem(withTitle: "Open BAM…", action: #selector(openBAM(_:)), keyEquivalent: "o").target = self
+        menu.addItem(withTitle: "Create Reference…", action: #selector(createReference(_:)), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        return menu
     }
 
     public func makeGoMenu() -> NSMenu {
@@ -220,7 +241,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc public func openBAM(_ sender: Any?) {
-        guard let window, !session.presentation.isOpening, window.attachedSheet == nil else { return }
+        guard let window, canManageFiles else { return }
         let panel = NSOpenPanel()
         panel.title = "Open BAM"
         panel.prompt = "Open"
@@ -287,7 +308,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     public func windowDidResize(_ notification: Notification) { render() }
 
     public func windowDidEndSheet(_ notification: Notification) {
-        Task { @MainActor [weak self] in self?.presentRegionalError() }
+        Task { @MainActor [weak self] in self?.render() }
     }
 
     private func presentRegionalError() {
