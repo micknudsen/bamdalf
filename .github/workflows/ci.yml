@@ -71,7 +71,7 @@ jobs:
           platform="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer"
           xcrun lldb --batch \
             -o "settings set target.env-vars DYLD_FRAMEWORK_PATH=$platform/Library/Frameworks DYLD_LIBRARY_PATH=$platform/usr/lib" \
-            -o run -k 'thread backtrace all -c 18' \
+            -o run -k 'thread backtrace all -c 18' -k 'frame select 1' -k 'disassemble --frame' \
             -- "$helper" --test-bundle-path "$bundle" --filter savingAReferenceReturnsToTheSameViewer --testing-library swift-testing
       - name: Package native application
         run: |

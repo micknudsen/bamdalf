@@ -93,23 +93,31 @@ public final class ViewerSession {
 
     public init(prefetch: PrefetchConfiguration = .init(), loadBAM: @escaping @Sendable (URL, URL) async throws -> BAMFile = {
         try await BAMFile.open($0, indexURL: $1)
-    }, loadRegion: @escaping @Sendable (BAMFile, GenomicInterval) async throws -> [Alignment] = {
-        try await $0.alignments(in: $1)
-    }, alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
+    }, loadRegion: (@Sendable (BAMFile, GenomicInterval) async throws -> [Alignment])? = nil,
+                alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
                 samplingSeed: @escaping @Sendable () -> UInt64 = { UInt64.random(in: .min ... .max) },
                 samplingPriority: (@Sendable (UInt64, [UInt8]) -> UInt64)? = nil,
-                loadPrefetchRegion: @escaping @Sendable (BAMFile, GenomicInterval, RegionalQueryBudget) async throws -> [Alignment] = {
-                    try await $0.alignments(in: $1, budget: $2)
-                }) {
+                loadPrefetchRegion: (@Sendable (BAMFile, GenomicInterval, RegionalQueryBudget) async throws -> [Alignment])? = nil) {
         precondition(alignmentVisibilityLimit > 0)
         self.alignmentVisibilityLimit = alignmentVisibilityLimit
         self.sampling = AlignmentSampling(budget: samplingGroupBudget, priority: samplingPriority)
         self.samplingSeed = samplingSeed
         loadFile = loadBAM
-        self.loadRegion = loadRegion
+        self.loadRegion = loadRegion ?? Self.readAlignments
         self.prefetch = prefetch
-        self.loadPrefetchRegion = loadPrefetchRegion
+        self.loadPrefetchRegion = loadPrefetchRegion ?? Self.readAlignments
         regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)
+    }
+
+    // Keep the default actor calls in the library. Swift 6.1 can emit a null
+    // call target for these readers inside a public initializer's default arguments.
+    private nonisolated static func readAlignments(_ bam: BAMFile, _ interval: GenomicInterval) async throws -> [Alignment] {
+        try await bam.alignments(in: interval)
+    }
+
+    private nonisolated static func readAlignments(_ bam: BAMFile, _ interval: GenomicInterval,
+                                                  _ budget: RegionalQueryBudget) async throws -> [Alignment] {
+        try await bam.alignments(in: interval, budget: budget)
     }
 
     public func editInterval(_ text: String) {
