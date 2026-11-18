@@ -470,3 +470,17 @@ the regional load instead of becoming absent RG. Real BAI/CSI tests use independ
 outcomes, exact budget boundaries, stable reloads, complete-candidate reuse,
 controlled completion/failure, and native status/renderer checks. Performance
 measurements remain separate from timing-insensitive correctness assertions.
+
+## Reference bundle interface
+
+`ReferenceBundle.create(from:at:creator:progress:)` imports a local,
+uncompressed FASTA into a new `.bref`. Supply the application and version as
+the creator. Run creation on a background task. The optional callback reports
+consumed and total input bytes and may throw to stop creation. Cancellation or
+failure cleans up staging and preserves an existing destination.
+
+`ReferenceBundle(opening:)` opens a read-only bundle and exposes its ordered
+contigs (name, length and SAM M5) and provenance immediately. Its actor-isolated
+`read(_:)` takes a 1-based inclusive `GenomicInterval` and returns
+case-preserving ASCII bases as `Data`. The [v1 format](reference-format.md)
+defines validation, dictionary limits and bounded regional access.

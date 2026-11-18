@@ -6,6 +6,12 @@ public struct GenomicInterval: Equatable, Sendable {
     public let start: Int64
     public let end: Int64
 
+    public init(reference: String, start: Int64, end: Int64) {
+        self.reference = reference
+        self.start = start
+        self.end = end
+    }
+
     public var formatted: String {
         "\(reference):\(formatCoordinate(start))-\(formatCoordinate(end))"
     }
