@@ -46,3 +46,14 @@ class CandidateRoundTrip(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(moved.read_bytes()).digest(), digest)
                 finally:
                     os.chmod(folder, 0o755)
+
+    def test_header_name_survives_long_padding_and_description(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "headers.fa"
+            bundle = Path(tmp) / "headers.bref"
+            source.write_bytes(b">chr1" + b" " * 65531 + b"description\nA\n"
+                               b">" + b" " * 65533 + b"chr2\tmore\nc\n")
+            create(source, bundle, 65536)
+            with Bundle(bundle) as reader:
+                self.assertEqual(reader.read("chr1", 0, 1), b"A")
+                self.assertEqual(reader.read("chr2", 0, 1), b"c")

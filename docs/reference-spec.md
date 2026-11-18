@@ -217,14 +217,12 @@ and sequence data. These are engineering specifications to review, not reasons
 to introduce reference downloads, annotation rendering, or custom integrity
 verification into the milestone.
 
-For the measured decision, see the [selected v1 format](reference-format.md).
 The initial [storage investigation](research/reference-bundle-storage-2026-11-18.md)
-recommends measuring platform SQLite with bounded, case-preserving ASCII chunks
-first. It documents read-only opening, rollback-journal publication, WAL and
-immutable-mode pitfalls, source normalization, and destination-preservation
-requirements. This is a candidate to prototype, not a selected format. Compare
-64 KiB and 256 KiB chunks before adding compression or custom encodings; these
-sizes are experimental parameters, not product settings or acceptance limits.
+proposed comparing SQLite with 64 KiB and 256 KiB case-preserving ASCII
+chunks. It documents read-only opening, rollback-journal publication, WAL and
+immutable-mode pitfalls, source normalization, and destination preservation.
+The subsequent [whole-genome experiment](performance/reference-storage-2026-11-18.md)
+selected 64 KiB for the [v1 format](reference-format.md).
 
 ## Testing Decisions
 

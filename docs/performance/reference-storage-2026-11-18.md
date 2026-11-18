@@ -2,9 +2,9 @@
 
 **Select platform SQLite with 64 KiB uncompressed ASCII chunks.** On the
 3.106-billion-base human assembly, the resulting file occupied 1.00846 bytes
-per base. Opening validated all 2,580 contig descriptors in under 6.2 ms
+per base. Opening validated all 2,580 contig descriptors in under 9.1 ms
 on this route. The [v1 format contract](../reference-format.md) defines the
-portable file; the [experiment](../../Benchmarks/ReferenceFormat/measure.py)
+portable file. The [experiment](../../Benchmarks/ReferenceFormat/measure.py)
 runs separately from the application.
 
 ## Results
@@ -17,10 +17,10 @@ rereads. Latencies show nearest-rank p95 for that row. RSS is Darwin
 
 | Chunk / trial | Create (s) | Peak RSS (MiB) | Final bytes | Open (ms) | First read (ms) | Reread (ms) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 64 KiB / A | 19.410 | 102.81 | 3,131,998,208 | 3.573 | 0.839 | 0.096 |
-| 256 KiB / A | 18.387 | 103.45 | 3,113,811,968 | 3.150 | 1.113 | 0.173 |
-| 256 KiB / B | 18.582 | 102.98 | 3,113,811,968 | 3.235 | 1.069 | 0.170 |
-| 64 KiB / B | 19.934 | 102.45 | 3,131,998,208 | 3.171 | 0.735 | 0.085 |
+| 64 KiB / A | 19.678 | 103.09 | 3,131,998,208 | 3.085 | 1.060 | 0.084 |
+| 256 KiB / A | 18.463 | 103.88 | 3,113,811,968 | 3.194 | 1.137 | 0.181 |
+| 256 KiB / B | 18.778 | 103.47 | 3,113,811,968 | 3.600 | 1.585 | 0.213 |
+| 64 KiB / B | 29.286 | 102.62 | 3,131,998,208 | 3.209 | 2.361 | 0.084 |
 
 All 3,105,715,063 bases were imported. All 2,580 names, lengths and computed
 M5s matched the publisher's index and FASTA headers. All 408 first reads and
@@ -29,24 +29,28 @@ expected intervals in route order had concatenated SHA-256
 `39c2624a150fc3b42604dff69237bce22a16b1208bdc0dae562f1a1fab0553fb`.
 The query planner used an integer primary-key range lookup. For intervals up
 to 10 kb the largest observed application payload was two rows, 131,072 bytes
-at 64 KiB and 524,288 bytes at 256 KiB. These counts measure BLOB payload;
-the OS and SQLite may read other pages.
+at 64 KiB and 524,288 bytes at 256 KiB. These counts measure BLOB payload.
+The OS and SQLite may read other pages.
 
 The smaller chunks used 18,186,240 extra bytes (0.58% of the larger-chunk
-file), cost roughly a second more to create and improved regional p95 in
-both trials. An indexed binary alternative could use a fixed-endian versioned
+file). They cut first-read median latency from 0.173–0.185 ms to
+0.056–0.059 ms and reduced reread p95 in both trials. First-read p95 varied
+with trial order, with the slowest value in the final 64 KiB trial. That
+trial also had the slowest creation at 29.3 s. The run did not isolate
+the cause. The smaller worst-case payload and consistently faster rereads
+favor 64 KiB for repeated short viewer requests. An indexed binary alternative could use a fixed-endian versioned
 header, a contig directory with checked offsets/lengths/M5, and concatenated
 ASCII bases read via positioned I/O. Its raw payload alone would need
 3,105,715,063 bytes, giving a maximum saving of 26,283,145 bytes (0.84% of
 the selected file) before its directory. It could read a narrower byte range,
 but would require new directory, validation and extension machinery. The
-measured SQLite sizes and submillisecond first-read p95 resolve this selection.
+measured SQLite sizes, first-read p95 and bounded row counts resolve this selection.
 No binary candidate was timed.
 
 ## Proposed production qualification limits
 
 For agreement before [issue #56](https://github.com/micknudsen/bamdalf/issues/56),
-on this pinned FASTA, machine and local disk:
+the proposed gates apply to this pinned FASTA, machine and local disk.
 
 - In each of two complete creations, finish within **60 seconds**, including
   validation, commit, close, structural reopen and publication. Use a fresh
@@ -56,7 +60,7 @@ on this pinned FASTA, machine and local disk:
   Start at the accepted URL and end when the full dictionary and checked
   indexes are available. Exclude human picker time. Report OS cache conditions.
 
-These proposed allowances leave about 3× the slower creation, 2.5× observed
+These proposed allowances leave about 2× the slower creation, 2.5× observed
 peak RSS, over 10× the slower open p95 and about 1.1% file-size headroom for
 native integration. Freeze the integrated protocol, including cache state,
 before qualification. The native reference-enabled, reference-only, and
@@ -117,7 +121,10 @@ Each probe prepares source expectations outside its timed section. Its
 seeded route (49) reads 1, 80, 1,000 and 10,000 bases on chr1, chr20 and chrX
 plus 100-base intervals crossing each candidate's alignment boundary.
 Opening uses a new connection and validates the dictionary and chunk index
-extrema. The first read uses that connection and each repeat uses the same
+extrema. The prototype checks core column names and integer primary keys,
+then checks metadata values after loading them. Its timings exclude full
+declared-type checks and the pre-allocation bounds required of the production
+reader. The first read uses that connection and each repeat uses the same
 connection. No application cache, memory mapping or OS cache flush was used.
 These are app-uncached connections with uncontrolled OS cache after creation
 and source verification. The 4 MiB page-cache request, 4 KiB pages, FULL

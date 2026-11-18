@@ -27,6 +27,26 @@ FROM chunks WHERE id BETWEEN ? AND ? ORDER BY id
 """
 
 
+def header_name(fasta, fragment):
+    """Read the first token, retaining no description or unbounded identifier."""
+    name = bytearray()
+    complete = False
+    while True:
+        if not complete:
+            text = fragment if name else fragment.lstrip()
+            separator = re.search(rb"\s", text)
+            name.extend(text[:separator.start()] if separator else text)
+            if len(name) > MAX_NAME_BYTES:
+                raise ValueError("Oversized FASTA name")
+            complete = bool(name and separator)
+        if not fragment or fragment.endswith(b"\n"):
+            break
+        fragment = fasta.readline(65536)
+    if not name:
+        raise ValueError("Missing FASTA name")
+    return bytes(name)
+
+
 def write_sequences(db, source, chunk_bytes):
     """Stream input, even if a chromosome occupies one unwrapped line."""
     number = 0
@@ -64,18 +84,12 @@ def write_sequences(db, source, chunk_bytes):
             if is_header:
                 if name is not None:
                     finish_record()
-                fields = piece[1:].split(None, 1)
-                if not fields or (len(piece) == 65536 and not at_start and len(fields) == 1):
-                    raise ValueError("Missing or oversized FASTA name")
-                name_bytes += len(fields[0])
-                if (number >= MAX_CONTIGS or len(fields[0]) > MAX_NAME_BYTES
-                        or name_bytes > MAX_DICTIONARY_BYTES):
+                identifier = header_name(fasta, piece[1:])
+                name_bytes += len(identifier)
+                if number >= MAX_CONTIGS or name_bytes > MAX_DICTIONARY_BYTES:
                     raise ValueError("Contig dictionary exceeds format bounds")
-                name = fields[0].decode("utf-8")
-                # Continuations of a long description are not sequence.
-                while not at_start and piece:
-                    piece = fasta.readline(65536)
-                    at_start = piece.endswith(b"\n")
+                name = identifier.decode("utf-8")
+                at_start = True
                 number += 1
                 length = 0
                 digest = hashlib.md5()
