@@ -151,8 +151,6 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         ruler.translatesAutoresizingMaskIntoConstraints = false
         workspace.addSubview(ruler)
         NSLayoutConstraint.activate([
-            ruler.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
-            ruler.trailingAnchor.constraint(equalTo: workspace.trailingAnchor, constant: -16),
             ruler.topAnchor.constraint(equalTo: intervalError.bottomAnchor, constant: 12),
             ruler.heightAnchor.constraint(equalToConstant: 68),
         ])
@@ -164,7 +162,6 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             referenceRow.topAnchor.constraint(equalTo: ruler.bottomAnchor),
             referenceRowHeight,
         ])
-        alignmentScroll.hasVerticalScroller = true
         alignmentScroll.hasHorizontalScroller = false
         alignmentScroll.autohidesScrollers = true
         alignmentScroll.scrollerStyle = .overlay
@@ -173,8 +170,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         alignmentScroll.translatesAutoresizingMaskIntoConstraints = false
         workspace.addSubview(alignmentScroll)
         NSLayoutConstraint.activate([
-            alignmentScroll.leadingAnchor.constraint(equalTo: ruler.leadingAnchor),
-            alignmentScroll.trailingAnchor.constraint(equalTo: ruler.trailingAnchor),
+            alignmentScroll.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
+            alignmentScroll.trailingAnchor.constraint(equalTo: workspace.trailingAnchor, constant: -16),
+            ruler.leadingAnchor.constraint(equalTo: alignmentScroll.contentView.leadingAnchor),
+            ruler.trailingAnchor.constraint(equalTo: alignmentScroll.contentView.trailingAnchor),
             alignmentScroll.topAnchor.constraint(equalTo: referenceRow.bottomAnchor, constant: 4),
             alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
         ])
@@ -200,6 +199,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         intervalField.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(alignmentDidScroll(_:)),
                                                name: NSView.boundsDidChangeNotification, object: alignmentScroll.contentView)
+        alignmentScroll.contentView.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(self, selector: #selector(viewportDidResize(_:)),
+                                               name: NSView.frameDidChangeNotification, object: alignmentScroll.contentView)
         session.onPresentationChange = { [weak self] in self?.render() }
         render()
         session.setViewportWidth(ruler.bounds.width)
@@ -234,10 +236,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // Popup choices also reach this validator while their sheet is open.
         switch menuItem.action {
-        case #selector(openBAM(_:)):
-            return canManageFiles && session.selectedReference == nil
-        case #selector(openReference(_:)):
-            return canManageFiles && session.presentation.bamURL == nil
+        case #selector(openBAM(_:)), #selector(openReference(_:)):
+            return canManageFiles
         case #selector(closeReference(_:)):
             return canManageFiles && session.selectedReference != nil
         case #selector(createReference(_:)):
@@ -294,7 +294,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc public func openReference(_ sender: Any?) {
-        guard let window, canManageFiles, session.presentation.bamURL == nil else { return }
+        guard let window, canManageFiles else { return }
         let panel = NSOpenPanel()
         panel.title = "Open Reference"
         panel.prompt = "Open"
@@ -365,13 +365,19 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         loadingIndicator.isHidden = !presentation.isLoading
         if presentation.isLoading { loadingIndicator.startAnimation(nil) }
         else { loadingIndicator.stopAnimation(nil) }
-        loadingIndicator.setAccessibilityLabel(presentation.referenceURL == nil ? "Loading alignments" : "Loading reference")
+        let loadingLabel = switch (presentation.bamURL, presentation.referenceURL) {
+        case (.some, .some): "Loading genomic interval"
+        case (nil, .some): "Loading reference"
+        default: "Loading alignments"
+        }
+        loadingIndicator.setAccessibilityLabel(loadingLabel)
         referenceRowHeight.constant = presentation.referenceURL == nil ? 0 : 18
         referenceRow.isHidden = presentation.referenceURL == nil || presentation.target == nil
         referenceRow.presentation = presentation
         ruler.presentation = presentation
         ruler.isHidden = presentation.target == nil
         alignmentScroll.isHidden = presentation.target == nil
+        alignmentScroll.hasVerticalScroller = presentation.bamURL != nil
         window?.contentView?.layoutSubtreeIfNeeded()
         let size = alignmentScroll.contentSize
         alignmentStack.frame = NSRect(x: 0, y: 0, width: size.width,
@@ -414,6 +420,15 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             guard let self else { return }
             if self.regionalAlert?.id == error.id { self.regionalAlert = nil }
             self.session.dismissRegionalError(error.id)
+        }
+    }
+
+    @objc private func viewportDidResize(_ notification: Notification) {
+        // AppKit can tile its scroller during a session render. Apply the settled
+        // viewport width after that presentation change has finished.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            session.setViewportWidth(alignmentScroll.contentView.bounds.width)
         }
     }
 

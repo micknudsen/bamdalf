@@ -10,6 +10,7 @@ struct bamdalf_bam {
     samFile *file;
     sam_hdr_t *header;
     hts_idx_t *index;
+    kstring_t tag;
 };
 
 static void describe_error(char *output, size_t capacity, const char *operation, int cause) {
@@ -19,6 +20,7 @@ static void describe_error(char *output, size_t capacity, const char *operation,
 
 void bamdalf_bam_close(bamdalf_bam *bam) {
     if (!bam) return;
+    free(bam->tag.s);
     hts_idx_destroy(bam->index);
     sam_hdr_destroy(bam->header);
     if (bam->file) sam_close(bam->file);
@@ -74,6 +76,13 @@ const char *bamdalf_reference_name(const bamdalf_bam *bam, int reference) {
 }
 int64_t bamdalf_reference_length(const bamdalf_bam *bam, int reference) {
     return sam_hdr_tid2len(bam->header, reference);
+}
+
+int bamdalf_reference_m5(bamdalf_bam *bam, int reference, const char **digest) {
+    const char *name = sam_hdr_tid2name(bam->header, reference);
+    int status = sam_hdr_find_tag_id(bam->header, "SQ", "SN", name, "M5", &bam->tag);
+    *digest = status == 0 ? bam->tag.s : NULL;
+    return status == -1 ? 0 : status;
 }
 
 struct bamdalf_query {

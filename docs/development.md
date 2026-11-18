@@ -75,6 +75,16 @@ sequence read. Opening another reference keeps a valid target and clears an
 unavailable one. **Close Reference** returns a standalone viewer to its empty
 state. Create Reference protects the selected file, including aliases.
 
+Open a BAM and reference in either order to browse both tracks at the current
+interval. Each declared BAM contig must have the same name and length in the
+reference. Names match by exact UTF-8 bytes. Every available BAM `M5` must
+match the reference sequence digest. Missing checksums allow the dictionary
+check alone. Extra reference contigs and different dictionary orders are
+accepted. An incompatible open leaves the previous sources and view in place.
+The reference supplies navigation across all its contigs. On a contig absent
+from the BAM, the viewer displays the reference and skips alignment queries.
+On shared contigs, the alignment stack scrolls beneath the fixed reference row.
+
 Opening the first source shows **Enter a genomic interval** and focuses the field.
 Enter a complete 1-based inclusive interval, for example `tiny:100-200` with
 the opening fixture. Enter validates against the selected contig dictionary, formats the field,

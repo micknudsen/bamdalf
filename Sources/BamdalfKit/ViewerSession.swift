@@ -62,7 +62,7 @@ public final class ViewerSession {
     private var previewRead: Task<Void, Never>?
     private var previewDemand: GenomicInterval?
     private var failedPreviews: [GenomicInterval] = []
-    private var referenceNavigationGeneration: UInt64 = 0
+    private var navigationGeneration: UInt64 = 0
     private var viewportWidth = 0.0
     private let loadReferenceRegion: @Sendable (ReferenceBundle, GenomicInterval) async throws -> Data
     private var bam: BAMFile?
@@ -136,7 +136,7 @@ public final class ViewerSession {
     }
 
     public func openReference(_ url: URL?) async {
-        guard let url, bam == nil else { return }
+        guard let url else { return }
         let request = UUID()
         openingID = request
         presentation.isOpening = true
@@ -146,20 +146,9 @@ public final class ViewerSession {
         do {
             let bundle = try await Task.detached { try ReferenceBundle(opening: url) }.value
             guard openingID == request, !Task.isCancelled else { return }
-            let prior = (dragOrigin ?? presentation).target
-            resetReferenceView()
+            if let bam { try bundle.validateCompatibility(with: bam) }
             selectedReference = bundle
-            var next = ViewerPresentation()
-            next.referenceURL = bundle.url
-            next.references = bundle.contigs.map { ReferenceSequence(name: $0.name, length: $0.length) }
-            next.message = "Enter a genomic interval"
-            next.sessionID = UUID()
-            presentation = next
-            if let prior, let contig = next.references.contig(named: prior.reference),
-               prior.end <= contig.length {
-                presentation.intervalText = prior.formatted
-                await submitInterval()?.value
-            }
+            await showSources(keepingInterval: true, keepingRows: bam != nil)?.value
         } catch {
             guard openingID == request else { return }
             presentation.openError = FileOpenError(fileURL: url, message: error.localizedDescription)
@@ -169,21 +158,54 @@ public final class ViewerSession {
     public func closeReference() {
         guard selectedReference != nil else { return }
         openingID = UUID()
-        resetReferenceView()
         selectedReference = nil
-        presentation = ViewerPresentation()
+        _ = showSources(keepingInterval: bam != nil, keepingRows: bam != nil)
     }
 
-    private func resetReferenceView() {
+    private func showSources(keepingInterval: Bool, keepingRows: Bool) -> Task<Void, Never>? {
+        let prior = dragOrigin ?? presentation
         stopPreviewRead()
         failedPreviews.removeAll()
+        retirePrefetch()
         regionalTask?.cancel()
         regionalTask = nil
+        requiredReadID = nil
         regionalRequestID = UUID()
         lastSuccessful = nil
+        lastSuccessfulCoverage = nil
+        lastSuccessfulRecords = []
         dragOrigin = nil
         deferredRegionalCompletion = nil
         draftGeneration = nil
+        prefetchMotionOrigin = nil
+
+        var next = ViewerPresentation()
+        next.bamURL = bam?.url
+        next.indexURL = bam?.indexURL
+        if let bam { next.windowTitle = "\(bam.url.lastPathComponent) — bamdalf" }
+        next.referenceURL = selectedReference?.url
+        next.references = selectedReference?.contigs.map { ReferenceSequence(name: $0.name, length: $0.length, m5: $0.m5) }
+            ?? bam?.references ?? []
+        if next.intervalEntryAvailable {
+            next.message = "Enter a genomic interval"
+            next.sessionID = UUID()
+        }
+        guard keepingInterval, let target = prior.target, let contig = next.references.contig(named: target.reference),
+              target.end <= contig.length else {
+            presentation = next
+            return nil
+        }
+        next.intervalText = target.formatted
+        if keepingRows {
+            next.target = target
+            next.alignments = prior.alignments
+            next.rowCount = prior.rowCount
+            next.verticalOffset = prior.verticalOffset
+            next.isAlignmentSuppressed = prior.isAlignmentSuppressed
+        }
+        presentation = next
+        navigationGeneration = editorGeneration
+        return loadTarget(target, preservingPanContinuity: keepingRows, prefetchAfterLoad: true)
     }
 
     @discardableResult
@@ -191,89 +213,10 @@ public final class ViewerSession {
         guard width.isFinite, width >= 0, width != viewportWidth else { return nil }
         let previousWidth = viewportWidth
         viewportWidth = width
-        guard let bundle = selectedReference, let target = (dragOrigin ?? presentation).target else { return nil }
+        guard selectedReference != nil, let target = (dragOrigin ?? presentation).target else { return nil }
         guard (target.referenceScale(in: previousWidth) == nil) != (target.referenceScale(in: width) == nil) else { return nil }
         _ = restoreDragOrigin()
-        return loadReferenceTarget(target, from: bundle)
-    }
-
-    private func loadReferenceTarget(_ target: GenomicInterval, from bundle: ReferenceBundle) -> Task<Void, Never>? {
-        regionalTask?.cancel()
-        let request = UUID()
-        regionalRequestID = request
-        var next = presentation
-        next.target = target
-        next.message = ""
-        next.regionalError = nil
-        next.referenceBases = nil
-        next.isLoading = target.referenceScale(in: viewportWidth) != nil
-        presentation = next
-        guard next.isLoading else {
-            lastSuccessful = next
-            regionalTask = nil
-            return nil
-        }
-        let generation = referenceNavigationGeneration
-        regionalTask = Task {
-            let result: Result<ReferenceRegion, RegionalLoadError>
-            do {
-                let bases = try await loadReferenceRegion(bundle, target)
-                result = .success(ReferenceRegion(interval: target, bases: bases))
-            } catch {
-                let message = (error as? RegionalLoadError)?.message ?? error.localizedDescription
-                result = .failure(RegionalLoadError(interval: target, message: message))
-            }
-            await completeReferenceLoad(result, from: bundle, request: request, generation: generation)?.value
-        }
-        return regionalTask
-    }
-
-    private func completeReferenceLoad(_ result: Result<ReferenceRegion, RegionalLoadError>, from bundle: ReferenceBundle,
-                                       request: UUID, generation: UInt64) -> Task<Void, Never>? {
-        guard regionalRequestID == request else { return nil }
-        if dragOrigin != nil {
-            deferredRegionalCompletion = { [weak self] in
-                _ = self?.completeReferenceLoad(result, from: bundle, request: request, generation: generation)
-            }
-            return nil
-        }
-        regionalTask = nil
-        switch result {
-        case .success(let region):
-            // A successful required retry establishes that the failed range is readable.
-            failedPreviews.removeAll {
-                $0.reference.utf8.elementsEqual(region.interval.reference.utf8)
-                    && region.interval.start <= $0.start && region.interval.end >= $0.end
-            }
-            var next = presentation
-            next.referenceBases = region
-            next.isLoading = false
-            presentation = next
-            lastSuccessful = next
-        case .failure(let error):
-            if let prior = lastSuccessful, let target = prior.target,
-               prior.referenceBases == nil, target.referenceScale(in: viewportWidth) != nil {
-                if target != error.interval {
-                    // The previous overview became detailed while the new target was
-                    // loading. Retrieve its newly visible bases before presenting the alert.
-                    regionalTask = Task {
-                        let bases = try? await loadReferenceRegion(bundle, target)
-                        guard regionalRequestID == request else { return }
-                        if let bases {
-                            lastSuccessful?.referenceBases = ReferenceRegion(interval: target, bases: bases)
-                        } else if target.referenceScale(in: viewportWidth) != nil {
-                            lastSuccessful = nil
-                        }
-                        await completeReferenceLoad(result, from: bundle, request: request, generation: generation)?.value
-                    }
-                    return regionalTask
-                }
-                // The failed read was the first detail requested for this overview.
-                lastSuccessful = nil
-            }
-            restoreSuccessfulView(for: error, generation: generation)
-        }
-        return nil
+        return loadTarget(target, preservingPanContinuity: true, prefetchAfterLoad: true)
     }
 
     public func editInterval(_ text: String) {
@@ -325,26 +268,23 @@ public final class ViewerSession {
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
-        if let bundle = selectedReference {
-            next.isLoading = false
-            let cached = [next.referenceBases, origin.referenceBases].compactMap { $0 }.first {
-                $0.interval.start <= visibleBases.start && $0.interval.end >= visibleBases.end
-            }
-            if let cached { next.referenceBases = cached }
-            presentation = next
-            if cached == nil && target.referenceScale(in: viewportWidth) != nil {
-                readPreview(visibleBases, from: bundle)
-            } else {
-                stopPreviewRead()
-            }
-            return
-        }
         let available = regionalData.available(for: requiredInterval(for: visibleBases))
         let selected = sampling.select(origin.isAlignmentSuppressed ? [] : RegionalData.visible(available.records, in: visibleBases))
         next.alignments = Self.pack(selected.records, retaining: presentation.alignments)
         next.isDownsampled = selected.isDownsampled
         next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
         next.isLoading = false
+        if let bundle = selectedReference {
+            let cached = [next.referenceBases, origin.referenceBases].compactMap { $0 }.first {
+                $0.interval.start <= visibleBases.start && $0.interval.end >= visibleBases.end
+            }
+            if let cached { next.referenceBases = cached }
+            if cached == nil && target.referenceScale(in: viewportWidth) != nil {
+                readPreview(visibleBases, from: bundle)
+            } else {
+                stopPreviewRead()
+            }
+        }
         presentation = next
     }
 
@@ -472,7 +412,7 @@ public final class ViewerSession {
 
     private var committedRequired: GenomicInterval? {
         let committed = dragOrigin ?? presentation
-        guard let target = committed.target, !committed.isAlignmentSuppressed else { return nil }
+        guard let target = committed.target, bam?.references.contig(named: target.reference) != nil, !committed.isAlignmentSuppressed else { return nil }
         return requiredInterval(for: target)
     }
 
@@ -528,7 +468,7 @@ public final class ViewerSession {
     private func startPrefetch(rollingFrom previous: GenomicInterval? = nil) {
         guard prefetch.maximumBytes > 0, !stoppedPrefetch, requiredReadID == nil,
               !presentation.isLoading, let bam, let target = presentation.target,
-              !presentation.isAlignmentSuppressed else { return }
+              bam.references.contig(named: target.reference) != nil, !presentation.isAlignmentSuppressed else { return }
         let required = previewRequired!
         let buffer = max(target.end - target.start + 1, tailSearchMargin)
         let length = presentation.references.contig(named: target.reference)!.length
@@ -536,7 +476,7 @@ public final class ViewerSession {
                                        start: required.start - min(buffer, required.start - 1),
                                        end: required.end + min(buffer, length - required.end))
         let direction: PanDirection? = previous.flatMap {
-            guard $0.reference == target.reference, $0.start != target.start else { return nil }
+            guard $0.hasSameReference(as: target), $0.start != target.start else { return nil }
             return target.start > $0.start ? .right : .left
         }
         if previous != nil {
@@ -620,100 +560,8 @@ public final class ViewerSession {
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
             if target == presentation.target { return regionalTask }
-            if let selectedReference {
-                referenceNavigationGeneration = editorGeneration
-                return loadReferenceTarget(target, from: selectedReference)
-            }
-            guard let bam else { return nil }
-            if prefetchAfterLoad { retirePrefetch() }
-            regionalTask?.cancel()
-            let requestID = UUID()
-            regionalRequestID = requestID
-            presentation.regionalError = nil
-            let generation = editorGeneration
-            let initialScrollGeneration = scrollGeneration
-            let suppressed = target.end - target.start + 1 > alignmentVisibilityLimit
-            let previous = presentation.target
-            prefetchMotionOrigin = prefetchAfterLoad ? nil : previous
-            let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.reference == target.reference
-                && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
-            let required = requiredInterval(for: target)
-            if prefetch.maximumBytes > 0 {
-                regionalData.trimOptional(keeping: suppressed ? nil : required, recovery: lastSuccessfulCoverage,
-                                          maximumBytes: prefetch.maximumBytes)
-            }
-            let available = regionalData.available(for: required)
-            if suppressed || !available.missing.isEmpty { retirePrefetch() }
-            var next = presentation
-            next.target = target
-            next.message = suppressed ? "Zoom in to see alignments" : ""
-            next.isLoading = !suppressed && !available.missing.isEmpty
-            next.isAlignmentSuppressed = suppressed
-            let selected = sampling.select(suppressed ? [] : RegionalData.visible(available.records, in: target))
-            next.alignments = Self.pack(selected.records, retaining: continuous ? presentation.alignments : [])
-            next.isDownsampled = selected.isDownsampled
-            if !continuous { next.verticalOffset = 0 }
-            let availableRows = (next.alignments.map(\.row).max() ?? -1) + 1
-            next.rowCount = continuous ? max(next.rowCount, availableRows) : availableRows
-            next.regionalError = nil
-            if suppressed { next.rowCount = 0 }
-            presentation = next
-            if suppressed {
-                regionalTask = nil
-                lastSuccessful = presentation
-                lastSuccessfulRecords = []
-                lastSuccessfulCoverage = nil
-                trimOptional()
-                return nil
-            }
-            if available.missing.isEmpty {
-                regionalTask = nil
-                lastSuccessfulRecords = available.records
-                lastSuccessfulCoverage = required
-                lastSuccessful = presentation
-                trimOptional()
-                startPrefetch(rollingFrom: prefetchMotionOrigin)
-                return nil
-            }
-            requiredReadID = requestID
-            regionalTask = Task {
-                defer {
-                    if requiredReadID == requestID {
-                        requiredReadID = nil
-                        startPrefetch(rollingFrom: dragOrigin?.target ?? prefetchMotionOrigin)
-                    }
-                }
-                do {
-                    var records = available.records
-                    for (index, missing) in available.missing.enumerated() {
-                        let loaded = try await loadRegion(bam, missing)
-                        guard self.bam === bam else { return }
-                        admit(loaded, for: missing)
-                        guard regionalRequestID == requestID else { return }
-                        records = RegionalData.eligible(records + loaded, for: required)
-                        if dragOrigin == nil && index + 1 < available.missing.count {
-                            let selected = sampling.select(RegionalData.visible(records, in: target))
-                            presentation.alignments = Self.pack(selected.records, retaining: presentation.alignments)
-                            presentation.isDownsampled = selected.isDownsampled
-                            let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
-                            presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
-                                ? max(presentation.rowCount, requiredRows) : requiredRows
-                        }
-                    }
-                    admit(records, for: required)
-                    completeRegionalLoad(.success(records), requestID: requestID, generation: generation,
-                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
-                } catch let error as RegionalLoadError {
-                    completeRegionalLoad(.failure(RegionalLoadError(interval: target, message: error.message)),
-                                         requestID: requestID, generation: generation,
-                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
-                } catch {
-                    completeRegionalLoad(.failure(RegionalLoadError(interval: target, message: error.localizedDescription)),
-                                         requestID: requestID, generation: generation,
-                                         initialScrollGeneration: initialScrollGeneration, continuous: continuous)
-                }
-            }
-            return regionalTask
+            navigationGeneration = editorGeneration
+            return loadTarget(target, preservingPanContinuity: preservingPanContinuity, prefetchAfterLoad: prefetchAfterLoad)
         } catch let error as IntervalValidationError {
             presentation.intervalError = error.message
         } catch {
@@ -722,9 +570,104 @@ public final class ViewerSession {
         return nil
     }
 
-    private func completeRegionalLoad(_ result: Result<[Alignment], RegionalLoadError>, requestID: UUID,
-                                      generation: UInt64, initialScrollGeneration: UInt64, continuous: Bool) {
-        guard regionalRequestID == requestID else { return }
+    private func loadTarget(_ target: GenomicInterval, preservingPanContinuity: Bool, prefetchAfterLoad: Bool) -> Task<Void, Never>? {
+        if prefetchAfterLoad { retirePrefetch() }
+        regionalTask?.cancel()
+        let requestID = UUID()
+        regionalRequestID = requestID
+        presentation.regionalError = nil
+        let generation = navigationGeneration
+        let initialScrollGeneration = scrollGeneration
+        let hasAlignments = bam?.references.contig(named: target.reference) != nil
+        let suppressed = hasAlignments && target.end - target.start + 1 > alignmentVisibilityLimit
+        let previous = presentation.target
+        prefetchMotionOrigin = prefetchAfterLoad ? nil : previous
+        let continuous = !suppressed && !presentation.isAlignmentSuppressed && previous?.hasSameReference(as: target) == true
+            && (preservingPanContinuity || (previous!.start <= target.end && previous!.end >= target.start))
+        let required = requiredInterval(for: target)
+        if prefetch.maximumBytes > 0 {
+            regionalData.trimOptional(keeping: suppressed ? nil : required, recovery: lastSuccessfulCoverage,
+                                      maximumBytes: prefetch.maximumBytes)
+        }
+        let queryBAM = hasAlignments && !suppressed ? bam : nil
+        let available = queryBAM != nil ? regionalData.available(for: required) : (records: [], missing: [])
+        let detail = target.referenceScale(in: viewportWidth) == nil ? nil : selectedReference
+        if suppressed || !available.missing.isEmpty { retirePrefetch() }
+        var next = presentation
+        next.target = target
+        next.message = suppressed ? "Zoom in to see alignments" : ""
+        next.referenceBases = nil
+        next.isLoading = detail != nil || !available.missing.isEmpty
+        next.isAlignmentSuppressed = suppressed
+        let selected = sampling.select(suppressed ? [] : RegionalData.visible(available.records, in: target))
+        next.alignments = Self.pack(selected.records, retaining: continuous ? presentation.alignments : [])
+        next.isDownsampled = selected.isDownsampled
+        if !continuous { next.verticalOffset = 0 }
+        let availableRows = (next.alignments.map(\.row).max() ?? -1) + 1
+        next.rowCount = continuous ? max(next.rowCount, availableRows) : availableRows
+        next.regionalError = nil
+        if suppressed { next.rowCount = 0 }
+        presentation = next
+        if !next.isLoading {
+            regionalTask = nil
+            requiredReadID = nil
+            lastSuccessfulRecords = available.records
+            lastSuccessfulCoverage = queryBAM == nil ? nil : required
+            lastSuccessful = presentation
+            trimOptional()
+            startPrefetch(rollingFrom: prefetchMotionOrigin)
+            return nil
+        }
+        requiredReadID = requestID
+        regionalTask = Task {
+            defer {
+                if requiredReadID == requestID {
+                    requiredReadID = nil
+                    startPrefetch(rollingFrom: dragOrigin?.target ?? prefetchMotionOrigin)
+                }
+            }
+            do {
+                var region: ReferenceRegion?
+                if let detail {
+                    let bases = try await loadReferenceRegion(detail, target)
+                    guard regionalRequestID == requestID else { return }
+                    region = ReferenceRegion(interval: target, bases: bases)
+                }
+                var records = available.records
+                for (index, missing) in available.missing.enumerated() {
+                    guard let queryBAM else { return }
+                    let loaded = try await loadRegion(queryBAM, missing)
+                    guard self.bam === queryBAM else { return }
+                    admit(loaded, for: missing)
+                    guard regionalRequestID == requestID else { return }
+                    records = RegionalData.eligible(records + loaded, for: required)
+                    if dragOrigin == nil && index + 1 < available.missing.count {
+                        let selected = sampling.select(RegionalData.visible(records, in: target))
+                        presentation.alignments = Self.pack(selected.records, retaining: presentation.alignments)
+                        presentation.isDownsampled = selected.isDownsampled
+                        let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
+                        presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
+                            ? max(presentation.rowCount, requiredRows) : requiredRows
+                    }
+                }
+                if queryBAM != nil { admit(records, for: required) }
+                completeRegionalLoad(.success((records, region)), requestID: requestID, generation: generation,
+                                     initialScrollGeneration: initialScrollGeneration, continuous: continuous)
+            } catch {
+                let message = (error as? RegionalLoadError)?.message ?? error.localizedDescription
+                let recovery = completeRegionalLoad(.failure(RegionalLoadError(interval: target, message: message)),
+                                                    requestID: requestID, generation: generation,
+                                                    initialScrollGeneration: initialScrollGeneration, continuous: continuous)
+                await recovery?.value
+            }
+        }
+        return regionalTask
+    }
+
+    @discardableResult
+    private func completeRegionalLoad(_ result: Result<([Alignment], ReferenceRegion?), RegionalLoadError>, requestID: UUID,
+                                      generation: UInt64, initialScrollGeneration: UInt64, continuous: Bool) -> Task<Void, Never>? {
+        guard regionalRequestID == requestID else { return nil }
         if requiredReadID == requestID { requiredReadID = nil }
         if dragOrigin != nil {
             deferredRegionalCompletion = { [weak self] in
@@ -732,16 +675,22 @@ public final class ViewerSession {
                                            initialScrollGeneration: initialScrollGeneration, continuous: continuous)
             }
             startPrefetch(rollingFrom: dragOrigin?.target)
-            return
+            return nil
         }
         switch result {
-        case .success(let records):
+        case .success(let (records, region)):
+            presentation.referenceBases = region
+            if let region {
+                failedPreviews.removeAll {
+                    $0.hasSameReference(as: region.interval) && region.interval.start <= $0.start && region.interval.end >= $0.end
+                }
+            }
             let target = presentation.target!
             let selected = sampling.select(RegionalData.visible(records, in: target))
             presentation.alignments = Self.pack(selected.records, retaining: presentation.alignments)
             presentation.isDownsampled = selected.isDownsampled
             lastSuccessfulRecords = records
-            lastSuccessfulCoverage = requiredInterval(for: target)
+            lastSuccessfulCoverage = committedRequired
             let requiredRows = (presentation.alignments.map(\.row).max() ?? -1) + 1
             presentation.rowCount = continuous || scrollGeneration != initialScrollGeneration
                 ? max(presentation.rowCount, requiredRows) : requiredRows
@@ -750,10 +699,31 @@ public final class ViewerSession {
             trimOptional()
             startPrefetch(rollingFrom: prefetchMotionOrigin)
         case .failure(let error):
+            if let bundle = selectedReference, let prior = lastSuccessful, let target = prior.target,
+               prior.referenceBases == nil, target.referenceScale(in: viewportWidth) != nil {
+                if target != error.interval {
+                    // A restore at a newly detailed scale also needs readable reference bases.
+                    regionalTask = Task {
+                        let bases = try? await loadReferenceRegion(bundle, target)
+                        guard regionalRequestID == requestID else { return }
+                        if let bases {
+                            lastSuccessful?.referenceBases = ReferenceRegion(interval: target, bases: bases)
+                        } else if target.referenceScale(in: viewportWidth) != nil {
+                            lastSuccessful = nil
+                        }
+                        // A drag may have begun during the recovery read.
+                        completeRegionalLoad(result, requestID: requestID, generation: generation,
+                                             initialScrollGeneration: initialScrollGeneration, continuous: continuous)
+                    }
+                    return regionalTask
+                }
+                lastSuccessful = nil
+            }
             restoreSuccessfulView(for: error, generation: generation)
         }
         presentation.isLoading = false
         regionalTask = nil
+        return nil
     }
 
     public func scrollVertically(to offset: Double) {
@@ -861,7 +831,7 @@ public final class ViewerSession {
     }
 
     public func openBAM(_ url: URL?) async {
-        guard let url, selectedReference == nil else { return }
+        guard let url else { return }
         openingID = UUID()
         presentation.openError = nil
         presentation.indexChoice = nil
@@ -900,35 +870,14 @@ public final class ViewerSession {
         }
         do {
             let file = try await loadFile(url, index)
-            guard requestID == openingID else { return }
-            retirePrefetch()
-            regionalTask?.cancel()
+            guard requestID == openingID, !Task.isCancelled else { return }
+            try selectedReference?.validateCompatibility(with: file)
             blockedPrefetch = []
             stoppedPrefetch = false
             bam = file
-            regionalRequestID = UUID()
-            regionalTask = nil
-            requiredReadID = nil
-            prefetchMotionOrigin = nil
-            dragOrigin = nil
-            dragFraction = 0
-            deferredRegionalCompletion = nil
-            lastSuccessful = nil
-            lastSuccessfulRecords = []
-            lastSuccessfulCoverage = nil
             sampling.seed = samplingSeed()
             regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)
-            draftGeneration = nil
-            presentation = ViewerPresentation()
-            presentation.bamURL = file.url
-            presentation.indexURL = file.indexURL
-            presentation.references = file.references
-            presentation.windowTitle = "\(url.lastPathComponent) — bamdalf"
-            presentation.message = "Enter a genomic interval"
-            presentation.intervalText = ""
-            presentation.target = nil
-            presentation.intervalError = nil
-            presentation.sessionID = UUID()
+            await showSources(keepingInterval: selectedReference != nil, keepingRows: false)?.value
         } catch let error as FileOpenError {
             guard requestID == openingID else { return }
             presentation.openError = error

@@ -229,3 +229,40 @@ private actor FirstPreviewFailure {
         return available
     }
 }
+
+extension StandaloneReferenceTests {
+    @Test func recoveryReadCompletingDuringADragWaitsForRelease() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let reference = try files.reference("assembly.bref", fasta: ">one\nAaCGtnRY")
+        let gate = RegionGate()
+        let session = ViewerSession(loadReferenceRegion: { bundle, interval in
+            if interval.start == 4 && interval.end == 5 {
+                await gate.pause(4)
+                throw RegionalLoadError(interval: interval, message: "Cannot read target")
+            }
+            if interval.start == 1 { await gate.pause(1) }
+            return try await bundle.read(interval)
+        })
+        session.setViewportWidth(2)
+        await session.openReference(reference)
+        session.editInterval("one:1-3")
+        await session.submitInterval()?.value
+        session.editInterval("one:4-5")
+        let pending = session.submitInterval()
+        await gate.waitFor(4)
+        session.setViewportWidth(8)
+        await gate.release(4)
+        await gate.waitFor(1)
+        session.beginAlignmentDrag()
+        await session.previewAlignmentDrag(horizontalFraction: -0.2)?.value
+        await gate.release(1)
+        await pending?.value
+        try #require(session.presentation.regionalError == nil)
+        #expect(session.presentation.target?.formatted == "one:4-5" && session.presentation.previewOffsetInBases > 0)
+        await session.endAlignmentDrag()?.value
+        #expect(session.presentation.regionalError?.interval.formatted == "one:4-5" && !session.presentation.isLoading)
+        #expect(session.presentation.target?.formatted == "one:1-3")
+        #expect(session.presentation.referenceBases?.bases == Data("AaC".utf8))
+    }
+}

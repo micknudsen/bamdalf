@@ -25,7 +25,7 @@ public actor ReferenceBundle {
     nonisolated let fileIdentity: ReferenceFileIdentity
     private let db: ReferenceDatabase
     // Swift String equality normalizes Unicode. The bundle dictionary uses UTF-8 byte identity.
-    private let index: [Data: (length: Int64, firstChunk: Int64)]
+    private let index: [Data: (contig: ReferenceContig, firstChunk: Int64)]
 
     public init(opening url: URL) throws {
         try ReferenceFormat.checkURL(url)
@@ -41,7 +41,7 @@ public actor ReferenceBundle {
             FROM contigs ORDER BY id LIMIT \(ReferenceFormat.maxContigs + 1)
             """)
         var contigs: [ReferenceContig] = []
-        var index: [Data: (length: Int64, firstChunk: Int64)] = [:]
+        var index: [Data: (contig: ReferenceContig, firstChunk: Int64)] = [:]
         var nameBytes = 0
         var lastChunk: Int64 = 0
         while try dictionary.next() {
@@ -65,7 +65,7 @@ public actor ReferenceBundle {
             guard !overflow else { throw ReferenceBundleError("Contig chunk range exceeds format bounds.") }
             lastChunk = last
             contigs.append(contig)
-            index[key] = (contig.length, first)
+            index[key] = (contig, first)
         }
         // Separate indexed extrema leave interior chunks untouched until a regional read.
         guard !contigs.isEmpty, try db.scalarInteger("SELECT min(id) FROM chunks") == 1,
@@ -82,11 +82,25 @@ public actor ReferenceBundle {
         self.db = db
     }
 
+    nonisolated func validateCompatibility(with bam: BAMFile) throws {
+        for sequence in bam.references {
+            guard let contig = index[Data(sequence.name.utf8)]?.contig else {
+                throw ReferenceBundleError("The selected reference has no contig named ‘\(sequence.name)’ from the BAM header.")
+            }
+            guard contig.length == sequence.length else {
+                throw ReferenceBundleError("Contig ‘\(sequence.name)’ has length \(sequence.length) in the BAM and \(contig.length) in the reference.")
+            }
+            if let digest = sequence.m5, digest.lowercased() != contig.m5 {
+                throw ReferenceBundleError("The BAM M5 for ‘\(sequence.name)’ differs from the selected reference.")
+            }
+        }
+    }
+
     public func read(_ interval: GenomicInterval) throws -> Data {
         guard let record = index[Data(interval.reference.utf8)] else {
             throw ReferenceBundleError("Unknown reference contig \(interval.reference).")
         }
-        guard interval.start > 0, interval.start <= interval.end, interval.end <= record.length else {
+        guard interval.start > 0, interval.start <= interval.end, interval.end <= record.contig.length else {
             throw ReferenceBundleError("Interval outside the bounds of \(interval.reference).")
         }
         let size = Int64(ReferenceFormat.chunkBytes)
@@ -106,7 +120,7 @@ public actor ReferenceBundle {
                 throw ReferenceBundleError("Incomplete reference sequence for \(interval.reference).")
             }
             let offset = (id - record.firstChunk) * size
-            let count = Int(min(size, record.length - offset))
+            let count = Int(min(size, record.contig.length - offset))
             try rows.withBases(1, count: count) { chunk in
                 guard chunk.allSatisfy({ ReferenceFormat.alphabet[Int($0)] }) else {
                     throw ReferenceBundleError("Invalid sequence character in bundle contig \(interval.reference).")

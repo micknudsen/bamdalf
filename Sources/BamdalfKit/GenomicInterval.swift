@@ -13,7 +13,11 @@ public struct GenomicInterval: Equatable, Sendable {
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.start == rhs.start && lhs.end == rhs.end && lhs.reference.utf8.elementsEqual(rhs.reference.utf8)
+        lhs.start == rhs.start && lhs.end == rhs.end && lhs.hasSameReference(as: rhs)
+    }
+
+    func hasSameReference(as other: Self) -> Bool {
+        reference.utf8.elementsEqual(other.reference.utf8)
     }
 
     /// Screen points per base when the viewport can show individual reference cells.
@@ -27,7 +31,7 @@ public struct GenomicInterval: Equatable, Sendable {
     }
 
     func subtracting(_ excluded: GenomicInterval) -> [GenomicInterval] {
-        guard reference.utf8.elementsEqual(excluded.reference.utf8), excluded.end >= start, excluded.start <= end else { return [self] }
+        guard hasSameReference(as: excluded), excluded.end >= start, excluded.start <= end else { return [self] }
         var remaining: [GenomicInterval] = []
         if excluded.start > start {
             remaining.append(GenomicInterval(reference: reference, start: start, end: excluded.start - 1))
@@ -39,7 +43,7 @@ public struct GenomicInterval: Equatable, Sendable {
     }
 
     func distance(to other: GenomicInterval) -> Int64 {
-        guard reference.utf8.elementsEqual(other.reference.utf8) else { return .max }
+        guard hasSameReference(as: other) else { return .max }
         return max(0, max(start - other.end, other.start - end))
     }
 

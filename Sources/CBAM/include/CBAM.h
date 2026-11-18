@@ -10,6 +10,8 @@ void bamdalf_bam_close(bamdalf_bam *bam);
 int bamdalf_reference_count(const bamdalf_bam *bam);
 const char *bamdalf_reference_name(const bamdalf_bam *bam, int reference);
 int64_t bamdalf_reference_length(const bamdalf_bam *bam, int reference);
+/* 0 on success (NULL for absent M5). The value is borrowed until the next lookup. */
+int bamdalf_reference_m5(bamdalf_bam *bam, int reference, const char **digest);
 typedef struct bamdalf_query bamdalf_query;
 bamdalf_query *bamdalf_query_open(bamdalf_bam *bam, const char *reference, int64_t start, int64_t end);
 void bamdalf_query_close(bamdalf_query *query);

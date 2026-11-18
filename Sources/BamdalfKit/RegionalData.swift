@@ -26,7 +26,7 @@ struct RegionalData {
             return
         }
         entries.removeAll {
-            $0.interval.reference == interval.reference && $0.interval.start >= interval.start && $0.interval.end <= interval.end
+            $0.interval.hasSameReference(as: interval) && $0.interval.start >= interval.start && $0.interval.end <= interval.end
         }
         entries.append(Entry(interval: interval, records: records))
         guard let historicalLimit else { return }
@@ -34,7 +34,7 @@ struct RegionalData {
         // bounded historical snapshots. Even a disjoint query may hold a long
         // alignment eligible for the active target.
         func isActive(_ entry: Entry) -> Bool {
-            guard entry.interval.reference == activeTarget.reference else { return false }
+            guard entry.interval.hasSameReference(as: activeTarget) else { return false }
             return (entry.interval.start <= activeTarget.end && entry.interval.end >= activeTarget.start)
                 || entry.records.contains { $0.referenceStart <= activeTarget.end && $0.referenceEnd >= activeTarget.start }
         }
@@ -47,13 +47,13 @@ struct RegionalData {
     }
 
     func available(for target: GenomicInterval) -> (records: [Alignment], missing: [GenomicInterval]) {
-        let applicable = entries.filter { $0.interval.reference == target.reference }
+        let applicable = entries.filter { $0.interval.hasSameReference(as: target) }
         let records = Self.eligible(applicable.flatMap(\.records), for: target)
         return (records, missingCoverage(for: target))
     }
 
     func missingCoverage(for target: GenomicInterval) -> [GenomicInterval] {
-        let applicable = entries.filter { $0.interval.reference == target.reference }
+        let applicable = entries.filter { $0.interval.hasSameReference(as: target) }
         var missing: [GenomicInterval] = []
         var next = target.start
         for entry in applicable.sorted(by: { $0.interval.start < $1.interval.start }) {
@@ -77,7 +77,7 @@ struct RegionalData {
         // to every fragment whose aligned coverage they intersect.
         for target in [required, recovery].compactMap({ $0 }) {
             entries = entries.flatMap { entry -> [Entry] in
-                guard entry.interval.reference == target.reference else { return [entry] }
+                guard entry.interval.hasSameReference(as: target) else { return [entry] }
                 var fragments: [Entry] = []
                 var start = entry.interval.start
                 let boundaries = target.end == .max ? [target.start] : [target.start, target.end + 1]
@@ -91,7 +91,7 @@ struct RegionalData {
         }
         func protected(_ entry: Entry) -> Bool {
             [required, recovery].compactMap { $0 }.contains { target in
-                entry.interval.reference == target.reference
+                entry.interval.hasSameReference(as: target)
                     && entry.interval.start <= target.end && entry.interval.end >= target.start
             }
         }
