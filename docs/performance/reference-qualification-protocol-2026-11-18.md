@@ -1,0 +1,46 @@
+# Integrated reference qualification protocol
+
+[Issue #56](https://github.com/micknudsen/bamdalf/issues/56) qualifies the [reference milestone](../reference-spec.md) against the [accepted viewer targets](qualification-plan-2026-11-08.md) and the [approved native storage limits](reference-storage-protocol-56.md). This protocol was fixed before collecting integrated timings on 2026-11-18.
+
+## Build, inputs and source modes
+
+Use product baseline `a42863fda106b45aed98beb4152b42fbf510317f`, Apple M4, 16 GiB, internal APFS SSD, macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2, SDK 27.2, static HTSlib 1.25 and system SQLite. Build both native executables in release. Use the production window, regional loader, renderer, sampling budget and prefetch configuration, light appearance, 1,100 × 720 points and sampling seed 42. Record executable, toolchain, protocol and input identities. Use separate processes in series without concurrent builds, tests or benchmarks. Checksumming the sources warms the uncontrolled OS cache. An app-uncached load uses a fresh viewer session.
+
+The [route generator](../../Benchmarks/ReferenceQualification/routes.py) expands the [pinned prefetch protocol](../../Benchmarks/prefetch-qualification-v1.json) into 78 cases. The SHA-256 of the expanded JSON is `3375c1bc239eb91065f00ff853db801c5581e2ffa25f5921d8d6599ab29c587f`. The original [acquisition recipe](../../Benchmarks/Data/qualification-README.md) supplies full extraction spans and hashes of both indexed HG002 BAMs. Preserve the derived approximately 100× panel and original nominal 300× panel at their original depth. The independent [preflight](../../Benchmarks/PrefetchQualification/protocol.py) checks 7,914 route positions against complete extraction bounds. The [native driver](../../Benchmarks/PrefetchQualification/main.swift) checks actual required and optional query bounds during execution.
+
+- **Paired.** Create the two full production bundles under the storage protocol, use build 1 for viewing, open the reference before the indicated BAM, and submit each case through the actual native controls. Use all prior WGS production routes at ordinary A/B, derived dense and original dense loci, plus 100-base fresh loads, scrolls and drags at ordinary A and original dense. Cover letter detail, colored cells, geometry below one point per base, and alignment suppression above 10 kb.
+- **BAM only.** Run the same WGS inputs and operations without selecting any reference. Also repeat the historical large-group, tail and recovery fixtures with their independent expected geometry. The synthetic fixtures have their own contig dictionaries. They supply additional BAM regression evidence.
+- **Reference only.** Never select a BAM. Exercise fresh loads and drag at 100, 1,000 and 10,000 bases, cached pans/zooms, the integrated keyboard/toolbar/mouse route and a sustained run. Every BAM query count must be zero. The empty track has no rows to scroll.
+
+## Timing and acceptance
+
+Each fresh case uses 20 separate sessions, each scroll/short drag case uses 120 native updates, and each rolling case uses five fresh sessions. Keep first observation, counts, nearest-rank p95 and maximum per case and action/limit class. Native typing, configured button actions and pointer/wheel handlers start the timer. Stop after required data is ready, layout, synchronous display requests and native rasterization of the alignment stack, ruler including child labels and selected reference row into reusable bitmaps. PNG encoding, assertions, route cadence waits and logging follow the timer. Readiness polling can add about 1 ms. These measurements exclude OS event-queue, compositor and physical screen latency.
+
+At least 95% must finish within 500 ms for ordinary app-uncached navigation, 1,000 ms for designated dense loads, 100 ms for navigation with no required BAM query, and 33 ms for drag previews and actual scrolling. Pan and release receive the 100 ms limit when no required BAM query runs. Evaluate each action/target class within each case and source mode, including memory routes. Preserve every missed group and its original observations. Use the slower peak from process-lifetime `getrusage` and Darwin `/usr/bin/time -l`, strictly below 2 GiB. For each mode, run a full 600 active seconds with 250 ms resident/physical-footprint traces. The route includes the existing long pans, reversals, disjoint jumps, eviction/reload, dense and wide-return paths, plus four explicit letter/cell-detail navigations per cycle. Scroll must move actual rows wherever a BAM is present. Compare selected BAM record identities on revisits.
+
+Use the [independent route auditor](../../Benchmarks/PrefetchQualification/audit.py) on every event. Check committed and fractional coordinates against input actions within one millionth of a base, including the original pointer-down anchor and nearest-base release. Check required detail is present for committed detailed targets and absent at overview. Raw observations retain the amount of reference data available during previews; existing tests cover delayed optional reads.
+
+## Sequence, mismatch and native correctness
+
+Before timing, derive expected bases directly from the publisher FASTA/FAI, and decode independent BAM bases and CIGAR with the [oracle generator](../../Benchmarks/ReferenceQualification/oracle.py). Its [frozen output](data/reference-qualification/oracle.json) contains literal case-preserved sequence and hashes of the complete mismatch lists for six detailed workloads. The per-window independent difference counts are 22 and 618 for ordinary A at 100 and 1,000 bases, 2,727 and 28,570 for original dense at the same widths, 502 for ordinary B and 9,636 for derived dense at 1,000 bases. WGS headers have exact publisher names/lengths and no M5 values. These counts cover all eligible records in each interval before viewer sampling or vertical clipping.
+
+Capture the first loaded native reference and alignment bitmaps plus the actual visible alignment names, strand, starts, rows, scale, viewport offset, reference sequence and interval. Compare each of the six sequences and native visible differences against the independent oracle. Verify the ordinary/dense captures include actual differing colored aligned bases at both letter and cell zoom. Native tests additionally exercise matches, ambiguous/missing bases, strand, indels, case, literal equals and exact one/eight-point transitions.
+
+For native pixel checks use the central device-pixel column only when its entire footprint lies in that nucleotide cell. Report skipped edge-blended probes. Check all eligible reference coordinates, all independently predicted visible mismatches at least five bases from either aligned segment end, and the closest interior match to viewport midpoint per visible alignment record (left on ties). Use rows with the full body available. Sample the same column between y=4 and 13 points of the 18-point row. Require each eligible probe and at least one reference, mismatch and quiet probe per case to pass. On 8-bit RGB, A requires green above red by 38 and blue by 25, C requires blue above red by 76 and green by 51, G requires red >191, green >140 and blue <115, and T requires red above green and blue by 76. Quiet-body maximum must be <90 and channel spread <10. Use no adjacent-column search. The frozen oracle JSON SHA-256 is `2dc874bca1caf140587095827d24d5e1e4aca05ea441a733c39e86bc38ccc674`.
+
+Run the guarded native suite, including File menu Save, Open, Cancel, parse-error and successful replacement, path aliases and selected-file identity, source removal before Open, startup with no reference, short/long names at 640 and 1,100 points, fixed reference row while scrolling, source compatibility and replacement, stale/canceled reads, and first/subsequent regional failure recovery. Exercise the same window from Save through reopening, navigation and comparison. Record system-panel automation boundaries. Keep timing failures, corrections, all raw artifacts and exact CI completion separately.
+
+## Reproduction
+
+Follow the [storage protocol](reference-storage-protocol-56.md) first, placing the first creation at `.local/measurements/issue-56/storage/build-1.bref`. The data recipe and previous frozen protocol identify the expected locations for the WGS and small fixture files. Use fresh output paths.
+
+```sh
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+swift build -c release --product PrefetchQualification
+python3 Benchmarks/ReferenceQualification/routes.py .local/reference-protocol-v1.json
+python3 Benchmarks/ReferenceQualification/oracle.py .local/measurements .local/oracle-reproduction
+cmp .local/oracle-reproduction/oracle.json docs/performance/data/reference-qualification/oracle.json
+python3 Benchmarks/PrefetchQualification/run.py .build/release/PrefetchQualification .local/reference-protocol-v1.json .local/reference-results
+python3 Benchmarks/PrefetchQualification/summarize.py .local/reference-protocol-v1.json .local/reference-results .local/reference-summary
+python3 Benchmarks/PrefetchQualification/audit.py .local/reference-protocol-v1.json .local/reference-results > .local/reference-route-audit.json
+```

@@ -20,8 +20,12 @@ public struct Alignment: Equatable, Sendable, Identifiable {
     public let referenceStart: Int64
     public let referenceEnd: Int64
     public let segments: [AlignmentSegment]
-    public var drawnStart: Int64 { segments.map(\.start).min() ?? referenceStart }
-    public var drawnEnd: Int64 { (segments.map(\.end).max() ?? (referenceEnd + 1)) - 1 }
+    public var drawnStart: Int64 { segments.lazy.map(\.start).min() ?? referenceStart }
+    public var drawnEnd: Int64 { (segments.lazy.map(\.end).max() ?? (referenceEnd + 1)) - 1 }
+
+    func overlapsViewport(_ target: GenomicInterval) -> Bool {
+        drawnStart <= target.end && drawnEnd >= target.start
+    }
 
     /// Conservative app-owned storage accounting, not process RSS. Twice the
     /// inline/array/string payload allows spare capacity, plus allocation

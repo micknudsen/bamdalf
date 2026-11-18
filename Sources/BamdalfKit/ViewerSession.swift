@@ -283,8 +283,9 @@ public final class ViewerSession {
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
-        let available = regionalData.available(for: requiredInterval(for: visibleBases))
-        let selected = sampling.select(origin.isAlignmentSuppressed ? [] : RegionalData.visible(available.records, in: visibleBases))
+        let candidates = origin.isAlignmentSuppressed ? [] :
+            regionalData.previewRecords(in: visibleBases, required: requiredInterval(for: visibleBases))
+        let selected = sampling.select(candidates)
         next.alignments = Self.pack(selected.records, retaining: presentation.alignments)
         next.isDownsampled = selected.isDownsampled
         next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
@@ -441,7 +442,8 @@ public final class ViewerSession {
         let required = committedRequired
         regionalData.insert(records, for: interval, keeping: required ?? interval)
         if prefetch.maximumBytes > 0 {
-            regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage, maximumBytes: prefetch.maximumBytes)
+            regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage,
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
         if refreshPreview { refreshDragPreview() }
     }
@@ -463,7 +465,7 @@ public final class ViewerSession {
     private func trimOptional() {
         if prefetch.maximumBytes > 0 {
             regionalData.trimOptional(keeping: committedRequired, recovery: lastSuccessfulCoverage,
-                                      maximumBytes: prefetch.maximumBytes)
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
     }
 
@@ -605,7 +607,7 @@ public final class ViewerSession {
         let required = requiredInterval(for: target)
         if prefetch.maximumBytes > 0 {
             regionalData.trimOptional(keeping: suppressed ? nil : required, recovery: lastSuccessfulCoverage,
-                                      maximumBytes: prefetch.maximumBytes)
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
         let queryBAM = hasAlignments && !suppressed ? bam : nil
         let available = queryBAM != nil ? regionalData.available(for: required) : (records: [], missing: [])

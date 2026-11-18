@@ -1,0 +1,388 @@
+[
+  {
+    "case": "uncached_ordinary_a_100_paired",
+    "points_per_base": 10.68,
+    "backing_scale": 2,
+    "visible_records": 64,
+    "counts": {
+      "mismatch_checked": 7,
+      "mismatch_skipped_segment_end": 1,
+      "quiet_checked": 58,
+      "quiet_skipped_geometry": 2,
+      "reference_checked": 100
+    },
+    "examples": [
+      {
+        "coordinate": 10000080,
+        "reference": "C",
+        "aligned": "T",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:2:2211:20389:90386",
+          10000067,
+          false
+        ],
+        "rgb": [
+          224,
+          87,
+          89
+        ]
+      },
+      {
+        "coordinate": 10000007,
+        "reference": "T",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:20:H9V1RADXX:1:2103:12541:15837",
+          9999884,
+          false
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      },
+      {
+        "coordinate": 10000021,
+        "reference": "T",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:23:H9UD5ADXX:1:2113:20385:82190",
+          10000007,
+          false
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "9575f243120431246dceb49b35c631c5b7375e77c390f36e33d978b8d8af9b5d",
+      "reference": "0e94b7fd6de2dc61912b17d009ecbc2b2c4b90da67802c51dc46515a57d70c2c"
+    }
+  },
+  {
+    "case": "uncached_ordinary_a_1000_paired",
+    "points_per_base": 1.068,
+    "backing_scale": 2,
+    "visible_records": 256,
+    "counts": {
+      "mismatch_checked": 160,
+      "mismatch_skipped_geometry": 5,
+      "mismatch_skipped_segment_end": 4,
+      "quiet_checked": 245,
+      "quiet_skipped_geometry": 8,
+      "reference_checked": 1000
+    },
+    "examples": [
+      {
+        "coordinate": 10025075,
+        "reference": "A",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1106:1599:21781",
+          10024975,
+          false
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      },
+      {
+        "coordinate": 10024659,
+        "reference": "T",
+        "aligned": "A",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:2211:18928:29178",
+          10024548,
+          false
+        ],
+        "rgb": [
+          79,
+          178,
+          116
+        ]
+      },
+      {
+        "coordinate": 10024973,
+        "reference": "T",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:2216:5467:45668",
+          10024958,
+          true
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "e4dd040bb8a39082a3bb7de6bf3c9fb8fc6848b9bdd2853f73cbd6970a478014",
+      "reference": "ec5b40d7dae3bb70e368e9ac8fba3e05a85af0a43ad549a8939b3ccd3894c70e"
+    }
+  },
+  {
+    "case": "uncached_original_dense_100_paired",
+    "points_per_base": 10.68,
+    "backing_scale": 2,
+    "visible_records": 64,
+    "counts": {
+      "mismatch_checked": 20,
+      "quiet_checked": 31,
+      "quiet_skipped_geometry": 1,
+      "reference_checked": 100
+    },
+    "examples": [
+      {
+        "coordinate": 29892193,
+        "reference": "C",
+        "aligned": "A",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:2112:10895:85844",
+          29892111,
+          false
+        ],
+        "rgb": [
+          79,
+          178,
+          116
+        ]
+      },
+      {
+        "coordinate": 29892188,
+        "reference": "A",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:20:H9V1RADXX:2:1107:16573:23082",
+          29892103,
+          true
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      },
+      {
+        "coordinate": 29892111,
+        "reference": "A",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:21:H9V1VADXX:1:1105:8920:81520",
+          29892104,
+          true
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "b99124cfebb288bd357eb2ea5d08736c0ab91c592460e1052d32b545b7a4efc9",
+      "reference": "fbff06f48f7ee3643e353194ca65e843795acd7a68cdd2a33f00694fbcfdb12e"
+    }
+  },
+  {
+    "case": "uncached_original_dense_1000_paired",
+    "points_per_base": 1.068,
+    "backing_scale": 2,
+    "visible_records": 256,
+    "counts": {
+      "mismatch_checked": 575,
+      "mismatch_skipped_geometry": 13,
+      "mismatch_skipped_segment_end": 16,
+      "quiet_checked": 229,
+      "quiet_skipped_geometry": 8,
+      "reference_checked": 1000
+    },
+    "examples": [
+      {
+        "coordinate": 29892295,
+        "reference": "A",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:2:1213:16502:80405",
+          29892282,
+          false
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      },
+      {
+        "coordinate": 29892296,
+        "reference": "A",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:2:1213:16502:80405",
+          29892282,
+          false
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      },
+      {
+        "coordinate": 29892301,
+        "reference": "T",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:2:1213:16502:80405",
+          29892282,
+          false
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "67689df780acce6b1e4ecc80297517f4c7271cabf4047c9931a45813d1034d1d",
+      "reference": "e248b2e66ca9bf719eaa0266fc2f34b26973055e1922bba58e0369f0130a19e4"
+    }
+  },
+  {
+    "case": "uncached_ordinary_b_1000_paired",
+    "points_per_base": 1.068,
+    "backing_scale": 2,
+    "visible_records": 256,
+    "counts": {
+      "mismatch_checked": 214,
+      "mismatch_skipped_segment_end": 10,
+      "quiet_checked": 246,
+      "quiet_skipped_geometry": 8,
+      "reference_checked": 1000
+    },
+    "examples": [
+      {
+        "coordinate": 20049920,
+        "reference": "T",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1102:14725:74785",
+          20049811,
+          false
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      },
+      {
+        "coordinate": 20050226,
+        "reference": "T",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1205:9457:21426",
+          20050145,
+          true
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      },
+      {
+        "coordinate": 20049997,
+        "reference": "A",
+        "aligned": "G",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:2:1105:16682:20993",
+          20049989,
+          true
+        ],
+        "rgb": [
+          246,
+          209,
+          68
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "40deaf6350e5d8b060abe4ce7a9f24840b8e63e147199eff61f7c574e14b5734",
+      "reference": "13faecf1682f586f29e05ead9a2081b49c012a5316b941c4e97e7bad2f69f8a6"
+    }
+  },
+  {
+    "case": "uncached_derived_dense_1000_paired",
+    "points_per_base": 1.068,
+    "backing_scale": 2,
+    "visible_records": 256,
+    "counts": {
+      "mismatch_checked": 602,
+      "mismatch_skipped_geometry": 21,
+      "mismatch_skipped_segment_end": 13,
+      "quiet_checked": 230,
+      "quiet_skipped_geometry": 8,
+      "reference_checked": 1000
+    },
+    "examples": [
+      {
+        "coordinate": 29892725,
+        "reference": "A",
+        "aligned": "C",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1106:21055:97127",
+          29892699,
+          true
+        ],
+        "rgb": [
+          64,
+          133,
+          224
+        ]
+      },
+      {
+        "coordinate": 29892736,
+        "reference": "T",
+        "aligned": "A",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1106:21055:97127",
+          29892699,
+          true
+        ],
+        "rgb": [
+          79,
+          178,
+          116
+        ]
+      },
+      {
+        "coordinate": 29892819,
+        "reference": "G",
+        "aligned": "A",
+        "record": [
+          "HISEQ1:18:H8VC6ADXX:1:1106:21055:97127",
+          29892699,
+          true
+        ],
+        "rgb": [
+          79,
+          178,
+          116
+        ]
+      }
+    ],
+    "native_png_sha256": {
+      "alignments": "9acc21935bf8e1709fd637142bdb66b29f396e90898e55d29932083e37c6aec8",
+      "reference": "e248b2e66ca9bf719eaa0266fc2f34b26973055e1922bba58e0369f0130a19e4"
+    }
+  }
+]

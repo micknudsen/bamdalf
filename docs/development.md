@@ -525,3 +525,8 @@ contigs (name, length and SAM M5) and provenance immediately. Its actor-isolated
 `read(_:)` takes a 1-based inclusive `GenomicInterval` and returns
 case-preserving ASCII bases as `Data`. The [v1 format](reference-format.md)
 defines validation, dictionary limits and bounded regional access.
+
+The [reference qualification report](performance/reference-qualification-2026-11-18.md)
+records production Save and validated-open measurements, integrated source-mode
+workloads, independent WGS comparison checks and the cache-pressure and
+preview changes exercised by those routes.

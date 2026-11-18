@@ -581,3 +581,9 @@ This interview does not authorize feature implementation or ticket publication.
 On 2026-11-18, the [GRCh38 experiment](performance/reference-storage-2026-11-18.md)
 selected SQLite with 64 KiB chunks for the [v1 bundle format](reference-format.md)
 and proposed creation and opening limits for integrated qualification.
+
+The user subsequently approved two fresh native saves at ≤60 s, ≤256 MiB
+whole-process peak RSS and ≤1.05 bytes per input base, with validated-open p95
+≤50 ms on each 102-handle route. The [integrated protocol](performance/reference-qualification-protocol-2026-11-18.md)
+and [qualification measurements](performance/reference-qualification-2026-11-18.md)
+record the accepted M4 workload and the native viewer evidence.
