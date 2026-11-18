@@ -67,5 +67,17 @@ struct NativePairedSourceTests {
         #expect(after.colorAt(x: base101 + 2, y: 7) == before.colorAt(x: base101 + 2, y: 7))
         let spinner = try #require(workspace.subviews.compactMap { $0 as? NSProgressIndicator }.first)
         #expect(spinner.accessibilityLabel() == "Loading genomic interval")
+
+        let prior = session.presentation
+        session.beginAlignmentDrag()
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: 240))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        try #require(session.presentation.verticalOffset == 240)
+        let close = try #require(menu.item(withTitle: "Close Reference"))
+        menu.performActionForItem(at: menu.index(of: close))
+        #expect(row.isHidden && session.presentation.referenceURL == nil)
+        #expect(session.presentation.bamURL == prior.bamURL && session.presentation.target == prior.target)
+        #expect(session.presentation.alignments == prior.alignments && session.presentation.rowCount == 80)
+        #expect(scroll.contentView.bounds.origin.y == 240 && session.presentation.verticalOffset == 240)
     }
 }

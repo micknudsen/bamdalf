@@ -85,6 +85,15 @@ The reference supplies navigation across all its contigs. On a contig absent
 from the BAM, the viewer displays the reference and skips alignment queries.
 On shared contigs, the alignment stack scrolls beneath the fixed reference row.
 
+With a reference selected, opening another compatible BAM keeps the interval
+and starts its rows at the top. If its first regional read fails, both files
+stay selected and the viewer returns to interval entry. Closing the reference
+keeps the BAM's rows and scroll position at a shared contig. On an extra
+reference contig it clears the view and switches interval entry to the BAM's
+dictionary. When a source change keeps the interval, a newer interval draft
+survives the reload. Recovery on the same BAM can reuse its rows and reads any
+visible reference bases from the currently selected bundle.
+
 Opening the first source shows **Enter a genomic interval** and focuses the field.
 Enter a complete 1-based inclusive interval, for example `tiny:100-200` with
 the opening fixture. Enter validates against the selected contig dictionary, formats the field,

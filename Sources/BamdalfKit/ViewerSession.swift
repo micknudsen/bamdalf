@@ -150,7 +150,7 @@ public final class ViewerSession {
             selectedReference = bundle
             await showSources(keepingInterval: true, keepingRows: bam != nil)?.value
         } catch {
-            guard openingID == request else { return }
+            guard openingID == request, !Task.isCancelled else { return }
             presentation.openError = FileOpenError(fileURL: url, message: error.localizedDescription)
         }
     }
@@ -171,12 +171,8 @@ public final class ViewerSession {
         regionalTask = nil
         requiredReadID = nil
         regionalRequestID = UUID()
-        lastSuccessful = nil
-        lastSuccessfulCoverage = nil
-        lastSuccessfulRecords = []
         dragOrigin = nil
         deferredRegionalCompletion = nil
-        draftGeneration = nil
         prefetchMotionOrigin = nil
 
         var next = ViewerPresentation()
@@ -190,21 +186,35 @@ public final class ViewerSession {
             next.message = "Enter a genomic interval"
             next.sessionID = UUID()
         }
-        guard keepingInterval, let target = prior.target, let contig = next.references.contig(named: target.reference),
-              target.end <= contig.length else {
+        let retainedTarget = prior.target.flatMap { target -> GenomicInterval? in
+            guard keepingInterval, let contig = next.references.contig(named: target.reference),
+                  target.end <= contig.length else { return nil }
+            return target
+        }
+        if retainedTarget != nil, keepingRows, let previous = lastSuccessful?.target,
+           bam?.references.contig(named: previous.reference) != nil {
+            // These rows still belong to this BAM. Recovery reads any newly required bases.
+            lastSuccessful?.referenceBases = nil
+        } else {
+            lastSuccessful = nil
+            lastSuccessfulCoverage = nil
+            lastSuccessfulRecords = []
+        }
+        guard let target = retainedTarget else {
+            draftGeneration = nil
             presentation = next
             return nil
         }
-        next.intervalText = target.formatted
+        next.intervalText = draftGeneration == nil ? target.formatted : presentation.intervalText
+        next.intervalError = presentation.intervalError
         if keepingRows {
             next.target = target
             next.alignments = prior.alignments
             next.rowCount = prior.rowCount
-            next.verticalOffset = prior.verticalOffset
+            next.verticalOffset = presentation.verticalOffset
             next.isAlignmentSuppressed = prior.isAlignmentSuppressed
         }
         presentation = next
-        navigationGeneration = editorGeneration
         return loadTarget(target, preservingPanContinuity: keepingRows, prefetchAfterLoad: true)
     }
 
@@ -343,6 +353,9 @@ public final class ViewerSession {
         origin.intervalText = presentation.intervalText
         origin.intervalError = presentation.intervalError
         origin.verticalOffset = presentation.verticalOffset
+        origin.isOpening = presentation.isOpening
+        origin.indexChoice = presentation.indexChoice
+        origin.openError = presentation.openError
         presentation = origin
         return (origin, completion)
     }
@@ -879,10 +892,10 @@ public final class ViewerSession {
             regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)
             await showSources(keepingInterval: selectedReference != nil, keepingRows: false)?.value
         } catch let error as FileOpenError {
-            guard requestID == openingID else { return }
+            guard requestID == openingID, !Task.isCancelled else { return }
             presentation.openError = error
         } catch {
-            guard requestID == openingID else { return }
+            guard requestID == openingID, !Task.isCancelled else { return }
             presentation.openError = FileOpenError(fileURL: url, message: error.localizedDescription)
         }
     }
