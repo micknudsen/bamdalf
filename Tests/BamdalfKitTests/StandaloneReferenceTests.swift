@@ -192,7 +192,7 @@ extension StandaloneReferenceTests {
     @Test func returningToAFailedPreviewWaitsForRequiredNavigationToRetry() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let url = try files.reference("selected.bref", fasta: ">one\nAaCGtnRY")
+        let url = try files.reference("selected.bref", fasta: ">one\nAaCGtnRY\n>two\nTtAGccGG")
         let failure = FirstPreviewFailure()
         let session = ViewerSession(loadReferenceRegion: { bundle, interval in
             if interval.start == 2 && interval.end == 6, await failure.take() {
@@ -207,10 +207,18 @@ extension StandaloneReferenceTests {
         session.beginAlignmentDrag()
         await session.previewAlignmentDrag(horizontalFraction: -0.125)?.value
         await session.previewAlignmentDrag(horizontalFraction: 0)?.value
+        await session.endAlignmentDrag()?.value
+        session.beginAlignmentDrag()
         await session.previewAlignmentDrag(horizontalFraction: -0.125)?.value
         #expect(session.presentation.referenceBases?.bases == Data("aCGt".utf8))
         await session.endAlignmentDrag()?.value
         #expect(session.presentation.referenceBases?.bases == Data("CGtn".utf8))
+        session.editInterval("two:2-5")
+        await session.submitInterval()?.value
+        session.beginAlignmentDrag()
+        await session.previewAlignmentDrag(horizontalFraction: -0.125)?.value
+        #expect(session.presentation.referenceBases?.bases == Data("tAGcc".utf8))
+        await session.endAlignmentDrag()?.value
     }
 }
 

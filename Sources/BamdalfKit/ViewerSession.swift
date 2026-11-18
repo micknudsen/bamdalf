@@ -176,6 +176,7 @@ public final class ViewerSession {
 
     private func resetReferenceView() {
         stopPreviewRead()
+        failedPreviews.removeAll()
         regionalTask?.cancel()
         regionalTask = nil
         regionalRequestID = UUID()
@@ -239,6 +240,11 @@ public final class ViewerSession {
         regionalTask = nil
         switch result {
         case .success(let region):
+            // A successful required retry establishes that the failed range is readable.
+            failedPreviews.removeAll {
+                $0.reference.utf8.elementsEqual(region.interval.reference.utf8)
+                    && region.interval.start <= $0.start && region.interval.end >= $0.end
+            }
             var next = presentation
             next.referenceBases = region
             next.isLoading = false
@@ -287,7 +293,6 @@ public final class ViewerSession {
     public func beginAlignmentDrag() {
         guard presentation.target != nil, !presentation.isOpening, dragOrigin == nil else { return }
         dragOrigin = presentation
-        failedPreviews.removeAll()
         dragFraction = 0
     }
 
@@ -352,7 +357,7 @@ public final class ViewerSession {
         previewRead = Task {
             while !Task.isCancelled, let wanted = previewDemand {
                 guard failedPreviews.count < 64,
-                      !failedPreviews.contains(where: { $0.start <= wanted.end && $0.end >= wanted.start }) else { break }
+                      !failedPreviews.contains(where: { $0.distance(to: wanted) == 0 }) else { break }
                 do {
                     let bases = try await loadReferenceRegion(bundle, wanted)
                     guard !Task.isCancelled else { return }
