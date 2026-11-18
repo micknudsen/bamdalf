@@ -85,5 +85,5 @@ within this bundle and record their own provenance. Changed sequence encoding,
 chunk sizing, coordinate semantics, new required structures, or changed
 interpretation of existing fields requires a new user version. Reject that
 version before selecting it. A new schema must preserve core meaning to remain
-readable as v1. Viewer integration and production creation are tracked in
-[issue #50](https://github.com/micknudsen/bamdalf/issues/50).
+readable as v1. The production [reference-bundle interface](../Sources/BamdalfKit/ReferenceBundle.swift)
+uses 1-based inclusive genomic intervals and converts to the file coordinates above.
