@@ -12,12 +12,22 @@ public struct GenomicInterval: Equatable, Sendable {
         self.end = end
     }
 
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.start == rhs.start && lhs.end == rhs.end && lhs.reference.utf8.elementsEqual(rhs.reference.utf8)
+    }
+
+    /// Screen points per base when the viewport can show individual reference cells.
+    func referenceScale(in width: Double) -> Double? {
+        let scale = width / Double(end - start + 1)
+        return scale >= 1 ? scale : nil
+    }
+
     public var formatted: String {
         "\(reference):\(formatCoordinate(start))-\(formatCoordinate(end))"
     }
 
     func subtracting(_ excluded: GenomicInterval) -> [GenomicInterval] {
-        guard reference == excluded.reference, excluded.end >= start, excluded.start <= end else { return [self] }
+        guard reference.utf8.elementsEqual(excluded.reference.utf8), excluded.end >= start, excluded.start <= end else { return [self] }
         var remaining: [GenomicInterval] = []
         if excluded.start > start {
             remaining.append(GenomicInterval(reference: reference, start: start, end: excluded.start - 1))
@@ -29,7 +39,7 @@ public struct GenomicInterval: Equatable, Sendable {
     }
 
     func distance(to other: GenomicInterval) -> Int64 {
-        guard reference == other.reference else { return .max }
+        guard reference.utf8.elementsEqual(other.reference.utf8) else { return .max }
         return max(0, max(start - other.end, other.start - end))
     }
 
@@ -43,8 +53,8 @@ public struct GenomicInterval: Equatable, Sendable {
         guard range.count == 2, let start = parseCoordinate(range[0]), let end = parseCoordinate(range[1]) else {
             throw IntervalValidationError("Use whole base coordinates, optional thousands commas, and a regular hyphen.")
         }
-        guard let sequence = references.first(where: { $0.name == reference }) else {
-            throw IntervalValidationError("Reference name must exactly match a reference in this BAM.")
+        guard let sequence = references.contig(named: reference) else {
+            throw IntervalValidationError("Reference name must exactly match a contig in the selected file.")
         }
         guard start >= 1 else { throw IntervalValidationError("Start must be at least 1.") }
         guard start <= end else { throw IntervalValidationError("Start must be at or before end.") }
@@ -71,4 +81,10 @@ private func parseCoordinate(_ text: Substring) -> Int64? {
 
 func formatCoordinate(_ coordinate: Int64) -> String {
     coordinate.formatted(.number.grouping(.automatic).locale(Locale(identifier: "en_US")))
+}
+
+extension Array where Element == ReferenceSequence {
+    func contig(named name: String) -> ReferenceSequence? {
+        first { $0.name.utf8.elementsEqual(name.utf8) }
+    }
 }

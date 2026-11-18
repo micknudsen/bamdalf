@@ -103,18 +103,7 @@ final class GenomicAlignmentView: NSView {
                         let last = max(first, min(bases.count, Int(ceil((dirtyRect.maxX - x) / scale))))
                         for index in first..<last {
                             let rect = NSRect(x: x + CGFloat(index) * scale, y: y, width: scale, height: 12)
-                            let (background, foreground) = Self.palette(bases[index])
-                            background.setFill()
-                            rect.fill()
-                            if scale >= 8 {
-                                let text = String(UnicodeScalar(bases[index])) as NSString
-                                let attributes: [NSAttributedString.Key: Any] = [
-                                    .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
-                                    .foregroundColor: foreground,
-                                ]
-                                let size = text.size(withAttributes: attributes)
-                                text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
-                            }
+                            NucleotideCell.draw(bases[index], in: rect)
                         }
                         NSGraphicsContext.restoreGraphicsState()
                     } else {
@@ -150,13 +139,4 @@ final class GenomicAlignmentView: NSView {
         return path
     }
 
-    private static func palette(_ base: UInt8) -> (NSColor, NSColor) {
-        switch base {
-        case 65: (NSColor(calibratedRed: 0.26, green: 0.65, blue: 0.38, alpha: 1), .black)
-        case 67: (NSColor(calibratedRed: 0.20, green: 0.43, blue: 0.85, alpha: 1), .white)
-        case 71: (NSColor(calibratedRed: 0.95, green: 0.79, blue: 0.21, alpha: 1), .black)
-        case 84: (NSColor(calibratedRed: 0.84, green: 0.25, blue: 0.28, alpha: 1), .white)
-        default: (NSColor(calibratedWhite: 0.60, alpha: 1), .black)
-        }
-    }
 }

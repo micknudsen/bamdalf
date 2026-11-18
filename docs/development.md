@@ -66,9 +66,18 @@ before replacing an existing file. The progress sheet pauses navigation and
 offers **Cancel** while the FASTA imports. Cancellation or failure preserves
 the destination. Saving returns to the same viewer and interval draft.
 
-A successful open shows **Enter a genomic interval** and focuses the field.
+Use **File → Open Reference…** to browse a standalone `.bref`. Its contig
+dictionary supplies interval entry, pan, zoom, and pointer navigation. The
+rounded field shows the filename with its last `.bref` removed. The row
+below the ruler shows case-preserving letters at eight points per base and
+colored cells down to one point. Wider views leave the row blank and skip the
+sequence read. Opening another reference keeps a valid target and clears an
+unavailable one. **Close Reference** returns a standalone viewer to its empty
+state. Create Reference protects the selected file, including aliases.
+
+Opening the first source shows **Enter a genomic interval** and focuses the field.
 Enter a complete 1-based inclusive interval, for example `tiny:100-200` with
-the opening fixture. Enter validates against the BAM header, formats the field,
+the opening fixture. Enter validates against the selected contig dictionary, formats the field,
 and moves the ruler. Malformed or out-of-range input remains editable with an
 inline error; editing clears the error without navigating. **Go → Go to
 Interval** / **Command-L** focuses and selects the existing text. **Escape**
