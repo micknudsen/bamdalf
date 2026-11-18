@@ -711,8 +711,9 @@ public final class ViewerSession {
                         } else if target.referenceScale(in: viewportWidth) != nil {
                             lastSuccessful = nil
                         }
-                        restoreSuccessfulView(for: error, generation: generation)
-                        regionalTask = nil
+                        // A drag may have begun during the recovery read.
+                        completeRegionalLoad(result, requestID: requestID, generation: generation,
+                                             initialScrollGeneration: initialScrollGeneration, continuous: continuous)
                     }
                     return regionalTask
                 }
