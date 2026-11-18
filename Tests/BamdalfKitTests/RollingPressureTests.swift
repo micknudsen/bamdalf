@@ -16,7 +16,7 @@ struct RollingPressureTests {
         })
         try await files.openedSession(fixture: "rows", session: session)
         // Most records are near base 101. The nearby flank of the narrow
-        // viewport fits the budget even when the distant reads must be evicted.
+        // viewport fits the budget even when the distant alignment records must be evicted.
         for target in ["tiny:1-5000", "tiny:2001-2500", "tiny:1751-2750"] {
             session.editInterval(target)
             await session.submitInterval()?.value

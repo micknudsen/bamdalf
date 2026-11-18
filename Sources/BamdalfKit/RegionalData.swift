@@ -104,7 +104,7 @@ struct RegionalData {
         guard optionalBytes > maximumBytes else { return }
         // A previously required 10 kb query can become two large optional
         // flanks after zoom-in. Evict their distant chunks before sacrificing
-        // coverage next to the viewport. Charge crossing reads to each chunk.
+        // coverage next to the viewport. Charge crossing alignment records to each chunk.
         entries = entries.flatMap { entry -> [Entry] in
             let interval = entry.interval
             guard !protected(entry), interval.end - interval.start >= chunkBases,
