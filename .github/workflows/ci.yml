@@ -69,7 +69,7 @@ jobs:
           xcrun lldb --batch \
             -o "settings set target.env-vars DYLD_FRAMEWORK_PATH=$platform/Library/Frameworks DYLD_LIBRARY_PATH=$platform/usr/lib" \
             -o run -k 'thread backtrace all -c 10' -k 'register read pc lr x0 x8 x9 x20 x21' \
-            -k 'frame select 1' -k 'disassemble --frame' \
+            -k 'disassemble --frame' \
             -- "$helper" --test-bundle-path "$bundle" --testing-library swift-testing
       - name: Package native application
         run: |

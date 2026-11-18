@@ -91,9 +91,9 @@ public final class ViewerSession {
     private var stoppedPrefetch = false
     private let loadFile: @Sendable (URL, URL) async throws -> BAMFile
 
-    public init(prefetch: PrefetchConfiguration = .init(), loadBAM: @escaping @Sendable (URL, URL) async throws -> BAMFile = {
-        try await BAMFile.open($0, indexURL: $1)
-    }, loadRegion: (@Sendable (BAMFile, GenomicInterval) async throws -> [Alignment])? = nil,
+    public init(prefetch: PrefetchConfiguration = .init(),
+                loadBAM: (@Sendable (URL, URL) async throws -> BAMFile)? = nil,
+                loadRegion: (@Sendable (BAMFile, GenomicInterval) async throws -> [Alignment])? = nil,
                 alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
                 samplingSeed: @escaping @Sendable () -> UInt64 = { UInt64.random(in: .min ... .max) },
                 samplingPriority: (@Sendable (UInt64, [UInt8]) -> UInt64)? = nil,
@@ -102,7 +102,7 @@ public final class ViewerSession {
         self.alignmentVisibilityLimit = alignmentVisibilityLimit
         self.sampling = AlignmentSampling(budget: samplingGroupBudget, priority: samplingPriority)
         self.samplingSeed = samplingSeed
-        loadFile = loadBAM
+        loadFile = loadBAM ?? BAMFile.open
         self.loadRegion = loadRegion ?? Self.readAlignments
         self.prefetch = prefetch
         self.loadPrefetchRegion = loadPrefetchRegion ?? Self.readAlignments
