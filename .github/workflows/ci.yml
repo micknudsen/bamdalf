@@ -58,8 +58,31 @@ jobs:
           bash scripts/build-htslib.sh
           unset BAMDALF_GITHUB_TOKEN
           swift build
+      - name: Diagnose the native reference Save path
+        run: bash scripts/test.sh --filter NativeReferenceSaveTests
       - name: Test viewer session and native workspace
         run: bash scripts/test.sh
+      - name: Capture native test crash frames
+        if: failure()
+        run: |
+          python3 - <<'PYTHON'
+          import json, pathlib, time
+          roots = [pathlib.Path.home() / "Library/Logs/DiagnosticReports", pathlib.Path("/Library/Logs/DiagnosticReports")]
+          for _ in range(12):
+              paths = [p for root in roots for p in root.glob("*.ips") if time.time() - p.stat().st_mtime < 300]
+              if paths:
+                  break
+              time.sleep(1)
+          for path in paths:
+              try:
+                  report = json.loads(path.read_text().split("\n", 1)[1])
+                  print("Crash report", path.name, report.get("exception"))
+                  thread = report["threads"][report["faultingThread"]]
+                  for frame in thread["frames"][:45]:
+                      print(report["usedImages"][frame["imageIndex"]]["name"], frame.get("symbol"), frame.get("sourceLine"))
+              except (OSError, ValueError, KeyError, IndexError) as error:
+                  print(error)
+          PYTHON
       - name: Package native application
         run: |
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
