@@ -64,13 +64,13 @@ extension ViewerWindowController {
 
 /// AppKit validates the final URL as part of its standard Save/Replace flow.
 @MainActor
-final class ReferenceSaveApproval: NSObject, NSOpenSavePanelDelegate {
+public final class ReferenceSaveApproval: NSObject, NSOpenSavePanelDelegate {
     let selectedReference: ReferenceBundle?
     private(set) var destination: ReferenceSaveDestination?
 
     init(protecting selectedReference: ReferenceBundle?) { self.selectedReference = selectedReference }
 
-    func panel(_ sender: Any, validate url: URL) throws {
+    public func panel(_ sender: Any, validate url: URL) throws {
         destination = try ReferenceSaveDestination(confirmedURL: url, protecting: selectedReference)
     }
 }

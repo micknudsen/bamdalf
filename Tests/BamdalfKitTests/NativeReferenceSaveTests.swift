@@ -1,5 +1,5 @@
 import AppKit
-@testable import BamdalfKit
+import BamdalfKit
 import Testing
 
 @Suite(.serialized)
