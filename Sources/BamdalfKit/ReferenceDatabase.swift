@@ -99,8 +99,8 @@ final class ReferenceStatement {
         guard sqlite3_column_type(statement, column) == SQLITE_TEXT,
               (1...limit).contains(Int(sqlite3_column_bytes(statement, column))),
               let pointer = sqlite3_column_text(statement, column),
-              let value = String(bytes: UnsafeBufferPointer(start: pointer, count: Int(sqlite3_column_bytes(statement, column))),
-                                 encoding: .utf8) else {
+              let value = String(validating: UnsafeBufferPointer(start: pointer, count: Int(sqlite3_column_bytes(statement, column))),
+                                 as: UTF8.self) else {
             throw ReferenceBundleError("Invalid or oversized text in the reference bundle.")
         }
         return value

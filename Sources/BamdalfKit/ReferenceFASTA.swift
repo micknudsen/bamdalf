@@ -132,7 +132,7 @@ private final class FASTARecords {
     }
 
     private func begin(_ header: [UInt8]) throws {
-        guard !header.isEmpty, let name = String(bytes: header, encoding: .utf8) else {
+        guard !header.isEmpty, let name = String(validating: header, as: UTF8.self) else {
             throw ReferenceBundleError("Missing or invalid FASTA name.")
         }
         guard names.count < ReferenceFormat.maxContigs, totalNameBytes + header.count <= ReferenceFormat.dictionaryBytes else {

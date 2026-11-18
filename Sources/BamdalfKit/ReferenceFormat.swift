@@ -82,13 +82,20 @@ enum ReferenceFormat {
             throw ReferenceBundleError("Invalid reference bundle metadata.")
         }
         let value = try ReferenceProvenance(sourceName: rows.text(1), creator: rows.text(2), createdUTC: rows.text(3))
-        let time = ISO8601DateFormatter()
-        if value.createdUTC.contains(".") { time.formatOptions.insert(.withFractionalSeconds) }
-        guard !value.sourceName.contains("/"), ![".", ".."].contains(value.sourceName),
-              value.createdUTC.wholeMatch(of: /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|\+00:00)/) != nil,
-              time.date(from: value.createdUTC) != nil, try !rows.next() else {
+        guard !value.sourceName.utf8.contains(47), !value.sourceName.utf8.contains(0), ![".", ".."].contains(value.sourceName),
+              validTimestamp(value.createdUTC), try !rows.next() else {
             throw ReferenceBundleError("Invalid reference bundle provenance metadata.")
         }
         return value
+    }
+
+    private static func validTimestamp(_ text: String) -> Bool {
+        let timestamp = /([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?(?:Z|\+00:00)/
+        guard let match = text.wholeMatch(of: timestamp) else { return false }
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = .gmt
+        let components = DateComponents(year: Int(match.1), month: Int(match.2), day: Int(match.3),
+                                        hour: Int(match.4), minute: Int(match.5), second: Int(match.6))
+        return components.isValidDate(in: calendar)
     }
 }

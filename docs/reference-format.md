@@ -17,6 +17,10 @@ below. Every field after the primary key is required (`NOT NULL`).
 | `contigs` | `id INTEGER PRIMARY KEY` from 1 in source order, `name TEXT UNIQUE COLLATE BINARY`, `length INTEGER` in bases, `m5 TEXT` (32 lowercase hex digits), `first_chunk INTEGER` (inclusive positive chunk ID) |
 | `chunks` | `id INTEGER PRIMARY KEY`, `bases BLOB` (raw ASCII) |
 
+Use an extended ISO 8601 UTC timestamp with calendar date, time through seconds,
+an optional fractional second, and either `Z` or `+00:00`. For example,
+`2026-11-18T06:15:30Z` and `2026-11-18T06:15:30.123456+00:00` are valid.
+
 Store only the source basename, creator and time for provenance. Do not read
 a source path during opening or use it as sequence identity. Contig names
 are nonempty UTF-8, matched by their exact bytes. No normalization or

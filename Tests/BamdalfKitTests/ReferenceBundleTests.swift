@@ -30,7 +30,10 @@ extension ReferenceBundleTests {
         ("PRAGMA application_id=123", "identity"),
         ("UPDATE metadata SET chunk_bytes=32768", "metadata"),
         ("UPDATE metadata SET source_name='../source.fa'", "metadata"),
+        ("UPDATE metadata SET source_name='a/' || char(769) || 'b'", "metadata"),
+        ("UPDATE metadata SET source_name='a' || char(0) || 'b'", "metadata"),
         ("UPDATE metadata SET created_utc='yesterday'", "metadata"),
+        ("UPDATE metadata SET created_utc='2026-02-31T00:00:00Z'", "metadata"),
         ("UPDATE metadata SET created_utc='2026-01-01T00:00:00ZgarbageZ'", "metadata"),
         ("UPDATE metadata SET creator=zeroblob(6000)", "text"),
         ("UPDATE metadata SET creator=hex(zeroblob(2049))", "text"),
@@ -148,12 +151,14 @@ extension ReferenceBundleTests {
     @Test func namesUseExactUTF8BytesAcrossInputBufferBoundaries() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
-        let fasta = ">" + String(repeating: " ", count: 1_048_573) + "é description\r\nA\n>e\u{301}\nT"
+        let fasta = ">" + String(repeating: " ", count: 1_048_573) + "é description\r\nA\n>e\u{301}\nT\n>\u{feff}a\nG\n>a\nC"
         let file = try makeBundle(in: files.directory, fasta: fasta)
         let bundle = try ReferenceBundle(opening: file)
-        #expect(bundle.contigs.map { Array($0.name.utf8) } == [[0xc3, 0xa9], [0x65, 0xcc, 0x81]])
+        #expect(bundle.contigs.map { Array($0.name.utf8) } == [[0xc3, 0xa9], [0x65, 0xcc, 0x81], [0xef, 0xbb, 0xbf, 0x61], [0x61]])
         #expect(try await bundle.read(GenomicInterval(reference: "é", start: 1, end: 1)) == Data("A".utf8))
         #expect(try await bundle.read(GenomicInterval(reference: "e\u{301}", start: 1, end: 1)) == Data("T".utf8))
+        #expect(try await bundle.read(GenomicInterval(reference: "\u{feff}a", start: 1, end: 1)) == Data("G".utf8))
+        #expect(try await bundle.read(GenomicInterval(reference: "a", start: 1, end: 1)) == Data("C".utf8))
         await #expect(throws: (any Error).self) { try await bundle.read(GenomicInterval(reference: "É", start: 1, end: 1)) }
     }
 
