@@ -7,6 +7,18 @@ Domain terminology for a genomic alignment viewer.
 **Genomic interval**:
 A contiguous range of base positions on one named reference sequence. Bamdalf describes these intervals using 1-based, inclusive endpoints.
 
+**Reference bundle**:
+A self-contained collection of reference sequences and their identity metadata,
+independent of the source files from which it was created.
+
+**Base mismatch**:
+A difference between an aligned base and its reference base when both are
+unambiguous A/C/G/T nucleotides, compared without regard to letter case.
+
+**Indeterminate base comparison**:
+A comparison for which an ambiguous base prevents establishing a definite
+match or mismatch between the alignment and the reference.
+
 **BAM index**:
 A companion data structure mapping genomic regions to file locations in a coordinate-sorted BAM.
 
