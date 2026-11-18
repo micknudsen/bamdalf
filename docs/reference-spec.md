@@ -3,7 +3,8 @@
 The product design and test interfaces were confirmed on 2026-11-18.
 Published as [GitHub issue #48](https://github.com/micknudsen/bamdalf/issues/48).
 See the [decision record](reference-milestone.md) for the design history.
-Storage selection and creation/opening limits depend on measurements.
+The [v1 format](reference-format.md) and [storage measurements](performance/reference-storage-2026-11-18.md)
+record the subsequent storage decision and proposed qualification limits.
 
 ## Problem Statement
 
@@ -216,13 +217,12 @@ and sequence data. These are engineering specifications to review, not reasons
 to introduce reference downloads, annotation rendering, or custom integrity
 verification into the milestone.
 
-The [storage investigation](research/reference-bundle-storage-2026-11-18.md)
-recommends measuring platform SQLite with bounded, case-preserving ASCII chunks
-first. It documents read-only opening, rollback-journal publication, WAL and
-immutable-mode pitfalls, source normalization, and destination-preservation
-requirements. This is a candidate to prototype, not a selected format. Compare
-64 KiB and 256 KiB chunks before adding compression or custom encodings; these
-sizes are experimental parameters, not product settings or acceptance limits.
+The initial [storage investigation](research/reference-bundle-storage-2026-11-18.md)
+proposed comparing SQLite with 64 KiB and 256 KiB case-preserving ASCII
+chunks. It documents read-only opening, rollback-journal publication, WAL and
+immutable-mode pitfalls, source normalization, and destination preservation.
+The subsequent [whole-genome experiment](performance/reference-storage-2026-11-18.md)
+selected 64 KiB for the [v1 format](reference-format.md).
 
 ## Testing Decisions
 

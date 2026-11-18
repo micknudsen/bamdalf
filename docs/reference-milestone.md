@@ -568,10 +568,16 @@ reopen settled behavior:
 - Freeze correctness and performance protocols; measure creation/opening and
   agree justified limits from those measurements before qualification.
 
-No storage engine has been selected, no feature implementation has started,
+At the close of this interview no storage engine had been selected, feature implementation had not started,
 and the mockup is not native-rendering evidence. On 2026-11-18, the user also
 agreed to the specification's test interfaces: existing ViewerSession behavior,
 real-file reference-bundle creation/open/read integration, and focused native
 rendering checks.
 
 This interview does not authorize feature implementation or ticket publication.
+
+## Storage decision after the interview
+
+On 2026-11-18, the [GRCh38 experiment](performance/reference-storage-2026-11-18.md)
+selected SQLite with 64 KiB chunks for the [v1 bundle format](reference-format.md)
+and proposed creation and opening limits for integrated qualification.
