@@ -37,7 +37,11 @@ public struct ViewerPresentation {
     public var intervalText = ""
     public var target: GenomicInterval?
     public var previewOffsetInBases = 0.0
-    public var intervalError: String?
+    fileprivate var validationError: IntervalValidationError?
+    public var intervalError: String? {
+        get { validationError?.message }
+        set { validationError = newValue.map { IntervalValidationError($0) } }
+    }
     public var isAlignmentSuppressed = false
     public var isLoading = false
     public var isDownsampled = false
@@ -205,8 +209,8 @@ public final class ViewerSession {
             return nil
         }
         next.intervalText = draftGeneration == nil ? target.formatted : presentation.intervalText
-        if let error = presentation.intervalError, next.references == prior.references {
-            next.intervalError = error
+        if let error = presentation.validationError, error.applies(to: next.references) {
+            next.validationError = error
         }
         if keepingRows {
             next.target = target
@@ -352,7 +356,7 @@ public final class ViewerSession {
         dragOrigin = nil
         deferredRegionalCompletion = nil
         origin.intervalText = presentation.intervalText
-        origin.intervalError = presentation.intervalError
+        origin.validationError = presentation.validationError
         origin.verticalOffset = presentation.verticalOffset
         origin.isOpening = presentation.isOpening
         origin.indexChoice = presentation.indexChoice
@@ -577,7 +581,7 @@ public final class ViewerSession {
             navigationGeneration = editorGeneration
             return loadTarget(target, preservingPanContinuity: preservingPanContinuity, prefetchAfterLoad: prefetchAfterLoad)
         } catch let error as IntervalValidationError {
-            presentation.intervalError = error.message
+            presentation.validationError = error
         } catch {
             presentation.intervalError = "Enter a valid reference:start-end interval."
         }

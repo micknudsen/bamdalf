@@ -58,12 +58,13 @@ public struct GenomicInterval: Equatable, Sendable {
             throw IntervalValidationError("Use whole base coordinates, optional thousands commas, and a regular hyphen.")
         }
         guard let sequence = references.contig(named: reference) else {
-            throw IntervalValidationError("Reference name must exactly match a contig in the selected file.")
+            throw IntervalValidationError("Reference name must exactly match a contig in the selected file.", reference: reference)
         }
         guard start >= 1 else { throw IntervalValidationError("Start must be at least 1.") }
         guard start <= end else { throw IntervalValidationError("Start must be at or before end.") }
         guard end <= sequence.length else {
-            throw IntervalValidationError("End must not exceed \(formatCoordinate(sequence.length)) for \(reference).")
+            throw IntervalValidationError("End must not exceed \(formatCoordinate(sequence.length)) for \(reference).",
+                                          reference: reference, length: sequence.length)
         }
         return GenomicInterval(reference: reference, start: start, end: end)
     }
@@ -71,7 +72,20 @@ public struct GenomicInterval: Equatable, Sendable {
 
 struct IntervalValidationError: Error {
     let message: String
-    init(_ message: String) { self.message = message }
+    private let reference: String?
+    private let length: Int64?
+
+    init(_ message: String, reference: String? = nil, length: Int64? = nil) {
+        self.message = message
+        self.reference = reference
+        self.length = length
+    }
+
+    /// A dictionary-dependent message remains accurate only while its contig still has the same length or absence.
+    func applies(to references: [ReferenceSequence]) -> Bool {
+        guard let reference else { return true }
+        return references.contig(named: reference)?.length == length
+    }
 }
 
 private func parseCoordinate(_ text: Substring) -> Int64? {

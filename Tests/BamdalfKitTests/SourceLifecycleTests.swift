@@ -250,4 +250,19 @@ struct SourceLifecycleTests {
         #expect(session.presentation.regionalError?.message == "BAM retry failed")
         #expect(session.presentation.alignments.isEmpty && session.presentation.target == nil)
     }
+
+    @Test(arguments: ["tiny:10-1", "tiny:1-25000", "absent:1-2"])
+    func closingTheReferenceKeepsApplicableDraftErrors(draft: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let original = try reference(in: files)
+        let session = ViewerSession(prefetch: .disabled)
+        try await openPair(files, in: session, reference: original)
+        session.editInterval(draft)
+        await session.submitInterval()?.value
+        let error = try #require(session.presentation.intervalError)
+        session.closeReference()
+        #expect(session.presentation.intervalText == draft && session.presentation.intervalError == error)
+        #expect(session.presentation.target?.formatted == "tiny:101-110" && session.presentation.rowCount == 80)
+    }
 }
