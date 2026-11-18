@@ -31,6 +31,7 @@ extension ReferenceBundleTests {
         ("UPDATE metadata SET chunk_bytes=32768", "metadata"),
         ("UPDATE metadata SET source_name='../source.fa'", "metadata"),
         ("UPDATE metadata SET created_utc='yesterday'", "metadata"),
+        ("UPDATE metadata SET created_utc='2026-01-01T00:00:00ZgarbageZ'", "metadata"),
         ("UPDATE metadata SET creator=zeroblob(6000)", "text"),
         ("UPDATE metadata SET creator=hex(zeroblob(2049))", "text"),
         ("UPDATE contigs SET m5=upper(m5)", "digest"),

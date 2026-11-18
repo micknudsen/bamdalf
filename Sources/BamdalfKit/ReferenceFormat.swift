@@ -1,6 +1,22 @@
 import Foundation
 
-extension ReferenceFormat {
+enum ReferenceFormat {
+    static let chunkBytes = 65_536
+    static let fieldBytes = 4096
+    static let maxContigs = 100_000
+    static let dictionaryBytes = 16 * 1024 * 1024
+    static let alphabet: [Bool] = {
+        var letters = Array(repeating: false, count: 256)
+        for base in "ACGTRYSWKMBDHVNacgtryswkmbdhvn".utf8 { letters[Int(base)] = true }
+        return letters
+    }()
+
+    static func checkURL(_ url: URL) throws {
+        guard url.isFileURL, url.pathExtension == "bref" else {
+            throw ReferenceBundleError("Choose a local file with the .bref suffix.")
+        }
+    }
+
     static func checkHeader(_ url: URL) throws {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
@@ -57,9 +73,9 @@ extension ReferenceFormat {
 
     static func provenance(_ db: ReferenceDatabase) throws -> ReferenceProvenance {
         let rows = try db.statement("""
-            SELECT id, CASE WHEN length(CAST(source_name AS BLOB)) <= 4096 THEN source_name END,
-                CASE WHEN length(CAST(creator AS BLOB)) <= 4096 THEN creator END,
-                CASE WHEN length(CAST(created_utc AS BLOB)) <= 4096 THEN created_utc END, chunk_bytes
+            SELECT id, CASE WHEN length(CAST(source_name AS BLOB)) <= \(fieldBytes) THEN source_name END,
+                CASE WHEN length(CAST(creator AS BLOB)) <= \(fieldBytes) THEN creator END,
+                CASE WHEN length(CAST(created_utc AS BLOB)) <= \(fieldBytes) THEN created_utc END, chunk_bytes
             FROM metadata LIMIT 2
             """)
         guard try rows.next(), try rows.integer(0) == 1, try rows.integer(4) == chunkBytes else {
@@ -69,7 +85,7 @@ extension ReferenceFormat {
         let time = ISO8601DateFormatter()
         if value.createdUTC.contains(".") { time.formatOptions.insert(.withFractionalSeconds) }
         guard !value.sourceName.contains("/"), ![".", ".."].contains(value.sourceName),
-              value.createdUTC.hasSuffix("Z") || value.createdUTC.hasSuffix("+00:00"),
+              value.createdUTC.wholeMatch(of: /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|\+00:00)/) != nil,
               time.date(from: value.createdUTC) != nil, try !rows.next() else {
             throw ReferenceBundleError("Invalid reference bundle provenance metadata.")
         }

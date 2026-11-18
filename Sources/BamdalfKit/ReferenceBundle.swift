@@ -12,24 +12,6 @@ public struct ReferenceProvenance: Sendable {
     public let createdUTC: String
 }
 
-enum ReferenceFormat {
-    static let chunkBytes = 65_536
-    static let fieldBytes = 4096
-    static let maxContigs = 100_000
-    static let dictionaryBytes = 16 * 1024 * 1024
-    static let alphabet: [Bool] = {
-        var letters = Array(repeating: false, count: 256)
-        for base in "ACGTRYSWKMBDHVNacgtryswkmbdhvn".utf8 { letters[Int(base)] = true }
-        return letters
-    }()
-
-    static func checkURL(_ url: URL) throws {
-        guard url.isFileURL, url.pathExtension == "bref" else {
-            throw ReferenceBundleError("Choose a local file with the .bref suffix.")
-        }
-    }
-}
-
 /// A read-only v1 reference with exact, byte-sensitive names and 1-based inclusive intervals.
 public actor ReferenceBundle {
     public nonisolated let url: URL
@@ -47,9 +29,9 @@ public actor ReferenceBundle {
         try ReferenceFormat.checkSchema(db)
         provenance = try ReferenceFormat.provenance(db)
         let dictionary = try db.statement("""
-            SELECT id, CASE WHEN length(CAST(name AS BLOB)) <= 4096 THEN name END, length,
+            SELECT id, CASE WHEN length(CAST(name AS BLOB)) <= \(ReferenceFormat.fieldBytes) THEN name END, length,
                 CASE WHEN length(CAST(m5 AS BLOB)) = 32 THEN m5 END, first_chunk
-            FROM contigs ORDER BY id LIMIT 100001
+            FROM contigs ORDER BY id LIMIT \(ReferenceFormat.maxContigs + 1)
             """)
         var contigs: [ReferenceContig] = []
         var index: [Data: (length: Int64, firstChunk: Int64)] = [:]
@@ -101,7 +83,7 @@ public actor ReferenceBundle {
         let first = record.firstChunk + start / size
         let last = record.firstChunk + (interval.end - 1) / size
         let rows = try db.statement("""
-            SELECT id, CASE WHEN typeof(bases) = 'blob' AND length(bases) <= 65536 THEN bases END
+            SELECT id, CASE WHEN typeof(bases) = 'blob' AND length(bases) <= \(ReferenceFormat.chunkBytes) THEN bases END
             FROM chunks WHERE id BETWEEN ? AND ? ORDER BY id
             """)
         try rows.bind(first, at: 1)

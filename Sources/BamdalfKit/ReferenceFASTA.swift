@@ -13,7 +13,7 @@ extension ReferenceBundle {
         try files.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? files.removeItem(at: staging) }
         let candidate = staging.appendingPathComponent("reference.bref")
-        try writeFASTA(source, to: candidate, creator: creator, progress: progress)
+        try writeBundle(fromFASTA: source, to: candidate, creator: creator, progress: progress)
         _ = try ReferenceBundle(opening: candidate)
         try Task.checkCancellation()
         guard renamex_np(candidate.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
@@ -22,7 +22,7 @@ extension ReferenceBundle {
     }
 }
 
-private func writeFASTA(_ source: URL, to candidate: URL, creator: String,
+private func writeBundle(fromFASTA source: URL, to candidate: URL, creator: String,
                         progress: (Int64, Int64) throws -> Void) throws {
     guard !creator.isEmpty, creator.utf8.count <= ReferenceFormat.fieldBytes,
           source.lastPathComponent.utf8.count <= ReferenceFormat.fieldBytes else {
