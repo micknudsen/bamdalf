@@ -61,6 +61,22 @@ struct RegionalReaderSchedulingTests {
         #expect(sufficient == mandatory)
     }
 
+    @Test
+    func optionalByteBudgetIncludesStoredAlignedSequenceAcrossTheWholeQuery() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let url = files.sources.appendingPathComponent("rows.bam")
+        let bam = try await BAMFile.open(url, indexURL: url.appendingPathExtension("bai"))
+        let interval = GenomicInterval(reference: "tiny", start: 101, end: 250)
+        // 80 records each retain 150 aligned bases in addition to their drawn tails.
+        await #expect(throws: RegionalQueryBudgetExceeded.self) {
+            try await bam.alignments(in: interval, budget: .init(maximumRecords: 80, maximumBytes: 85_000))
+        }
+        let complete = try await bam.alignments(in: interval, budget: .init(maximumRecords: 80, maximumBytes: 140_000))
+        #expect(complete.count == 80)
+        #expect(complete.allSatisfy { $0.segments.first { $0.kind == .aligned }?.sequence?.utf8.count == 150 })
+    }
+
     @Test(arguments: ["bai", "csi"])
     @MainActor
     func canceledQueryCannotReturnCompleteCoverageAndReaderRemainsUsable(index: String) async throws {

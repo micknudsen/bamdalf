@@ -1,0 +1,7 @@
+@HD	VN:1.6	SO:coordinate
+@SQ	SN:tiny	LN:20000
+forward	0	tiny	11	60	2H2S3M1I1P2=2X2D3N4M1S1H	*	0	0	=CA=RTCGTT=GACT	*
+reverse	16	tiny	11	60	2H2S3M1I1P2=2X2D3N4M1S1H	*	0	0	=AG=RTCTAT=GACT	*
+secondary	256	tiny	11	60	15M	*	0	0	AAAAAAAAAAAAAAA	*
+absentForward	0	tiny	51	60	2M1I2M1D2N2M	*	0	0	*	*
+absentReverse	16	tiny	51	60	2M1I2M1D2N2M	*	0	0	*	*

@@ -1,28 +1,63 @@
 import AppKit
+import CoreText
 
 @MainActor
 enum NucleotideCell {
-    static func draw(_ base: UInt8, in rect: NSRect) {
-        let (background, foreground) = palette(base)
-        background.setFill()
-        rect.fill()
-        guard rect.width >= 8 else { return }
-        let text = String(UnicodeScalar(base)) as NSString
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
-            .foregroundColor: foreground,
-        ]
-        let size = text.size(withAttributes: attributes)
-        text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
+    private static let green = NSColor(calibratedRed: 0.26, green: 0.65, blue: 0.38, alpha: 1)
+    private static let blue = NSColor(calibratedRed: 0.20, green: 0.43, blue: 0.85, alpha: 1)
+    private static let yellow = NSColor(calibratedRed: 0.95, green: 0.79, blue: 0.21, alpha: 1)
+    private static let red = NSColor(calibratedRed: 0.84, green: 0.25, blue: 0.28, alpha: 1)
+    private static let gray = NSColor(calibratedWhite: 0.60, alpha: 1)
+
+    private struct Glyph {
+        let line: CTLine
+        let width: CGFloat
+        let baseline: CGFloat
+
+        init(_ base: UInt8) {
+            let text = NSAttributedString(string: String(UnicodeScalar(base)), attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .medium),
+                NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
+            ])
+            line = CTLineCreateWithAttributedString(text)
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            width = CTLineGetTypographicBounds(line, &ascent, &descent, nil)
+            baseline = (ascent - descent) / 2
+        }
     }
 
-    private static func palette(_ base: UInt8) -> (NSColor, NSColor) {
+    // Layout a stored symbol once, including lowercase and literal '='. Reuse its
+    // vector glyph at the actual display scale and subpixel position.
+    private static var glyphs: [UInt8: Glyph] = [:]
+
+    static func draw(_ base: UInt8, in rect: NSRect, indeterminate: Bool = false) {
+        let (background, foreground) = palette(indeterminate ? nil : CanonicalBase(base))
+        background.setFill()
+        rect.fill()
+        guard rect.width >= 8, let context = NSGraphicsContext.current?.cgContext else { return }
+        let glyph: Glyph
+        if let cached = glyphs[base] {
+            glyph = cached
+        } else {
+            glyph = Glyph(base)
+            glyphs[base] = glyph
+        }
+        foreground.setFill()
+        context.saveGState()
+        context.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
+        context.textPosition = CGPoint(x: rect.midX - glyph.width / 2, y: rect.midY + glyph.baseline)
+        CTLineDraw(glyph.line, context)
+        context.restoreGState()
+    }
+
+    private static func palette(_ base: CanonicalBase?) -> (NSColor, NSColor) {
         switch base {
-        case 65, 97: (NSColor(calibratedRed: 0.26, green: 0.65, blue: 0.38, alpha: 1), .black)
-        case 67, 99: (NSColor(calibratedRed: 0.20, green: 0.43, blue: 0.85, alpha: 1), .white)
-        case 71, 103: (NSColor(calibratedRed: 0.95, green: 0.79, blue: 0.21, alpha: 1), .black)
-        case 84, 116: (NSColor(calibratedRed: 0.84, green: 0.25, blue: 0.28, alpha: 1), .white)
-        default: (NSColor(calibratedWhite: 0.60, alpha: 1), .black)
+        case .a: (green, .black)
+        case .c: (blue, .white)
+        case .g: (yellow, .black)
+        case .t: (red, .white)
+        case nil: (gray, .black)
         }
     }
 }

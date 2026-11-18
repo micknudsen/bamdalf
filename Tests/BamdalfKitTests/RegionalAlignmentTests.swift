@@ -49,6 +49,9 @@ struct RegionalAlignmentTests {
         #expect(alignment.segments.map(\.end) == [1001, 1005, 1005, 1007, 1008, 1010, 1013, 1015, 1019])
         #expect(alignment.segments.first?.sequence == "ACG")
         #expect(alignment.segments.last?.sequence == "TNRY")
+        // BAM stores reverse-strand sequence in reference traversal order.
+        // Skip the inserted A between TTTT and CC and both reference-only gaps.
+        #expect(alignment.segments.filter { $0.kind == .aligned }.map(\.sequence) == ["TTTT", "CC", "G", "AA"])
 
         session.editInterval("tiny:2050-2060")
         await session.submitInterval()?.value

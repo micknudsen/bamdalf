@@ -3,7 +3,18 @@ import AppKit
 @MainActor
 final class GenomicAlignmentView: NSView {
     static let rowHeight: CGFloat = 18
-    var presentation = ViewerPresentation() { didSet { needsDisplay = true } }
+    var presentation = ViewerPresentation() {
+        didSet {
+            prepareDifferences(previous: oldValue)
+            needsDisplay = true
+        }
+    }
+    private static func bodyY(for row: Int) -> ClosedRange<CGFloat> {
+        let top = CGFloat(row) * rowHeight + 3
+        return top...(top + 12)
+    }
+
+    private var differences: [UInt64: [Int64: [BaseDifference]]] = [:]
     var canNavigate: (() -> Bool)?
     var beginDrag: (() -> Void)?
     var previewDrag: ((Double) -> Void)?
@@ -48,24 +59,64 @@ final class GenomicAlignmentView: NSView {
         endDrag?()
     }
 
+    /// Retain comparison cells only for the selected, vertically visible rows of one loaded region.
+    /// A fractional drag, scroll, or field edit can reuse cells by their BAM record identity.
+    private func prepareDifferences(previous: ViewerPresentation) {
+        guard let target = presentation.target, target.referenceScale(in: bounds.width) != nil,
+              let region = presentation.referenceBases, region.interval.hasSameReference(as: target) else {
+            differences.removeAll()
+            return
+        }
+        let reusable = previous.sessionID == presentation.sessionID && previous.referenceBases == region
+        let top = CGFloat(presentation.verticalOffset)
+        let visibleY = top...(top + (enclosingScrollView?.contentSize.height ?? bounds.height))
+        var visible: [UInt64: [Int64: [BaseDifference]]] = [:]
+        for alignment in presentation.alignments {
+            guard Self.bodyY(for: alignment.row).overlaps(visibleY) else { continue }
+            visible[alignment.id] = (reusable ? differences[alignment.id] : nil) ?? alignment.differences(in: region)
+        }
+        differences = visible
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
         guard let target = presentation.target else { return }
         let scale = bounds.width / CGFloat(target.end - target.start + 1)
         for alignment in presentation.alignments {
-            let y = CGFloat(alignment.row) * Self.rowHeight + 3
-            guard y + 12 >= dirtyRect.minY, y <= dirtyRect.maxY else { continue }
-            let blocks = alignment.segments.filter { $0.kind == .aligned || $0.kind == .softClip }
-            let point = alignment.isReverse ? blocks.first : blocks.last
-            for segment in alignment.segments {
+            let bodyY = Self.bodyY(for: alignment.row)
+            guard bodyY.overlaps(dirtyRect.minY...dirtyRect.maxY) else { continue }
+            let y = bodyY.lowerBound
+            let isBlock: (AlignmentSegment) -> Bool = { $0.kind == .aligned || $0.kind == .softClip }
+            let point = alignment.isReverse ? alignment.segments.firstIndex(where: isBlock) : alignment.segments.lastIndex(where: isBlock)
+            for (index, segment) in alignment.segments.enumerated() {
                 let x = CGFloat(Double(segment.start - target.start) - presentation.previewOffsetInBases) * scale
                 let width = CGFloat(segment.end - segment.start) * scale
                 switch segment.kind {
                 case .aligned:
                     let rect = NSRect(x: x, y: y, width: width, height: 12)
+                    if segment.sequence == nil && presentation.referenceURL != nil {
+                        NSGraphicsContext.saveGraphicsState()
+                        NSBezierPath(rect: rect).addClip()
+                        Self.drawOutline(in: rect, pointed: index == point, reverse: alignment.isReverse)
+                        NSGraphicsContext.restoreGraphicsState()
+                        continue
+                    }
                     NSColor.labelColor.setFill()
-                    Self.bodyPath(in: rect, pointed: segment == point, reverse: alignment.isReverse).fill()
+                    let body = Self.bodyPath(in: rect, pointed: index == point, reverse: alignment.isReverse)
+                    body.fill()
+                    if scale >= 1, let cells = differences[alignment.id]?[segment.start] {
+                        NSGraphicsContext.saveGraphicsState()
+                        body.addClip()
+                        for cell in cells {
+                            let offset = CGFloat(cell.position - segment.start) * scale
+                            let cellRect = NSRect(x: x + offset, y: y, width: scale, height: 12)
+                            if cellRect.intersects(dirtyRect) {
+                                NucleotideCell.draw(cell.base, in: cellRect, indeterminate: cell.isIndeterminate)
+                            }
+                        }
+                        NSGraphicsContext.restoreGraphicsState()
+                    }
                 case .deletion, .skip:
                     (segment.kind == .deletion ? NSColor.labelColor : NSColor(calibratedRed: 0.40, green: 0.50, blue: 0.62, alpha: 1)).setStroke()
                     let path = NSBezierPath()
@@ -94,28 +145,32 @@ final class GenomicAlignmentView: NSView {
                 case .softClip:
                     if let sequence = segment.sequence {
                         NSGraphicsContext.saveGraphicsState()
-                        if segment == point {
+                        if index == point {
                             Self.bodyPath(in: NSRect(x: x, y: y, width: width, height: 12),
                                           pointed: true, reverse: alignment.isReverse).addClip()
                         }
                         let bases = Array(sequence.utf8)
                         let first = max(0, min(bases.count, Int(floor((dirtyRect.minX - x) / scale))))
                         let last = max(first, min(bases.count, Int(ceil((dirtyRect.maxX - x) / scale))))
-                        for index in first..<last {
-                            let rect = NSRect(x: x + CGFloat(index) * scale, y: y, width: scale, height: 12)
-                            NucleotideCell.draw(bases[index], in: rect)
+                        for baseIndex in first..<last {
+                            let rect = NSRect(x: x + CGFloat(baseIndex) * scale, y: y, width: scale, height: 12)
+                            NucleotideCell.draw(bases[baseIndex], in: rect)
                         }
                         NSGraphicsContext.restoreGraphicsState()
                     } else {
-                        NSColor.labelColor.setStroke()
-                        let outline = Self.bodyPath(in: NSRect(x: x, y: y + 0.5, width: width, height: 11),
-                                                    pointed: segment == point, reverse: alignment.isReverse)
-                        outline.lineWidth = 1
-                        outline.stroke()
+                        Self.drawOutline(in: NSRect(x: x, y: y, width: width, height: 12),
+                                         pointed: index == point, reverse: alignment.isReverse)
                     }
                 }
             }
         }
+    }
+
+    private static func drawOutline(in rect: NSRect, pointed: Bool, reverse: Bool) {
+        NSColor.labelColor.setStroke()
+        let outline = bodyPath(in: rect.insetBy(dx: 0, dy: 0.5), pointed: pointed, reverse: reverse)
+        outline.lineWidth = 1
+        outline.stroke()
     }
 
     private static func bodyPath(in rect: NSRect, pointed: Bool, reverse: Bool) -> NSBezierPath {
