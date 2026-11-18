@@ -23,13 +23,30 @@ public struct ReferenceSaveDestination: Sendable {
 
     func publish(_ candidate: URL) throws {
         try Task.checkCancellation()
-        if let existing, try ReferenceFileIdentity.at(url) != existing {
-            throw ReferenceBundleError("The destination changed after confirmation. Choose it again to save.")
+        guard let existing else {
+            guard renamex_np(candidate.path, url.path, UInt32(RENAME_EXCL)) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            return
         }
-        let flags = existing == nil ? UInt32(RENAME_EXCL) : 0
-        guard renamex_np(candidate.path, url.path, flags) == 0 else {
-            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        let coordinator = NSFileCoordinator()
+        var coordinationError: NSError?
+        var publicationError: Error?
+        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
+            do {
+                try Task.checkCancellation()
+                guard try ReferenceFileIdentity.at(target) == existing,
+                      try target == url || ReferenceFileIdentity.at(url) == existing else {
+                    throw ReferenceBundleError("The destination changed after confirmation. Choose it again to save.")
+                }
+                guard rename(candidate.path, target.path) == 0 else {
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+            } catch {
+                publicationError = error
+            }
         }
+        if let error = coordinationError ?? publicationError { throw error }
     }
 }
 

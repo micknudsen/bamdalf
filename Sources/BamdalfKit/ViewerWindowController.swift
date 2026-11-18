@@ -21,7 +21,17 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
 
-    public init(session: ViewerSession) {
+    public typealias PresentReferencePanel = @MainActor (NSSavePanel, NSWindow, @escaping @MainActor (URL?) -> Void) -> Void
+    let presentReferencePanel: PresentReferencePanel
+
+    public init(session: ViewerSession, presentReferencePanel: @escaping PresentReferencePanel = { panel, window, complete in
+        panel.beginSheetModal(for: window) { response in
+            let url = response == .OK ? panel.url : nil
+            panel.orderOut(nil)
+            complete(url)
+        }
+    }) {
+        self.presentReferencePanel = presentReferencePanel
         self.session = session
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),

@@ -9,9 +9,8 @@ extension ViewerWindowController {
         panel.prompt = "Choose FASTA"
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let source = panel.url else { return }
-            panel.orderOut(nil)
+        presentReferencePanel(panel, window) { [weak self] source in
+            guard let source else { return }
             Task { @MainActor in self?.chooseReferenceDestination(for: source) }
         }
     }
@@ -26,18 +25,17 @@ extension ViewerWindowController {
         panel.isExtensionHidden = false
         let approval = ReferenceSaveApproval(protecting: selectedReference)
         panel.delegate = approval
-        panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let destination = approval.destination else { return }
-            panel.orderOut(nil)
+        presentReferencePanel(panel, window) { [weak self] selected in
+            guard selected != nil, let destination = approval.destination else { return }
             Task { @MainActor in self?.saveReference(from: source, to: destination) }
         }
     }
 
     /// Completes the native Save panel's confirmed selection, without changing viewer sources.
     @discardableResult
-    public func saveReference(from source: URL, to destination: ReferenceSaveDestination) -> Task<Void, Never>? {
+    public func saveReference(from source: URL, to destination: ReferenceSaveDestination,
+                              progress: Progress = Progress(totalUnitCount: -1)) -> Task<Void, Never>? {
         guard let window, canManageFiles else { return nil }
-        let progress = Progress(totalUnitCount: -1)
         let sheet = ReferenceCreationPanel(destination: destination.url, progress: progress)
         window.beginSheet(sheet)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
@@ -66,7 +64,7 @@ extension ViewerWindowController {
 
 /// AppKit validates the final URL as part of its standard Save/Replace flow.
 @MainActor
-private final class ReferenceSaveApproval: NSObject, NSOpenSavePanelDelegate {
+final class ReferenceSaveApproval: NSObject, NSOpenSavePanelDelegate {
     let selectedReference: ReferenceBundle?
     private(set) var destination: ReferenceSaveDestination?
 
