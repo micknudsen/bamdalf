@@ -1,5 +1,12 @@
 # bamdalf MVP design
 
+The next reference milestone has a separately confirmed
+[product design](reference-milestone.md) and an
+[engineering specification](reference-spec.md). It adds reference bundles and
+mismatch highlighting; those features are not implemented by this record.
+The original MVP contracts below remain the baseline except where the next
+milestone explicitly revises them.
+
 Updated 2026-11-11. This is the authoritative record of the current design, consolidated from the design interview. D1/D2 were finalized on 2026-11-07; D3/D4 were finalized in Q97–Q110 and confirmed by the user on 2026-11-08. On 2026-11-10, the user accepted the D1 revision below: bounded soft-tail visibility and rolling prefetch, including background refill during dragging and separate handling of speculative failures. Bounded visibility uses a measured provisional 250-base margin; adjacent loading, proactive rolling refill, and completion-driven drag previews implement that revision. The [2026-11-11 integrated measurements](performance/prefetch-qualification-2026-11-11.md) support these production defaults within the recorded protocol: all enabled targets pass, while the disabled dense 10 kb drag comparator misses its target. The report preserves the dense-pan tradeoff and delivery-gate status. [Native development](development.md) describes the delivered behavior.
 
 Use US English in documentation and UI text. Terms are defined in [GLOSSARY.md](../GLOSSARY.md); deferred features are in [backlog.md](backlog.md). The [decision index](#decision-index) preserves the identifiers used in research notes without requiring the interview transcript.
