@@ -234,10 +234,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // Popup choices also reach this validator while their sheet is open.
         switch menuItem.action {
-        case #selector(openBAM(_:)):
-            return canManageFiles && session.selectedReference == nil
-        case #selector(openReference(_:)):
-            return canManageFiles && session.presentation.bamURL == nil
+        case #selector(openBAM(_:)), #selector(openReference(_:)):
+            return canManageFiles
         case #selector(closeReference(_:)):
             return canManageFiles && session.selectedReference != nil
         case #selector(createReference(_:)):
@@ -294,7 +292,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc public func openReference(_ sender: Any?) {
-        guard let window, canManageFiles, session.presentation.bamURL == nil else { return }
+        guard let window, canManageFiles else { return }
         let panel = NSOpenPanel()
         panel.title = "Open Reference"
         panel.prompt = "Open"

@@ -4,6 +4,17 @@ import CBAM
 public struct ReferenceSequence: Equatable, Sendable {
     public let name: String
     public let length: Int64
+    public let m5: String?
+
+    init(name: String, length: Int64, m5: String? = nil) {
+        self.name = name
+        self.length = length
+        self.m5 = m5
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.name.utf8.elementsEqual(rhs.name.utf8) && lhs.length == rhs.length && lhs.m5 == rhs.m5
+    }
 }
 
 /// Optional-query limits. Mandatory queries omit this budget and remain complete.
@@ -34,7 +45,8 @@ public actor BAMFile {
 
     public func alignments(in interval: GenomicInterval, budget: RegionalQueryBudget? = nil) throws -> [Alignment] {
         try Task.checkCancellation()
-        guard let query = bamdalf_query_open(handle.pointer, interval.reference, interval.start - 1, interval.end) else {
+        guard let referenceLength = references.contig(named: interval.reference)?.length,
+              let query = bamdalf_query_open(handle.pointer, interval.reference, interval.start - 1, interval.end) else {
             throw RegionalLoadError(interval: interval, message: "Could not query the selected BAM index.")
         }
         defer { bamdalf_query_close(query) }
@@ -128,8 +140,7 @@ public actor BAMFile {
             guard sequenceLength == 0 || queryOffset == sequenceLength else {
                 throw RegionalLoadError(interval: interval, message: "CIGAR and sequence lengths differ for \(name).")
             }
-            guard start >= 1, let referenceLength = references.first(where: { $0.name == interval.reference })?.length,
-                  reference - 1 <= referenceLength else {
+            guard start >= 1, reference - 1 <= referenceLength else {
                 throw RegionalLoadError(interval: interval, message: "Alignment \(name) exceeds the reference bounds.")
             }
             if reference > start && start <= interval.end && reference > interval.start {
@@ -155,9 +166,16 @@ public actor BAMFile {
         handle = BAMHandle(pointer)
         self.url = url
         self.indexURL = indexURL
-        references = (0..<bamdalf_reference_count(pointer)).map { reference in
-            ReferenceSequence(name: String(cString: bamdalf_reference_name(pointer, reference)),
-                              length: bamdalf_reference_length(pointer, reference))
+        references = try (0..<bamdalf_reference_count(pointer)).map { reference in
+            guard let rawName = bamdalf_reference_name(pointer, reference), let name = String(validatingCString: rawName) else {
+                throw FileOpenError(fileURL: url, message: "Invalid UTF-8 contig name in BAM header.")
+            }
+            var digest: UnsafePointer<CChar>?
+            guard bamdalf_reference_m5(pointer, reference, &digest) == 0 else {
+                throw FileOpenError(fileURL: url, message: "Could not read the M5 header tag for \(name).")
+            }
+            return ReferenceSequence(name: name, length: bamdalf_reference_length(pointer, reference),
+                                     m5: digest.map { String(cString: $0) })
         }
     }
 }
