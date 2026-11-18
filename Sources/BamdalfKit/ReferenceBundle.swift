@@ -17,12 +17,14 @@ public actor ReferenceBundle {
     public nonisolated let url: URL
     public nonisolated let provenance: ReferenceProvenance
     public nonisolated let contigs: [ReferenceContig]
+    nonisolated let fileIdentity: ReferenceFileIdentity
     private let db: ReferenceDatabase
     // Swift String equality normalizes Unicode. The bundle dictionary uses UTF-8 byte identity.
     private let index: [Data: (length: Int64, firstChunk: Int64)]
 
     public init(opening url: URL) throws {
         try ReferenceFormat.checkURL(url)
+        guard let identity = try ReferenceFileIdentity.at(url) else { throw POSIXError(.ENOENT) }
         try ReferenceFormat.checkHeader(url)
         let db = try ReferenceDatabase(url)
         try db.execute("BEGIN")
@@ -65,6 +67,10 @@ public actor ReferenceBundle {
               try db.scalarInteger("SELECT max(id) FROM chunks") == lastChunk else {
             throw ReferenceBundleError("Invalid reference payload index bounds.")
         }
+        guard try ReferenceFileIdentity.at(url) == identity else {
+            throw ReferenceBundleError("The reference file changed while opening. Choose it again.")
+        }
+        self.fileIdentity = identity
         self.url = url
         self.contigs = contigs
         self.index = index

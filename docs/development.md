@@ -60,6 +60,12 @@ Use **File → Open BAM…** / **Command-O** to select a local BAM. The app disc
 explicit choice. Canceling or failing a replacement preserves the open session.
 An index failure identifies the selected file without trying another index.
 
+Use **File → Create Reference…** with or without a BAM. Choose a local,
+uncompressed FASTA and save a single `.bref`. The standard Save panel asks
+before replacing an existing file. The progress sheet pauses navigation and
+offers **Cancel** while the FASTA imports. Cancellation or failure preserves
+the destination. Saving returns to the same viewer and interval draft.
+
 A successful open shows **Enter a genomic interval** and focuses the field.
 Enter a complete 1-based inclusive interval, for example `tiny:100-200` with
 the opening fixture. Enter validates against the BAM header, formats the field,
