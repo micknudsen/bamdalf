@@ -88,6 +88,32 @@ extension NativeReferenceSaveTests {
     }
 
     @Test func fileMenuOpensANativeFASTAChooserAndTheSavePanelEnforcesBref() async throws {
+        // Dismissing a system file panel can stop the SwiftPM host's AppKit run
+        // loop after this test returns. Give these real panels a dedicated host.
+        let environment = ProcessInfo.processInfo.environment
+        if environment["BAMDALF_TESTING_FILE_PANEL"] != "1",
+           let host = Bundle.main.executableURL, host.lastPathComponent == "swiftpm-testing-helper",
+           let index = CommandLine.arguments.firstIndex(of: "--test-bundle-path") {
+            let bundle = CommandLine.arguments[index + 1]
+            let test = "fileMenuOpensANativeFASTAChooserAndTheSavePanelEnforcesBref"
+            let (status, log) = try await Task.detached {
+                let child = Process()
+                child.executableURL = host
+                child.arguments = ["--test-bundle-path", bundle, "--filter", test, "--testing-library", "swift-testing"]
+                child.environment = environment.merging(["BAMDALF_TESTING_FILE_PANEL": "1"]) { _, new in new }
+                let output = Pipe()
+                child.standardOutput = output
+                child.standardError = output
+                try child.run()
+                let log = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                child.waitUntilExit()
+                return (child.terminationStatus, log)
+            }.value
+            #expect(status == 0)
+            #expect(log.range(of: #"Test run with 1 test( in 1 suite)? passed after "#, options: .regularExpression) != nil,
+                    "Native dialog host did not complete. Output: \(log)")
+            return
+        }
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
