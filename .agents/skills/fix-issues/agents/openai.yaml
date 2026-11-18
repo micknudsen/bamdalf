@@ -1,0 +1,6 @@
+interface:
+  display_name: "Fix Issues"
+  short_description: "Deliver bamdalf issues through PR, CI, and merge"
+  default_prompt: "Use $fix-issues to fix ready bamdalf issues sequentially, merging each PR after CI passes."
+policy:
+  allow_implicit_invocation: true
