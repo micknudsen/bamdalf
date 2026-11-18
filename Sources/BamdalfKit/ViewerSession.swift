@@ -441,7 +441,8 @@ public final class ViewerSession {
         let required = committedRequired
         regionalData.insert(records, for: interval, keeping: required ?? interval)
         if prefetch.maximumBytes > 0 {
-            regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage, maximumBytes: prefetch.maximumBytes)
+            regionalData.trimOptional(keeping: required, recovery: lastSuccessfulCoverage,
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
         if refreshPreview { refreshDragPreview() }
     }
@@ -463,7 +464,7 @@ public final class ViewerSession {
     private func trimOptional() {
         if prefetch.maximumBytes > 0 {
             regionalData.trimOptional(keeping: committedRequired, recovery: lastSuccessfulCoverage,
-                                      maximumBytes: prefetch.maximumBytes)
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
     }
 
@@ -605,7 +606,7 @@ public final class ViewerSession {
         let required = requiredInterval(for: target)
         if prefetch.maximumBytes > 0 {
             regionalData.trimOptional(keeping: suppressed ? nil : required, recovery: lastSuccessfulCoverage,
-                                      maximumBytes: prefetch.maximumBytes)
+                                      maximumBytes: prefetch.maximumBytes, chunkBases: prefetch.chunkBases)
         }
         let queryBAM = hasAlignments && !suppressed ? bam : nil
         let available = queryBAM != nil ? regionalData.available(for: required) : (records: [], missing: [])

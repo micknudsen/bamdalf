@@ -3,6 +3,29 @@ import Testing
 import BamdalfKit
 
 struct RollingPressureTests {
+    @Test @MainActor
+    func narrowingAWideQueryRetainsNearbyCoverageWhenDistantRowsExceedTheBudget() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let required = PressureRequiredQueries()
+        let session = ViewerSession(prefetch: .init(maximumBytes: 10_000), loadRegion: { file, interval in
+            await required.record(interval)
+            return try await file.alignments(in: interval)
+        }, loadPrefetchRegion: { _, interval, _ in
+            throw RegionalLoadError(interval: interval, message: "Refill unavailable")
+        })
+        try await files.openedSession(fixture: "rows", session: session)
+        // Most records are near base 101. The nearby flank of the narrow
+        // viewport fits the budget even when the distant reads must be evicted.
+        for target in ["tiny:1-5000", "tiny:2001-2500", "tiny:1751-2750"] {
+            session.editInterval(target)
+            await session.submitInterval()?.value
+        }
+        #expect(await required.intervals().map(\.formatted) == ["tiny:1-5,250"])
+        #expect(session.presentation.target?.formatted == "tiny:1,751-2,750")
+        #expect(session.presentation.alignments.isEmpty)
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: ["bai", "csi"])
     @MainActor
     func fractionalMotionDoesNotRetryAnUnretainableOptionalRangeAndReleaseLoadsIt(indexFormat: String) async throws {

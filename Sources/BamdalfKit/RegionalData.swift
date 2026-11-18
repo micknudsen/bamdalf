@@ -71,7 +71,8 @@ struct RegionalData {
 
     /// Current required coverage and committed recovery data are never charged
     /// to (or discarded for) the optional budget. All other retained queries are.
-    mutating func trimOptional(keeping required: GenomicInterval?, recovery: GenomicInterval?, maximumBytes: Int) {
+    mutating func trimOptional(keeping required: GenomicInterval?, recovery: GenomicInterval?,
+                               maximumBytes: Int, chunkBases: Int64) {
         // Split at protection boundaries so optional tails of a once-required
         // query also consume the optional budget. Full records remain attached
         // to every fragment whose aligned coverage they intersect.
@@ -100,6 +101,25 @@ struct RegionalData {
             return entry.interval.distance(to: required)
         }
         var optionalBytes = entries.filter { !protected($0) }.reduce(0) { $0 + $1.storageBytes }
+        guard optionalBytes > maximumBytes else { return }
+        // A previously required 10 kb query can become two large optional
+        // flanks after zoom-in. Evict their distant chunks before sacrificing
+        // coverage next to the viewport. Charge crossing reads to each chunk.
+        entries = entries.flatMap { entry -> [Entry] in
+            let interval = entry.interval
+            guard !protected(entry), interval.end - interval.start >= chunkBases,
+                  let required, interval.hasSameReference(as: required) else { return [entry] }
+            var chunks: [Entry] = []
+            var start = interval.start
+            while true {
+                let end = start + min(chunkBases - 1, interval.end - start)
+                chunks.append(Self.fragment(entry, start: start, end: end))
+                if end == interval.end { break }
+                start = end + 1
+            }
+            return chunks
+        }
+        optionalBytes = entries.filter { !protected($0) }.reduce(0) { $0 + $1.storageBytes }
         let evictionOrder = entries.indices.filter { !protected(entries[$0]) }.sorted {
             let left = distance(entries[$0]), right = distance(entries[$1])
             return left == right ? $0 < $1 : left > right
