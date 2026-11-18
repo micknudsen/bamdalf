@@ -112,9 +112,16 @@ public actor BAMFile {
                 }
                 cigar += "\(length)\(symbols[Int(code)])"
                 switch code {
-                case 0, 7, 8:
-                    segments.append(AlignmentSegment(kind: .aligned, start: reference, end: reference + Int64(length), sequence: nil))
-                    reference += Int64(length)
+                case 0, 4, 7, 8:
+                    guard sequenceLength == 0 || queryOffset + length <= sequenceLength else {
+                        throw RegionalLoadError(interval: interval, message: "CIGAR and sequence lengths differ for \(name).")
+                    }
+                    let bases = sequenceLength == 0 ? nil : String(decoding: sequence[queryOffset..<(queryOffset + length)], as: UTF8.self)
+                    let softClip = code == 4
+                    let segmentStart = softClip && reference == start ? start - Int64(length) : reference
+                    segments.append(AlignmentSegment(kind: softClip ? .softClip : .aligned, start: segmentStart,
+                                                     end: segmentStart + Int64(length), sequence: bases))
+                    if !softClip { reference += Int64(length) }
                     queryOffset += length
                 case 1:
                     segments.append(AlignmentSegment(kind: .insertion, start: reference, end: reference, sequence: nil))
@@ -125,14 +132,6 @@ public actor BAMFile {
                     reference += Int64(length)
                 case 5, 6:
                     break
-                case 4:
-                    guard sequenceLength == 0 || queryOffset + length <= sequenceLength else {
-                        throw RegionalLoadError(interval: interval, message: "CIGAR and sequence lengths differ for \(name).")
-                    }
-                    let bases = sequenceLength == 0 ? nil : String(decoding: sequence[queryOffset..<(queryOffset + length)], as: UTF8.self)
-                    let tailStart = reference == start ? start - Int64(length) : reference
-                    segments.append(AlignmentSegment(kind: .softClip, start: tailStart, end: tailStart + Int64(length), sequence: bases))
-                    queryOffset += length
                 default:
                     throw RegionalLoadError(interval: interval, message: "Cannot interpret CIGAR for \(name).")
                 }

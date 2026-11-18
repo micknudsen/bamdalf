@@ -84,6 +84,13 @@ accepted. An incompatible open leaves the previous sources and view in place.
 The reference supplies navigation across all its contigs. On a contig absent
 from the BAM, the viewer displays the reference and skips alignment queries.
 On shared contigs, the alignment stack scrolls beneath the fixed reference row.
+From one point per base, differing A/C/G/T bases take the stored alignment
+base's color. Case-insensitive matches keep the ordinary alignment body. If
+either base is ambiguous, the cell is gray. At eight points per base, colored
+cells show the stored letter. An aligned `=` matches an unambiguous reference
+base and appears gray against an ambiguous one. A soft-clipped `=` stays
+literal and gray. Alignments with missing sequence have outlined bodies while
+a reference is selected.
 
 With a reference selected, opening another compatible BAM keeps the interval
 and starts its rows at the top. If its first regional read fails, both files

@@ -50,3 +50,55 @@ public struct RegionalLoadError: Error, Equatable, Sendable {
         self.message = message
     }
 }
+
+/// The stored letter is retained even when an ambiguous reference determines its color.
+struct BaseDifference {
+    let position: Int64
+    let base: UInt8
+    let isIndeterminate: Bool
+
+    init?(position: Int64, stored: UInt8, reference: UInt8) {
+        let referenceBase = CanonicalBase(reference)
+        let alignedBase = CanonicalBase(stored)
+        // A stored '=' declares agreement only against an unambiguous reference.
+        if let referenceBase, stored == 61 || alignedBase == referenceBase { return nil }
+        self.position = position
+        self.base = stored
+        self.isIndeterminate = referenceBase == nil || alignedBase == nil
+    }
+}
+
+enum CanonicalBase: UInt8 {
+    case a = 65, c = 67, g = 71, t = 84
+
+    init?(_ ascii: UInt8) {
+        self.init(rawValue: ascii & 0xDF) // Fold ASCII letter case.
+    }
+}
+
+extension Alignment {
+    /// Group the colored cells by aligned segment so the renderer can clip them to its strand geometry.
+    func differences(in region: ReferenceRegion) -> [Int64: [BaseDifference]] {
+        var result: [Int64: [BaseDifference]] = [:]
+        region.bases.withUnsafeBytes { (reference: UnsafeRawBufferPointer) in
+            for segment in segments where segment.kind == .aligned {
+                guard var sequence = segment.sequence else { continue }
+                let start = max(segment.start, region.interval.start)
+                let last = min(segment.end - 1, region.interval.end)
+                guard start <= last else { continue }
+                let referenceOffset = Int(start - region.interval.start)
+                let count = min(Int(last - start + 1), reference.count - referenceOffset)
+                guard count > 0 else { continue }
+                let queryOffset = Int(start - segment.start)
+                let cells = sequence.withUTF8 { query in
+                    (0..<count).compactMap { offset in
+                        BaseDifference(position: start + Int64(offset), stored: query[queryOffset + offset],
+                                       reference: reference[referenceOffset + offset])
+                    }
+                }
+                if !cells.isEmpty { result[segment.start] = cells }
+            }
+        }
+        return result
+    }
+}

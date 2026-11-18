@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ReferenceRegion: Sendable {
+public struct ReferenceRegion: Equatable, Sendable {
     public let interval: GenomicInterval
     public let bases: Data
 }

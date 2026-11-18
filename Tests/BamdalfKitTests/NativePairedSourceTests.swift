@@ -9,8 +9,8 @@ struct NativePairedSourceTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let reference = try files.reference("assembly.bref", fasta: ">tiny\n" + String(repeating: "A", count: 100)
-            + String(repeating: "C", count: 19_900))
+        let reference = try files.reference("assembly.bref", fasta: ">tiny\n" + String(repeating: "C", count: 100)
+            + "A" + String(repeating: "C", count: 19_899))
         let session = try await files.openedSession(fixture: "rows")
         let (opened, signal) = AsyncStream<Void>.makeStream()
         let controller = ViewerWindowController(session: session) { _, _, choose in choose(reference) }
@@ -54,7 +54,7 @@ struct NativePairedSourceTests {
         let before = try renderAlignmentBitmap(in: row, window: window)
         let geometry = try renderAlignmentBitmap(in: stack, window: window)
         let base101 = Int(ceil(20 * row.bounds.width / 152))
-        // At base 101 the reference changes A to C and the soft clip meets the body.
+        // At base 101 the reference changes C to A and the A tail meets a matching body.
         #expect(before.colorAt(x: base101 - 2, y: 7) != before.colorAt(x: base101 + 2, y: 7))
         #expect(geometry.colorAt(x: base101 - 2, y: 7) != geometry.colorAt(x: base101 + 2, y: 7))
         scroll.contentView.scroll(to: NSPoint(x: 0, y: 180))

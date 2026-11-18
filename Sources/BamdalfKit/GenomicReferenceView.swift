@@ -2,8 +2,8 @@ import AppKit
 
 @MainActor
 enum NucleotideCell {
-    static func draw(_ base: UInt8, in rect: NSRect) {
-        let (background, foreground) = palette(base)
+    static func draw(_ base: UInt8, in rect: NSRect, indeterminate: Bool = false) {
+        let (background, foreground) = palette(indeterminate ? nil : CanonicalBase(base))
         background.setFill()
         rect.fill()
         guard rect.width >= 8 else { return }
@@ -16,12 +16,12 @@ enum NucleotideCell {
         text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
     }
 
-    private static func palette(_ base: UInt8) -> (NSColor, NSColor) {
+    private static func palette(_ base: CanonicalBase?) -> (NSColor, NSColor) {
         switch base {
-        case 65, 97: (NSColor(calibratedRed: 0.26, green: 0.65, blue: 0.38, alpha: 1), .black)
-        case 67, 99: (NSColor(calibratedRed: 0.20, green: 0.43, blue: 0.85, alpha: 1), .white)
-        case 71, 103: (NSColor(calibratedRed: 0.95, green: 0.79, blue: 0.21, alpha: 1), .black)
-        case 84, 116: (NSColor(calibratedRed: 0.84, green: 0.25, blue: 0.28, alpha: 1), .white)
+        case .a: (NSColor(calibratedRed: 0.26, green: 0.65, blue: 0.38, alpha: 1), .black)
+        case .c: (NSColor(calibratedRed: 0.20, green: 0.43, blue: 0.85, alpha: 1), .white)
+        case .g: (NSColor(calibratedRed: 0.95, green: 0.79, blue: 0.21, alpha: 1), .black)
+        case .t: (NSColor(calibratedRed: 0.84, green: 0.25, blue: 0.28, alpha: 1), .white)
         default: (NSColor(calibratedWhite: 0.60, alpha: 1), .black)
         }
     }
