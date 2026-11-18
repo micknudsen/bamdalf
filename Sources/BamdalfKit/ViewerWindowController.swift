@@ -3,14 +3,17 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class ViewerWindowController: NSWindowController, NSTextFieldDelegate, NSMenuItemValidation, NSWindowDelegate {
-    private let session: ViewerSession
+    let session: ViewerSession
     private let message = WorkspaceMessage(labelWithString: "")
+    private let referenceField = NSTextField()
     private let intervalField = NSTextField()
     private let panLeftButton = NSButton()
     private let panRightButton = NSButton()
     private let zoomOutButton = NSButton()
     private let zoomInButton = NSButton()
     private let intervalError = NSTextField(wrappingLabelWithString: "")
+    private let referenceRow = GenomicReferenceView(frame: .zero)
+    private let referenceRowHeight: NSLayoutConstraint
     private let ruler = GenomicRulerView(frame: .zero)
     private let loadingIndicator = NSProgressIndicator()
     private let samplingWarning = SamplingWarningButton()
@@ -33,6 +36,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     }) {
         self.presentReferencePanel = presentReferencePanel
         self.session = session
+        referenceRowHeight = referenceRow.heightAnchor.constraint(equalToConstant: 0)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -53,10 +57,42 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             message.centerXAnchor.constraint(equalTo: workspace.centerXAnchor),
             message.centerYAnchor.constraint(equalTo: workspace.centerYAnchor),
         ])
+        intervalField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         intervalField.placeholderString = "reference:start-end"
         intervalField.setAccessibilityLabel("Genomic interval")
         intervalField.translatesAutoresizingMaskIntoConstraints = false
         workspace.addSubview(intervalField)
+        referenceField.cell = ReferenceNameCell(textCell: "")
+        referenceField.isEditable = false
+        referenceField.isSelectable = false
+        referenceField.isBezeled = true
+        referenceField.bezelStyle = .roundedBezel
+        referenceField.lineBreakMode = .byTruncatingTail
+        referenceField.usesSingleLineMode = true
+        referenceField.setAccessibilityLabel("Selected reference")
+        referenceField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        referenceField.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(referenceField)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "doc", accessibilityDescription: nil)!)
+        icon.setAccessibilityElement(false)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        referenceField.addSubview(icon)
+        let preferredIntervalWidth = intervalField.widthAnchor.constraint(equalToConstant: 360)
+        preferredIntervalWidth.priority = NSLayoutConstraint.Priority(490)
+        let preferredReferenceWidth = referenceField.widthAnchor.constraint(equalToConstant: 220)
+        preferredReferenceWidth.priority = NSLayoutConstraint.Priority(480)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: referenceField.leadingAnchor, constant: 6),
+            icon.centerYAnchor.constraint(equalTo: referenceField.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 14),
+            referenceField.leadingAnchor.constraint(equalTo: intervalField.trailingAnchor, constant: 38),
+            referenceField.trailingAnchor.constraint(lessThanOrEqualTo: workspace.trailingAnchor, constant: -16),
+            referenceField.centerYAnchor.constraint(equalTo: intervalField.centerYAnchor),
+            referenceField.heightAnchor.constraint(equalTo: intervalField.heightAnchor),
+            referenceField.widthAnchor.constraint(greaterThanOrEqualToConstant: 132),
+            referenceField.widthAnchor.constraint(lessThanOrEqualToConstant: 220),
+            preferredReferenceWidth, preferredIntervalWidth,
+        ])
         for (button, symbol, label, action) in [
             (panLeftButton, "arrow.left", "Pan left", #selector(panLeft(_:))),
             (panRightButton, "arrow.right", "Pan right", #selector(panRight(_:))),
@@ -82,7 +118,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             zoomInButton.leadingAnchor.constraint(equalTo: zoomOutButton.trailingAnchor, constant: 16),
             intervalField.leadingAnchor.constraint(equalTo: zoomInButton.trailingAnchor, constant: 10),
             intervalField.topAnchor.constraint(equalTo: workspace.topAnchor, constant: 12),
-            intervalField.widthAnchor.constraint(equalToConstant: 360),
+            intervalField.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
         ])
         loadingIndicator.style = .spinning
         loadingIndicator.controlSize = .small
@@ -120,6 +156,14 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             ruler.topAnchor.constraint(equalTo: intervalError.bottomAnchor, constant: 12),
             ruler.heightAnchor.constraint(equalToConstant: 68),
         ])
+        referenceRow.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(referenceRow)
+        NSLayoutConstraint.activate([
+            referenceRow.leadingAnchor.constraint(equalTo: ruler.leadingAnchor),
+            referenceRow.trailingAnchor.constraint(equalTo: ruler.trailingAnchor),
+            referenceRow.topAnchor.constraint(equalTo: ruler.bottomAnchor),
+            referenceRowHeight,
+        ])
         alignmentScroll.hasVerticalScroller = true
         alignmentScroll.hasHorizontalScroller = false
         alignmentScroll.autohidesScrollers = true
@@ -131,7 +175,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         NSLayoutConstraint.activate([
             alignmentScroll.leadingAnchor.constraint(equalTo: ruler.leadingAnchor),
             alignmentScroll.trailingAnchor.constraint(equalTo: ruler.trailingAnchor),
-            alignmentScroll.topAnchor.constraint(equalTo: ruler.bottomAnchor, constant: 4),
+            alignmentScroll.topAnchor.constraint(equalTo: referenceRow.bottomAnchor, constant: 4),
             alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
         ])
         workspace.addSubview(alignmentScroll, positioned: .below, relativeTo: message)
@@ -158,6 +202,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
                                                name: NSView.boundsDidChangeNotification, object: alignmentScroll.contentView)
         session.onPresentationChange = { [weak self] in self?.render() }
         render()
+        session.setViewportWidth(ruler.bounds.width)
     }
 
     @available(*, unavailable)
@@ -189,7 +234,13 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // Popup choices also reach this validator while their sheet is open.
         switch menuItem.action {
-        case #selector(openBAM(_:)), #selector(createReference(_:)):
+        case #selector(openBAM(_:)):
+            return canManageFiles && session.selectedReference == nil
+        case #selector(openReference(_:)):
+            return canManageFiles && session.presentation.bamURL == nil
+        case #selector(closeReference(_:)):
+            return canManageFiles && session.selectedReference != nil
+        case #selector(createReference(_:)):
             return canManageFiles
         case #selector(goToInterval(_:)):
             return session.presentation.intervalEntryAvailable && window?.attachedSheet == nil
@@ -202,6 +253,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         let menu = NSMenu(title: "File")
         menu.addItem(withTitle: "Open BAM…", action: #selector(openBAM(_:)), keyEquivalent: "o").target = self
         menu.addItem(withTitle: "Create Reference…", action: #selector(createReference(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open Reference…", action: #selector(openReference(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Close Reference", action: #selector(closeReference(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         return menu
@@ -240,6 +293,28 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         session.zoom(.in)
     }
 
+    @objc public func openReference(_ sender: Any?) {
+        guard let window, canManageFiles, session.presentation.bamURL == nil else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Open Reference"
+        panel.prompt = "Open"
+        panel.allowedContentTypes = [UTType(filenameExtension: "bref", conformingTo: .data)!]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        presentReferencePanel(panel, window) { [weak self] url in
+            guard let self, let url else { return }
+            Task {
+                await self.session.openReference(url)
+                self.presentOpenResult()
+            }
+        }
+    }
+
+    @objc public func closeReference(_ sender: Any?) {
+        guard canManageFiles else { return }
+        session.closeReference()
+    }
+
     @objc public func openBAM(_ sender: Any?) {
         guard let window, canManageFiles else { return }
         let panel = NSOpenPanel()
@@ -267,18 +342,21 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         isRendering = true
         defer { isRendering = false }
         let presentation = session.presentation
-        let referenceLength = presentation.references.first { $0.name == presentation.target?.reference }?.length
+        let referenceLength = presentation.target.flatMap { presentation.references.contig(named: $0.reference)?.length }
         let canNavigate = !presentation.isOpening && window?.attachedSheet == nil
         panLeftButton.isEnabled = canNavigate && (presentation.target?.start ?? 1) > 1
         panRightButton.isEnabled = canNavigate && (presentation.target?.end ?? 0) < (referenceLength ?? 0)
         let width = presentation.target.map { $0.end - $0.start + 1 } ?? 0
         zoomInButton.isEnabled = canNavigate && width > 1
         zoomOutButton.isEnabled = canNavigate && width > 0 && width < (referenceLength ?? 0)
+        let name = presentation.referenceURL?.deletingPathExtension().lastPathComponent ?? "No reference"
+        if !referenceField.stringValue.utf8.elementsEqual(name.utf8) { referenceField.stringValue = name }
+        referenceField.toolTip = presentation.referenceURL?.lastPathComponent
         window?.title = presentation.windowTitle
         message.stringValue = presentation.message
         intervalField.isHidden = !presentation.intervalEntryAvailable
         intervalField.isEnabled = presentation.intervalEntryAvailable
-        if intervalField.stringValue != presentation.intervalText {
+        if !intervalField.stringValue.utf8.elementsEqual(presentation.intervalText.utf8) {
             intervalField.stringValue = presentation.intervalText
         }
         intervalError.stringValue = presentation.intervalError ?? ""
@@ -287,6 +365,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         loadingIndicator.isHidden = !presentation.isLoading
         if presentation.isLoading { loadingIndicator.startAnimation(nil) }
         else { loadingIndicator.stopAnimation(nil) }
+        loadingIndicator.setAccessibilityLabel(presentation.referenceURL == nil ? "Loading alignments" : "Loading reference")
+        referenceRowHeight.constant = presentation.referenceURL == nil ? 0 : 18
+        referenceRow.isHidden = presentation.referenceURL == nil || presentation.target == nil
+        referenceRow.presentation = presentation
         ruler.presentation = presentation
         ruler.isHidden = presentation.target == nil
         alignmentScroll.isHidden = presentation.target == nil
@@ -305,7 +387,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         presentRegionalError()
     }
 
-    public func windowDidResize(_ notification: Notification) { render() }
+    public func windowDidResize(_ notification: Notification) {
+        render()
+        session.setViewportWidth(ruler.bounds.width)
+    }
 
     public func windowDidEndSheet(_ notification: Notification) {
         Task { @MainActor [weak self] in self?.render() }
@@ -387,4 +472,11 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
 /// Status text is visual; pointer navigation belongs to the alignment area beneath it.
 private final class WorkspaceMessage: NSTextField {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private final class ReferenceNameCell: NSTextFieldCell {
+    override func drawInterior(withFrame frame: NSRect, in view: NSView) {
+        // Reserve the leading space for the file icon inside the native bezel.
+        super.drawInterior(withFrame: frame.divided(atDistance: 22, from: .minXEdge).remainder, in: view)
+    }
 }

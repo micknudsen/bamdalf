@@ -1,5 +1,10 @@
 import Foundation
 
+public struct ReferenceRegion: Sendable {
+    public let interval: GenomicInterval
+    public let bases: Data
+}
+
 public struct ReferenceContig: Sendable {
     public let name: String
     public let length: Int64

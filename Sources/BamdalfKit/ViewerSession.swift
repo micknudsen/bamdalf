@@ -29,6 +29,8 @@ public enum ZoomDirection: Sendable {
 public struct ViewerPresentation {
     public var windowTitle = "bamdalf"
     public var message = "No BAM file open"
+    public var referenceURL: URL?
+    public var referenceBases: ReferenceRegion?
     public var bamURL: URL?
     public var indexURL: URL?
     public var references: [ReferenceSequence] = []
@@ -45,7 +47,7 @@ public struct ViewerPresentation {
     public var regionalError: RegionalLoadError?
     public var isOpening = false
     public var sessionID: UUID?
-    public var intervalEntryAvailable: Bool { bamURL != nil }
+    public var intervalEntryAvailable: Bool { bamURL != nil || referenceURL != nil }
     public var openError: FileOpenError?
     public var indexChoice: IndexChoice?
 }
@@ -56,6 +58,11 @@ public final class ViewerSession {
         didSet { onPresentationChange?() }
     }
     public var onPresentationChange: (@MainActor () -> Void)?
+    public private(set) var selectedReference: ReferenceBundle?
+    private var previewRead: Task<Void, Never>?
+    private var previewDemand: GenomicInterval?
+    private var viewportWidth = 0.0
+    private let loadReferenceRegion: @Sendable (ReferenceBundle, GenomicInterval) async throws -> Data
     private var bam: BAMFile?
     private var openingID = UUID()
     private var scrollGeneration: UInt64 = 0
@@ -93,6 +100,7 @@ public final class ViewerSession {
 
     public init(prefetch: PrefetchConfiguration = .init(),
                 loadBAM: (@Sendable (URL, URL) async throws -> BAMFile)? = nil,
+                loadReferenceRegion: (@Sendable (ReferenceBundle, GenomicInterval) async throws -> Data)? = nil,
                 loadRegion: (@Sendable (BAMFile, GenomicInterval) async throws -> [Alignment])? = nil,
                 alignmentVisibilityLimit: Int64 = 10_000, samplingGroupBudget: Int = 2_000,
                 samplingSeed: @escaping @Sendable () -> UInt64 = { UInt64.random(in: .min ... .max) },
@@ -103,6 +111,7 @@ public final class ViewerSession {
         self.sampling = AlignmentSampling(budget: samplingGroupBudget, priority: samplingPriority)
         self.samplingSeed = samplingSeed
         loadFile = loadBAM ?? BAMFile.open
+        self.loadReferenceRegion = loadReferenceRegion ?? Self.readReference
         self.loadRegion = loadRegion ?? Self.readAlignments
         self.prefetch = prefetch
         self.loadPrefetchRegion = loadPrefetchRegion ?? Self.readAlignments
@@ -120,8 +129,128 @@ public final class ViewerSession {
         try await bam.alignments(in: interval, budget: budget)
     }
 
+    private nonisolated static func readReference(_ bundle: ReferenceBundle, _ interval: GenomicInterval) async throws -> Data {
+        try await bundle.read(interval)
+    }
+
+    public func openReference(_ url: URL?) async {
+        guard let url, bam == nil else { return }
+        let request = UUID()
+        openingID = request
+        presentation.isOpening = true
+        presentation.openError = nil
+        presentation.indexChoice = nil
+        defer { if openingID == request { presentation.isOpening = false } }
+        do {
+            let bundle = try await Task.detached { try ReferenceBundle(opening: url) }.value
+            guard openingID == request, !Task.isCancelled else { return }
+            let prior = (dragOrigin ?? presentation).target
+            resetReferenceView()
+            selectedReference = bundle
+            var next = ViewerPresentation()
+            next.referenceURL = bundle.url
+            next.references = bundle.contigs.map { ReferenceSequence(name: $0.name, length: $0.length) }
+            next.message = "Enter a genomic interval"
+            next.sessionID = UUID()
+            presentation = next
+            if let prior, let contig = next.references.contig(named: prior.reference),
+               prior.end <= contig.length {
+                presentation.intervalText = prior.formatted
+                await submitInterval()?.value
+            }
+        } catch {
+            guard openingID == request else { return }
+            presentation.openError = FileOpenError(fileURL: url, message: error.localizedDescription)
+        }
+    }
+
+    public func closeReference() {
+        guard selectedReference != nil else { return }
+        openingID = UUID()
+        resetReferenceView()
+        selectedReference = nil
+        presentation = ViewerPresentation()
+    }
+
+    private func resetReferenceView() {
+        stopPreviewRead()
+        regionalTask?.cancel()
+        regionalTask = nil
+        regionalRequestID = UUID()
+        lastSuccessful = nil
+        dragOrigin = nil
+        deferredRegionalCompletion = nil
+        draftGeneration = nil
+    }
+
+    @discardableResult
+    public func setViewportWidth(_ width: Double) -> Task<Void, Never>? {
+        guard width.isFinite, width >= 0, width != viewportWidth else { return nil }
+        let previousWidth = viewportWidth
+        viewportWidth = width
+        guard let bundle = selectedReference, let target = (dragOrigin ?? presentation).target else { return nil }
+        let span = Double(target.end - target.start + 1)
+        guard (previousWidth >= span) != (width >= span) else { return nil }
+        _ = restoreDragOrigin()
+        return loadReferenceTarget(target, from: bundle)
+    }
+
+    private func loadReferenceTarget(_ target: GenomicInterval, from bundle: ReferenceBundle) -> Task<Void, Never>? {
+        regionalTask?.cancel()
+        let request = UUID()
+        regionalRequestID = request
+        var next = presentation
+        next.target = target
+        next.message = ""
+        next.regionalError = nil
+        next.referenceBases = nil
+        next.isLoading = viewportWidth >= Double(target.end - target.start + 1)
+        presentation = next
+        guard next.isLoading else {
+            lastSuccessful = next
+            regionalTask = nil
+            return nil
+        }
+        let generation = editorGeneration
+        regionalTask = Task {
+            let result: Result<ReferenceRegion, RegionalLoadError>
+            do {
+                let bases = try await loadReferenceRegion(bundle, target)
+                result = .success(ReferenceRegion(interval: target, bases: bases))
+            } catch {
+                let message = (error as? RegionalLoadError)?.message ?? error.localizedDescription
+                result = .failure(RegionalLoadError(interval: target, message: message))
+            }
+            guard regionalRequestID == request else { return }
+            let finish = { [weak self] in self?.completeReferenceLoad(result, generation: generation) }
+            if dragOrigin != nil {
+                deferredRegionalCompletion = { finish() }
+            } else {
+                finish()
+            }
+        }
+        return regionalTask
+    }
+
+    private func completeReferenceLoad(_ result: Result<ReferenceRegion, RegionalLoadError>, generation: UInt64) {
+        regionalTask = nil
+        switch result {
+        case .success(let region):
+            presentation.referenceBases = region
+            presentation.isLoading = false
+            lastSuccessful = presentation
+        case .failure(let error):
+            // A prior blank overview cannot restore detail newly exposed by a resize.
+            if let prior = lastSuccessful, let target = prior.target, prior.referenceBases == nil,
+               viewportWidth >= Double(target.end - target.start + 1) {
+                lastSuccessful = nil
+            }
+            restoreSuccessfulView(for: error, generation: generation)
+        }
+    }
+
     public func editInterval(_ text: String) {
-        guard text != presentation.intervalText else { return }
+        guard !text.utf8.elementsEqual(presentation.intervalText.utf8) else { return }
         editorGeneration += 1
         draftGeneration = editorGeneration
         presentation.intervalText = text
@@ -141,8 +270,9 @@ public final class ViewerSession {
     }
 
     /// Pointer displacement as a fraction of the viewport width, from pointer-down.
-    public func previewAlignmentDrag(horizontalFraction: Double) {
-        guard horizontalFraction.isFinite else { return }
+    @discardableResult
+    public func previewAlignmentDrag(horizontalFraction: Double) -> Task<Void, Never>? {
+        guard horizontalFraction.isFinite else { return nil }
         dragFraction = horizontalFraction
         let previous = presentation.target
         let previousOffset = presentation.previewOffsetInBases
@@ -150,11 +280,12 @@ public final class ViewerSession {
         if presentation.target != previous || presentation.previewOffsetInBases != previousOffset {
             startPrefetch(rollingFrom: previous)
         }
+        return previewRead
     }
 
     private func refreshDragPreview() {
         guard let origin = dragOrigin, let target = origin.target,
-              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return }
+              let reference = presentation.references.contig(named: target.reference) else { return }
         let minimum = 1 - target.start
         let maximum = reference.length - target.end
         let exactShift = min(Double(maximum), max(Double(minimum), -dragFraction * Double(target.end - target.start + 1)))
@@ -164,16 +295,54 @@ public final class ViewerSession {
         let preview = GenomicInterval(reference: target.reference, start: target.start + shift, end: target.end + shift)
         let remainder = exactShift - Double(shift)
         let visibleBases = Self.fractionalVisibleInterval(for: preview, offset: remainder, referenceLength: reference.length)
-        let available = regionalData.available(for: requiredInterval(for: visibleBases))
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
+        if let bundle = selectedReference {
+            next.isLoading = false
+            let cached = [next.referenceBases, origin.referenceBases].compactMap { $0 }.first {
+                $0.interval.start <= visibleBases.start && $0.interval.end >= visibleBases.end
+            }
+            if let cached { next.referenceBases = cached }
+            presentation = next
+            if cached == nil && viewportWidth >= Double(target.end - target.start + 1) {
+                readPreview(visibleBases, from: bundle)
+            } else {
+                stopPreviewRead()
+            }
+            return
+        }
+        let available = regionalData.available(for: requiredInterval(for: visibleBases))
         let selected = sampling.select(origin.isAlignmentSuppressed ? [] : RegionalData.visible(available.records, in: visibleBases))
         next.alignments = Self.pack(selected.records, retaining: presentation.alignments)
         next.isDownsampled = selected.isDownsampled
         next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
         next.isLoading = false
         presentation = next
+    }
+
+    // Coalesce pointer motion to the latest visible interval while a bounded
+    // optional read is running. A failed preview never completes a committed load.
+    private func readPreview(_ interval: GenomicInterval, from bundle: ReferenceBundle) {
+        guard previewDemand != interval else { return }
+        previewDemand = interval
+        guard previewRead == nil else { return }
+        previewRead = Task {
+            while !Task.isCancelled, let wanted = previewDemand {
+                let bases = try? await loadReferenceRegion(bundle, wanted)
+                guard !Task.isCancelled else { return }
+                if previewDemand != wanted { continue }
+                if let bases { presentation.referenceBases = ReferenceRegion(interval: wanted, bases: bases) }
+                break
+            }
+            if !Task.isCancelled { previewRead = nil }
+        }
+    }
+
+    private func stopPreviewRead() {
+        previewRead?.cancel()
+        previewRead = nil
+        previewDemand = nil
     }
 
     @discardableResult
@@ -194,6 +363,7 @@ public final class ViewerSession {
 
     private func restoreDragOrigin() -> (origin: ViewerPresentation, completion: (@MainActor () -> Void)?)? {
         guard var origin = dragOrigin else { return nil }
+        stopPreviewRead()
         let completion = deferredRegionalCompletion
         dragOrigin = nil
         deferredRegionalCompletion = nil
@@ -208,7 +378,7 @@ public final class ViewerSession {
     @discardableResult
     public func pan(_ direction: PanDirection) -> Task<Void, Never>? {
         guard let target = presentation.target,
-              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+              let reference = presentation.references.contig(named: target.reference) else { return nil }
         let width = target.end - target.start + 1
         let step = width / 2 + width % 2
         let shift: Int64
@@ -226,7 +396,7 @@ public final class ViewerSession {
     @discardableResult
     public func zoom(_ direction: ZoomDirection) -> Task<Void, Never>? {
         guard let target = presentation.target,
-              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+              let reference = presentation.references.contig(named: target.reference) else { return nil }
         let width = target.end - target.start + 1
         let newWidth = direction.resizedWidth(width, maximum: reference.length)
         guard newWidth != width else { return nil }
@@ -242,7 +412,7 @@ public final class ViewerSession {
     @discardableResult
     public func zoom(_ direction: ZoomDirection, atHorizontalFraction fraction: Double) -> Task<Void, Never>? {
         guard fraction.isFinite, let target = presentation.target,
-              let reference = presentation.references.first(where: { $0.name == target.reference }) else { return nil }
+              let reference = presentation.references.contig(named: target.reference) else { return nil }
         let width = target.end - target.start + 1
         let newWidth = direction.resizedWidth(width, maximum: reference.length)
         guard newWidth != width else { return nil }
@@ -261,7 +431,7 @@ public final class ViewerSession {
     }
 
     private func requiredInterval(for visible: GenomicInterval) -> GenomicInterval {
-        let length = presentation.references.first { $0.name == visible.reference }!.length
+        let length = presentation.references.contig(named: visible.reference)!.length
         return GenomicInterval(reference: visible.reference,
                                start: visible.start - min(tailSearchMargin, visible.start - 1),
                                end: visible.end + min(tailSearchMargin, length - visible.end))
@@ -287,7 +457,7 @@ public final class ViewerSession {
 
     private var previewRequired: GenomicInterval? {
         guard let target = presentation.target, !presentation.isAlignmentSuppressed else { return nil }
-        let length = presentation.references.first { $0.name == target.reference }!.length
+        let length = presentation.references.contig(named: target.reference)!.length
         let visible = Self.fractionalVisibleInterval(for: target, offset: presentation.previewOffsetInBases, referenceLength: length)
         return requiredInterval(for: visible)
     }
@@ -296,7 +466,7 @@ public final class ViewerSession {
                                                  referenceLength: Int64) -> GenomicInterval {
         GenomicInterval(reference: target.reference,
                         start: offset < 0 ? max(1, target.start - 1) : target.start,
-                        end: offset > 0 ? min(referenceLength, target.end + 1) : target.end)
+                        end: offset > 0 && target.end < referenceLength ? target.end + 1 : target.end)
     }
 
     private func trimOptional() {
@@ -328,7 +498,7 @@ public final class ViewerSession {
               !presentation.isAlignmentSuppressed else { return }
         let required = previewRequired!
         let buffer = max(target.end - target.start + 1, tailSearchMargin)
-        let length = presentation.references.first { $0.name == target.reference }!.length
+        let length = presentation.references.contig(named: target.reference)!.length
         let desired = GenomicInterval(reference: target.reference,
                                        start: required.start - min(buffer, required.start - 1),
                                        end: required.end + min(buffer, length - required.end))
@@ -407,7 +577,7 @@ public final class ViewerSession {
     }
 
     private func submitInterval(preservingPanContinuity: Bool, prefetchAfterLoad: Bool) -> Task<Void, Never>? {
-        guard let bam else { return nil }
+        guard presentation.intervalEntryAvailable else { return nil }
         do {
             let target = try GenomicInterval.parse(presentation.intervalText, references: presentation.references)
             if let restored = restoreDragOrigin(), target == restored.origin.target {
@@ -417,6 +587,8 @@ public final class ViewerSession {
             presentation.intervalText = target.formatted
             presentation.intervalError = nil
             if target == presentation.target { return regionalTask }
+            if let selectedReference { return loadReferenceTarget(target, from: selectedReference) }
+            guard let bam else { return nil }
             if prefetchAfterLoad { retirePrefetch() }
             regionalTask?.cancel()
             let requestID = UUID()
@@ -619,6 +791,7 @@ public final class ViewerSession {
 
     private func restoreSuccessfulView(for error: RegionalLoadError, generation: UInt64) {
         var restored = presentation
+        restored.referenceBases = lastSuccessful?.referenceBases
         restored.target = lastSuccessful?.target
         restored.alignments = lastSuccessful?.alignments ?? []
         restored.rowCount = lastSuccessful?.rowCount ?? 0
@@ -652,7 +825,7 @@ public final class ViewerSession {
     }
 
     public func openBAM(_ url: URL?) async {
-        guard let url else { return }
+        guard let url, selectedReference == nil else { return }
         openingID = UUID()
         presentation.openError = nil
         presentation.indexChoice = nil

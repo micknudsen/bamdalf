@@ -11,7 +11,10 @@ extension ViewerWindowController {
         panel.allowsMultipleSelection = false
         presentReferencePanel(panel, window) { [weak self] source in
             guard let source else { return }
-            Task { @MainActor in self?.chooseReferenceDestination(for: source) }
+            Task { @MainActor in
+                guard let self else { return }
+                self.chooseReferenceDestination(for: source, protecting: self.session.selectedReference)
+            }
         }
     }
 
