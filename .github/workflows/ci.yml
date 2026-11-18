@@ -65,7 +65,8 @@ jobs:
       - name: Debug the native Save crash
         if: failure()
         run: |
-          bundle=$(find .build -type f -path '*.xctest/Contents/MacOS/*' | head -1)
+          bundle="$(swift build --show-bin-path)/bamdalfPackageTests.xctest/Contents/MacOS/bamdalfPackageTests"
+          test -f "$bundle"
           helper="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm/swiftpm-testing-helper"
           platform="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer"
           xcrun lldb --batch \
