@@ -150,6 +150,21 @@ struct RegionalData {
     /// Apply drawn overlap only after selecting aligned spans within required
     /// search coverage. These display candidates never back a coverage claim.
     static func visible(_ records: [Alignment], in target: GenomicInterval) -> [Alignment] {
-        records.filter { $0.drawnStart <= target.end && $0.drawnEnd >= target.start }
+        records.filter { $0.overlapsViewport(target) }
+    }
+
+    /// A drag preview only needs visible candidates, including tails from any
+    /// retained query. Avoid copying all complete cache entries on each event.
+    func previewRecords(in viewport: GenomicInterval, required: GenomicInterval) -> [Alignment] {
+        var seen: Set<UInt64> = []
+        var visible: [Alignment] = []
+        for entry in entries where entry.interval.hasSameReference(as: viewport) {
+            for record in entry.records where record.referenceStart <= required.end && record.referenceEnd >= required.start {
+                if seen.insert(record.id).inserted && record.overlapsViewport(viewport) {
+                    visible.append(record)
+                }
+            }
+        }
+        return visible
     }
 }

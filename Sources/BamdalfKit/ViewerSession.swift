@@ -283,8 +283,9 @@ public final class ViewerSession {
         var next = presentation
         next.target = preview
         next.previewOffsetInBases = remainder
-        let available = regionalData.available(for: requiredInterval(for: visibleBases))
-        let selected = sampling.select(origin.isAlignmentSuppressed ? [] : RegionalData.visible(available.records, in: visibleBases))
+        let candidates = origin.isAlignmentSuppressed ? [] :
+            regionalData.previewRecords(in: visibleBases, required: requiredInterval(for: visibleBases))
+        let selected = sampling.select(candidates)
         next.alignments = Self.pack(selected.records, retaining: presentation.alignments)
         next.isDownsampled = selected.isDownsampled
         next.rowCount = max(presentation.rowCount, (next.alignments.map(\.row).max() ?? -1) + 1)
