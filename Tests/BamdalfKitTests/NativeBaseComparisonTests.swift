@@ -86,6 +86,27 @@ struct NativeBaseComparisonTests {
         await viewer.session.endAlignmentDrag()?.value
     }
 
+    @Test
+    func narrowMissingBodiesLeaveTheirReferenceGapsOpen() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let viewer = try await ComparisonWindow(files: files, dark: false)
+        defer { viewer.window.close() }
+        try await viewer.attachReference(files)
+        for (end, gapX) in [(608, 54), (1216, 27)] {
+            await viewer.navigate("tiny:1-\(end)")
+            let bitmap = try viewer.capture()
+            let records = viewer.session.presentation.alignments.filter { $0.referenceStart == 51 }
+            try #require(Set(records.map(\.name)) == ["absentForward", "absentReverse"])
+            for record in records {
+                let y = record.row * 18 + 6
+                // The aligned block ends at the edge before base 55, where a
+                // deletion begins. The probe lies fully inside the gap at both scales.
+                #expect(bitmap.colorAt(x: gapX, y: y) == bitmap.colorAt(x: 0, y: y))
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func missingSequenceKeepsItsStrandPointAndUnfilledCIGARGeometry(dark: Bool) async throws {
         let files = try FixtureFiles()
@@ -96,7 +117,9 @@ struct NativeBaseComparisonTests {
         let filled = try viewer.capture()
         try await viewer.attachReference(files)
         let outline = try viewer.capture()
-        for record in viewer.session.presentation.alignments {
+        let records = viewer.session.presentation.alignments
+        try #require(Set(records.map(\.name)) == ["absentForward", "absentReverse"])
+        for record in records {
             let top = record.row * 18 + 3
             func x(_ position: Int) -> Int { Int((Double(position - 45) + 0.5) * 608 / 20) }
             let background = try #require(outline.colorAt(x: 1, y: top + 6))

@@ -9,6 +9,11 @@ final class GenomicAlignmentView: NSView {
             needsDisplay = true
         }
     }
+    private static func bodyY(for row: Int) -> ClosedRange<CGFloat> {
+        let top = CGFloat(row) * rowHeight + 3
+        return top...(top + 12)
+    }
+
     private var differences: [UInt64: [Int64: [BaseDifference]]] = [:]
     var canNavigate: (() -> Bool)?
     var beginDrag: (() -> Void)?
@@ -63,12 +68,11 @@ final class GenomicAlignmentView: NSView {
             return
         }
         let reusable = previous.sessionID == presentation.sessionID && previous.referenceBases == region
-        let top = presentation.verticalOffset
-        let bottom = top + (enclosingScrollView?.contentSize.height ?? bounds.height)
+        let top = CGFloat(presentation.verticalOffset)
+        let visibleY = top...(top + (enclosingScrollView?.contentSize.height ?? bounds.height))
         var visible: [UInt64: [Int64: [BaseDifference]]] = [:]
         for alignment in presentation.alignments {
-            let y = CGFloat(alignment.row) * Self.rowHeight + 3
-            guard y + 12 >= top, y <= bottom else { continue }
+            guard Self.bodyY(for: alignment.row).overlaps(visibleY) else { continue }
             visible[alignment.id] = (reusable ? differences[alignment.id] : nil) ?? alignment.differences(in: region)
         }
         differences = visible
@@ -80,8 +84,9 @@ final class GenomicAlignmentView: NSView {
         guard let target = presentation.target else { return }
         let scale = bounds.width / CGFloat(target.end - target.start + 1)
         for alignment in presentation.alignments {
-            let y = CGFloat(alignment.row) * Self.rowHeight + 3
-            guard y + 12 >= dirtyRect.minY, y <= dirtyRect.maxY else { continue }
+            let bodyY = Self.bodyY(for: alignment.row)
+            guard bodyY.overlaps(dirtyRect.minY...dirtyRect.maxY) else { continue }
+            let y = bodyY.lowerBound
             let isBlock: (AlignmentSegment) -> Bool = { $0.kind == .aligned || $0.kind == .softClip }
             let point = alignment.isReverse ? alignment.segments.firstIndex(where: isBlock) : alignment.segments.lastIndex(where: isBlock)
             for (index, segment) in alignment.segments.enumerated() {
@@ -91,7 +96,10 @@ final class GenomicAlignmentView: NSView {
                 case .aligned:
                     let rect = NSRect(x: x, y: y, width: width, height: 12)
                     if segment.sequence == nil && presentation.referenceURL != nil {
+                        NSGraphicsContext.saveGraphicsState()
+                        NSBezierPath(rect: rect).addClip()
                         Self.drawOutline(in: rect, pointed: index == point, reverse: alignment.isReverse)
+                        NSGraphicsContext.restoreGraphicsState()
                         continue
                     }
                     NSColor.labelColor.setFill()
