@@ -34,7 +34,7 @@ def archive(out, protocol, executable, plan):
     for path in sorted(sources.rglob('*')):
         if path.is_file():
             hashes[str(path.relative_to(sources))] = digest(path)
-    for name in sorted({case['bam'] for case in plan['cases']}):
+    for name in sorted({case['bam'] for case in plan['cases'] if case.get('bam')}):
         path = ROOT / name
         if not path.is_file():
             raise SystemExit(f'Missing input: {path}')
@@ -43,6 +43,8 @@ def archive(out, protocol, executable, plan):
         if len(indexes) != 1:
             raise SystemExit(f'Qualification needs exactly one sibling index: {path}')
         hashes[str(indexes[0].relative_to(ROOT))] = digest(indexes[0])
+    for name in sorted({case['reference_bundle'] for case in plan['cases'] if case.get('reference_bundle')}):
+        hashes[name] = digest(ROOT / name)
     for name, expected in {**plan['inputs'], **plan['indexes']}.items():
         actual = digest(ROOT / name)
         if actual != expected:

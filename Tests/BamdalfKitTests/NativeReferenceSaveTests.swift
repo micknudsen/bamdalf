@@ -54,11 +54,13 @@ extension NativeReferenceSaveTests {
         defer { files.remove() }
         let input = files.directory.appendingPathComponent("source.fa")
         let output = files.directory.appendingPathComponent("reference.bref")
-        try Data(">one\naCG".utf8).write(to: input)
+        let bases = "aCG" + String(repeating: "A", count: 19_997)
+        try Data((">tiny\n" + bases).utf8).write(to: input)
         try Data("old destination".utf8).write(to: output)
-        let controller = ViewerWindowController(session: ViewerSession()) { panel, _, complete in
+        let session = ViewerSession()
+        let controller = ViewerWindowController(session: session) { panel, _, complete in
             if panel is NSOpenPanel {
-                complete(input)
+                complete(panel.allowedContentTypes.first?.preferredFilenameExtension == "bref" ? output : input)
                 return
             }
             do {
@@ -82,9 +84,37 @@ extension NativeReferenceSaveTests {
         menu.performActionForItem(at: menu.index(of: create))
         var end = completion.makeAsyncIterator()
         try #require(await end.next() != nil)
-        let bundle = try ReferenceBundle(opening: output)
-        #expect(try await bundle.read(GenomicInterval(reference: "one", start: 1, end: 3)) == Data("aCG".utf8))
+        #expect(session.presentation.referenceURL == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["reference.bref", "source.fa"])
+        try FileManager.default.removeItem(at: input)
+        let (opened, signal) = AsyncStream<Void>.makeStream()
+        let render = session.onPresentationChange
+        session.onPresentationChange = {
+            render?()
+            if session.presentation.referenceURL == output && !session.presentation.isOpening { signal.yield() }
+        }
+        let open = try #require(menu.item(withTitle: "Open Reference…"))
+        menu.performActionForItem(at: menu.index(of: open))
+        var opens = opened.makeAsyncIterator()
+        _ = await opens.next()
+        session.onPresentationChange = render
+
+        try await files.openedSession(fixture: "comparison", session: session)
+        session.editInterval("tiny:1-77")
+        await session.submitInterval()?.value
+        let stored = try #require(session.presentation.referenceBases)
+        #expect(stored.interval.start == 1 && stored.bases.starts(with: Data("aCG".utf8)))
+        let workspace = try #require(window.contentView)
+        workspace.layoutSubtreeIfNeeded()
+        let scroll = try #require(workspace.subviews.compactMap { $0 as? NSScrollView }.first)
+        let stack = try #require(scroll.documentView)
+        let forward = try #require(session.presentation.alignments.first { $0.name == "forward" })
+        try #require(forward.row < 2)
+        let bitmap = try renderAlignmentBitmap(in: stack, window: window)
+        // comparison.sam places a C at 14 after its 2S3M1I1P prefix. The saved reference contains A.
+        let x = Int(13.5 * stack.bounds.width / 77)
+        let colors = (4...13).compactMap { bitmap.colorAt(x: x, y: forward.row * 18 + $0)?.usingColorSpace(.deviceRGB) }
+        #expect(colors.contains { $0.blueComponent > $0.redComponent + 0.3 && $0.blueComponent > $0.greenComponent + 0.2 })
     }
 
     @Test func fileMenuOpensANativeFASTAChooserAndTheSavePanelEnforcesBref() async throws {
@@ -148,7 +178,8 @@ extension NativeReferenceSaveTests {
 }
 
 extension NativeReferenceSaveTests {
-    @Test func cancelDuringImportKeepsTheConfirmedDestinationAndPausesBrowsing() async throws {
+    @Test(arguments: [false, true])
+    func cancelDuringImportKeepsTheConfirmedDestinationAndPausesBrowsing(withBAM: Bool) async throws {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
@@ -157,13 +188,16 @@ extension NativeReferenceSaveTests {
         let output = files.directory.appendingPathComponent("existing.bref")
         let originalBytes = Data("previous contents".utf8)
         try originalBytes.write(to: output)
-        let session = try await files.openedSession()
+        let session = ViewerSession()
+        if withBAM {
+            try await files.openedSession(session: session)
+            session.editInterval("tiny:100-110")
+            await session.submitInterval()?.value
+        }
         let controller = ViewerWindowController(session: session)
         controller.showWindow(nil)
         let window = try #require(controller.window)
         defer { window.close() }
-        session.editInterval("tiny:100-110")
-        await session.submitInterval()?.value
         let before = session.presentation
         let destination = try ReferenceSaveDestination(confirmedURL: output)
         let progress = Progress(totalUnitCount: -1)

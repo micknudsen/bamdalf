@@ -15,7 +15,8 @@ struct PrefetchQualification {
 
     struct Case: Decodable {
         let id: String
-        let bam: String
+        let bam: String?
+        let reference_bundle: String?
         let repetitions: Int
         let fresh_session: Bool
         let setup: [Step]
@@ -232,9 +233,11 @@ struct PrefetchQualification {
         let scroll: NSScrollView
         let renderer: NSView
         let ruler: NSView
+        let referenceRow: NSView
         let field: NSTextField
-        let rendererSurface: Surface
+        var rendererSurface: Surface!
         let rulerSurface: Surface
+        var referenceSurface: Surface?
         var selections: [String: [UInt64]] = [:]
         private var dragAnchor: (x: CGFloat, fraction: Double)?
 
@@ -270,28 +273,40 @@ struct PrefetchQualification {
                   let scroll = content.subviews.compactMap({ $0 as? NSScrollView }).first,
                   let renderer = scroll.documentView,
                   let ruler = content.subviews.first(where: { $0.accessibilityLabel() == "Genomic ruler" }),
+                  let referenceRow = content.subviews.first(where: { $0.accessibilityLabel() == "Reference sequence" }),
                   let field = content.subviews.compactMap({ $0 as? NSTextField }).first(where: { $0.isEditable }) else {
                 throw Failure("Missing native workspace/control")
             }
             self.window = window; self.content = content; self.scroll = scroll
             self.renderer = renderer; self.ruler = ruler; self.field = field
+            self.referenceRow = referenceRow
             window.appearance = NSAppearance(named: .aqua)
             window.setContentSize(NSSize(width: 1100, height: 720))
             window.makeKeyAndOrderFront(nil)
             content.layoutSubtreeIfNeeded()
-            rendererSurface = try Surface(size: scroll.contentSize, scale: window.backingScaleFactor)
             rulerSurface = try Surface(size: ruler.bounds.size, scale: window.backingScaleFactor)
         }
 
-        func open(_ path: String) async throws {
-            await controller.openBAM(at: URL(fileURLWithPath: path).standardizedFileURL)
-            guard session.presentation.bamURL != nil, session.presentation.indexChoice == nil,
-                  session.presentation.openError == nil else {
+        func open(_ item: Case) async throws {
+            if let bundle = item.reference_bundle {
+                await session.openReference(URL(fileURLWithPath: bundle).standardizedFileURL)
+            }
+            if let path = item.bam {
+                await controller.openBAM(at: URL(fileURLWithPath: path).standardizedFileURL)
+            }
+            guard item.bam != nil || item.reference_bundle != nil,
+                  (session.presentation.referenceURL != nil) == (item.reference_bundle != nil),
+                  (session.presentation.bamURL != nil) == (item.bam != nil),
+                  session.presentation.indexChoice == nil, session.presentation.openError == nil else {
                 throw Failure(session.presentation.openError?.message ?? "Opening needs exactly one sibling index")
             }
             try await Task.sleep(for: .milliseconds(50))
             content.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
+            rendererSurface = try Surface(size: scroll.contentSize, scale: window.backingScaleFactor)
+            if item.reference_bundle != nil {
+                referenceSurface = try Surface(size: referenceRow.bounds.size, scale: window.backingScaleFactor)
+            }
         }
 
         func close() {
@@ -408,11 +423,33 @@ struct PrefetchQualification {
             window.displayIfNeeded()
             rendererSurface.draw(renderer, window: window)
             rulerSurface.draw(ruler, window: window, rect: ruler.bounds)
+            referenceSurface?.draw(referenceRow, window: window, rect: referenceRow.bounds)
         }
 
         func capture(_ prefix: URL) throws {
             try rendererSurface.writePNG(prefix.appendingPathExtension("alignments.png"))
             try rulerSurface.writePNG(prefix.appendingPathExtension("ruler.png"))
+            if let referenceSurface {
+                try referenceSurface.writePNG(prefix.appendingPathExtension("reference.png"))
+                let visible = renderer.visibleRect
+                let view = session.presentation
+                let rows: [[String: Any]] = view.alignments.filter {
+                    let y = CGFloat($0.row) * 18
+                    return y + 18 > visible.minY && y < visible.maxY
+                }.map { ["name": $0.name, "start": $0.referenceStart, "reverse": $0.isReverse, "row": $0.row] }
+                var metadata: [String: Any] = ["records": rows, "originY": visible.minY,
+                    "width": renderer.bounds.width, "height": visible.height, "scale": window.backingScaleFactor,
+                    "interval": view.target?.formatted ?? "", "referenceWidth": referenceRow.bounds.width]
+                metadata["targetStart"] = view.target?.start
+                metadata["targetEnd"] = view.target?.end
+                metadata["sourceMode"] = view.bamURL == nil ? "reference" : "paired"
+                metadata["bam"] = view.bamURL?.lastPathComponent
+                if let region = view.referenceBases {
+                    metadata["referenceStart"] = region.interval.start
+                    metadata["referenceSequence"] = String(decoding: region.bases, as: UTF8.self)
+                }
+                try writeJSON(metadata, to: prefix.appendingPathExtension("view.json"))
+            }
             if let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
                 content.cacheDisplay(in: content.bounds, to: bitmap)
                 if let data = bitmap.representation(using: .png, properties: [:]) {
@@ -581,7 +618,7 @@ struct PrefetchQualification {
             repeat {
                 if workspace == nil {
                     workspace = try Workspace(item: item)
-                    try await workspace!.open(item.bam)
+                    try await workspace!.open(item)
                     for step in item.setup {
                         try await perform(step, caseID: item.id, iteration: iteration, phase: "setup", workspace: workspace!,
                                           output: directory, records: records, remembered: remembered, elapsedStart: started)
@@ -675,6 +712,18 @@ struct PrefetchQualification {
         workspace.draw()
         let milliseconds = (wallSeconds() - start) * 1000
         let after = workspace.session.presentation
+        if let target = after.target, after.referenceURL != nil,
+           ["type", "pan_left", "pan_right", "zoom_in", "zoom_out", "double_click", "option_click", "mouse_up"].contains(step.action) {
+            let showsCells = workspace.referenceRow.bounds.width >= CGFloat(target.end - target.start + 1)
+            if showsCells {
+                guard let region = after.referenceBases, region.interval.reference == target.reference,
+                      region.interval.start <= target.start, region.interval.end >= target.end else {
+                    throw Failure("\(caseID)/\(step.id): required visible reference sequence is missing")
+                }
+            } else if after.referenceBases != nil {
+                throw Failure("\(caseID)/\(step.id): invisible reference detail was retained")
+            }
+        }
         try workspace.validateDesiredCoverage()
         try await workspace.queries.checkCoverage()
         if step.action == "required_failure" {
@@ -741,6 +790,8 @@ struct PrefetchQualification {
             "wall_ms": milliseconds, "ready_ms": readyMilliseconds,
             "raster_ms": milliseconds - readyMilliseconds,
             "elapsed_seconds": usage.elapsed_seconds, "prefetch_enabled": workspace.prefetchEnabled,
+            "reference_selected": after.referenceURL != nil, "bam_selected": after.bamURL != nil,
+            "reference_bases_available": after.referenceBases?.bases.count ?? 0,
             "preview_offset_bases": after.previewOffsetInBases,
             "interval": after.target?.formatted ?? "", "query_calls": queryCount,
             "required_query_calls": queryCount,
