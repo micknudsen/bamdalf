@@ -147,6 +147,7 @@ public final class ViewerSession {
             let bundle = try await Task.detached { try ReferenceBundle(opening: url) }.value
             guard openingID == request, !Task.isCancelled else { return }
             if let bam { try bundle.validateCompatibility(with: bam) }
+            try Task.checkCancellation()
             selectedReference = bundle
             await showSources(keepingInterval: true, keepingRows: bam != nil)?.value
         } catch {
@@ -196,9 +197,7 @@ public final class ViewerSession {
             // These rows still belong to this BAM. Recovery reads any newly required bases.
             lastSuccessful?.referenceBases = nil
         } else {
-            lastSuccessful = nil
-            lastSuccessfulCoverage = nil
-            lastSuccessfulRecords = []
+            discardRecovery()
         }
         guard let target = retainedTarget else {
             draftGeneration = nil
@@ -206,7 +205,9 @@ public final class ViewerSession {
             return nil
         }
         next.intervalText = draftGeneration == nil ? target.formatted : presentation.intervalText
-        next.intervalError = presentation.intervalError
+        if let error = presentation.intervalError, next.references == prior.references {
+            next.intervalError = error
+        }
         if keepingRows {
             next.target = target
             next.alignments = prior.alignments
@@ -722,7 +723,7 @@ public final class ViewerSession {
                         if let bases {
                             lastSuccessful?.referenceBases = ReferenceRegion(interval: target, bases: bases)
                         } else if target.referenceScale(in: viewportWidth) != nil {
-                            lastSuccessful = nil
+                            discardRecovery()
                         }
                         // A drag may have begun during the recovery read.
                         completeRegionalLoad(result, requestID: requestID, generation: generation,
@@ -730,7 +731,7 @@ public final class ViewerSession {
                     }
                     return regionalTask
                 }
-                lastSuccessful = nil
+                discardRecovery()
             }
             restoreSuccessfulView(for: error, generation: generation)
         }
@@ -806,6 +807,12 @@ public final class ViewerSession {
             else { high = middle }
         }
         return low
+    }
+
+    private func discardRecovery() {
+        lastSuccessful = nil
+        lastSuccessfulCoverage = nil
+        lastSuccessfulRecords = []
     }
 
     private func restoreSuccessfulView(for error: RegionalLoadError, generation: UInt64) {
@@ -885,6 +892,7 @@ public final class ViewerSession {
             let file = try await loadFile(url, index)
             guard requestID == openingID, !Task.isCancelled else { return }
             try selectedReference?.validateCompatibility(with: file)
+            try Task.checkCancellation()
             blockedPrefetch = []
             stoppedPrefetch = false
             bam = file

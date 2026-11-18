@@ -126,6 +126,16 @@ actor RegionGate {
     private var observers: [Int64: CheckedContinuation<Void, Never>] = [:]
     private var counts: [Int64: Int] = [:]
 
+    private var armed: Set<Int64> = []
+
+    func arm(_ key: Int64) { armed.insert(key) }
+
+    func pauseIfArmed(_ key: Int64) async -> Bool {
+        guard armed.remove(key) != nil else { return false }
+        await pause(key)
+        return true
+    }
+
     func pause(_ key: Int64) async {
         counts[key, default: 0] += 1
         await withCheckedContinuation { continuation in
