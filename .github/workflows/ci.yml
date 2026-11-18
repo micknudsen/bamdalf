@@ -60,17 +60,6 @@ jobs:
           swift build
       - name: Test viewer session and native workspace
         run: bash scripts/test.sh
-      - name: Diagnose the full native suite
-        if: failure()
-        run: |
-          bundle="$(swift build --show-bin-path)/bamdalfPackageTests.xctest/Contents/MacOS/bamdalfPackageTests"
-          helper="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm/swiftpm-testing-helper"
-          platform="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer"
-          xcrun lldb --batch \
-            -o "settings set target.env-vars DYLD_FRAMEWORK_PATH=$platform/Library/Frameworks DYLD_LIBRARY_PATH=$platform/usr/lib" \
-            -o run -k 'thread backtrace all -c 10' -k 'register read pc lr x0 x8 x9 x20 x21' \
-            -k 'disassemble --frame' \
-            -- "$helper" --test-bundle-path "$bundle" --testing-library swift-testing
       - name: Package native application
         run: |
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
