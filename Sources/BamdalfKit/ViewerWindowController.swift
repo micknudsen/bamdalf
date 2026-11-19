@@ -21,6 +21,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let alignmentScroll = NSScrollView()
     private let alignmentStack = GenomicAlignmentView(frame: .zero)
     private var isRendering = false
+    private var isScrolling = false
     private var displayedSessionID: UUID?
     private var indexAlert: NSAlert?
 
@@ -342,6 +343,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         isRendering = true
         defer { isRendering = false }
         let presentation = session.presentation
+        if isScrolling {
+            alignmentStack.updateScrollOffset(presentation.verticalOffset)
+            return
+        }
         let referenceLength = presentation.target.flatMap { presentation.references.contig(named: $0.reference)?.length }
         let canNavigate = !presentation.isOpening && window?.attachedSheet == nil
         panLeftButton.isEnabled = canNavigate && (presentation.target?.start ?? 1) > 1
@@ -434,6 +439,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
 
     @objc private func alignmentDidScroll(_ notification: Notification) {
         guard !isRendering else { return }
+        isScrolling = true
+        defer { isScrolling = false }
         session.scrollVertically(to: Double(alignmentScroll.contentView.bounds.origin.y))
     }
 

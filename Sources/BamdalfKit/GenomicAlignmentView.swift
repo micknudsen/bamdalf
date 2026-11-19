@@ -6,12 +6,22 @@ final class GenomicAlignmentView: NSView {
     var presentation = ViewerPresentation() {
         didSet {
             prepareDifferences(previous: oldValue)
-            needsDisplay = true
+            if !isScrolling { needsDisplay = true }
         }
     }
     private static func bodyY(for row: Int) -> ClosedRange<CGFloat> {
         let top = CGFloat(row) * rowHeight + 3
         return top...(top + 12)
+    }
+
+    private var isScrolling = false
+
+    // AppKit moves existing pixels and invalidates the exposed strip. Refresh
+    // its comparison cells without requesting a second, full-viewport redraw.
+    func updateScrollOffset(_ offset: Double) {
+        isScrolling = true
+        defer { isScrolling = false }
+        presentation.verticalOffset = offset
     }
 
     private var differences: [UInt64: [Int64: [BaseDifference]]] = [:]
@@ -22,6 +32,7 @@ final class GenomicAlignmentView: NSView {
     var zoomAt: ((ZoomDirection, Double) -> Void)?
     private var dragStart: CGFloat?
     override var isFlipped: Bool { true }
+    override var isOpaque: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)

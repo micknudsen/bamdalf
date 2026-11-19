@@ -117,6 +117,15 @@ struct NativePairedSourceTests {
         #expect(session.presentation.verticalOffset == 180)
         #expect(abs(stack.convert(NSPoint.zero, to: nil).y - firstAlignment.y) == 180)
         #expect(row.convert(row.bounds, to: nil) == fixedRow && ruler.convert(ruler.bounds, to: nil) == fixedRuler)
+        // Reused scrolling pixels must agree with a fresh draw at the new offset,
+        // including mismatches on the newly exposed rows.
+        let visibleRows = NSRect(x: 0, y: 180, width: stack.bounds.width, height: 40)
+        let scrolled = try #require(stack.bitmapImageRepForCachingDisplay(in: visibleRows))
+        stack.cacheDisplay(in: visibleRows, to: scrolled)
+        let pixelScale = CGFloat(scrolled.pixelsWide) / visibleRows.width
+        let left = Int(CGFloat(base101 - 2) * pixelScale)
+        let right = Int(CGFloat(base101 + 2) * pixelScale)
+        #expect(scrolled.colorAt(x: left, y: Int(7 * pixelScale)) != scrolled.colorAt(x: right, y: Int(7 * pixelScale)))
         let after = try renderAlignmentBitmap(in: row, window: window)
         #expect(after.colorAt(x: base101 - 2, y: 7) == before.colorAt(x: base101 - 2, y: 7))
         #expect(after.colorAt(x: base101 + 2, y: 7) == before.colorAt(x: base101 + 2, y: 7))
