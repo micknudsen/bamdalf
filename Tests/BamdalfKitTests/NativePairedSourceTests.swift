@@ -4,6 +4,61 @@ import Testing
 
 @MainActor
 struct NativePairedSourceTests {
+    @Test(arguments: [NSAppearance.Name.darkAqua, .aqua])
+    func openingReferenceKeepsNavigationAndReadsVisible(appearance: NSAppearance.Name) async throws {
+        _ = NSApplication.shared
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let reference = try files.reference("rows.bref", fasta: ">tiny\n" + String(repeating: "ACGT", count: 5_000))
+        let session = try await files.openedSession(fixture: "rows")
+        let controller = ViewerWindowController(session: session)
+        let window = try #require(controller.window)
+        window.appearance = NSAppearance(named: appearance)
+        controller.showWindow(nil)
+        defer { window.close() }
+        session.editInterval("tiny:81-232")
+        await session.submitInterval()?.value
+        let workspace = try #require(window.contentView)
+        let button = try #require(workspace.subviews.compactMap { $0 as? NSButton }.first)
+        let scroll = try #require(workspace.subviews.compactMap { $0 as? NSScrollView }.first)
+        let referenceRow = try #require(workspace.subviews.first { $0.accessibilityLabel() == "Reference sequence" })
+
+        func checkWorkspace(showingReference: Bool) throws {
+            workspace.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            // Capture siblings together so a track that overpaints the window is visible to the test.
+            let bitmap = try #require(workspace.bitmapImageRepForCachingDisplay(in: workspace.bounds))
+            workspace.cacheDisplay(in: workspace.bounds, to: bitmap)
+            #expect(hasContrast(in: button.frame, image: bitmap), "Navigation button disappeared")
+            let canvas = scroll.frame
+            let reads = NSRect(x: canvas.minX + 4, y: canvas.maxY - 40, width: canvas.width * 0.75, height: 35)
+            #expect(hasContrast(in: reads, image: bitmap), "Alignment rows disappeared")
+            if showingReference {
+                #expect(hasContrast(in: referenceRow.frame.insetBy(dx: 2, dy: 4), image: bitmap), "Reference bases disappeared")
+            }
+        }
+        try checkWorkspace(showingReference: false)
+        await session.openReference(reference)
+        try #require(session.presentation.referenceBases != nil)
+        try #require(session.presentation.rowCount == 80)
+        try checkWorkspace(showingReference: true)
+    }
+
+    private func hasContrast(in rect: NSRect, image: NSBitmapImageRep) -> Bool {
+        // The workspace is unflipped. Bitmap row zero is at the top of that workspace.
+        let scale = CGFloat(image.pixelsWide) / image.size.width
+        let columns = Int(rect.minX * scale)..<Int(rect.maxX * scale)
+        let rows = Int((image.size.height - rect.maxY) * scale)..<Int((image.size.height - rect.minY) * scale)
+        // A solid painted-over area has a single color, including its opacity.
+        guard let first = image.colorAt(x: columns.lowerBound, y: rows.lowerBound) else { return false }
+        for row in rows {
+            for column in columns {
+                if let pixel = image.colorAt(x: column, y: row), pixel != first { return true }
+            }
+        }
+        return false
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: [false, true])
     func referenceCellsAndBAMGeometryShareCoordinatesAsRealRowsScroll(legacyScroller: Bool) async throws {
         _ = NSApplication.shared

@@ -69,6 +69,7 @@ final class GenomicReferenceView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        clipsToBounds = true
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Reference sequence")
