@@ -116,3 +116,11 @@ close/quit cleanup and publication races are covered by the separate
 [native acceptance evidence](../reference-creation-acceptance.md), not inferred
 from these successful paired runs. Automated Save approval does not manually
 click the external system Replace button.
+
+A subsequent review improved the measurement harness's failure reporting: an
+unsuccessful run retains accumulated observations, the failing action/phase and
+the original diagnostic with `completed: false`. A deliberately malformed
+synthetic FASTA exercised that path: exit 1, six navigation observations and
+four memory samples retained, no output bundle left. This harness check is
+not a failed human-reference trial or a product regression. The two successful
+measurements above remain pinned to their original executable and protocol.
