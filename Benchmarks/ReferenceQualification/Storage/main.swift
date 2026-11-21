@@ -55,14 +55,14 @@ struct ReferenceStorageQualification {
         let start = DispatchTime.now().uptimeNanoseconds
         controller.createReference(nil)
         guard let task = controller.referenceCreation.saveReference(from: source, name: source.deletingPathExtension().lastPathComponent, to: destination),
-              window.attachedSheet?.title == "Create Reference" else {
-            throw QualificationError("The native progress sheet did not open")
+              controller.referenceCreation.window?.isVisible == true, window.attachedSheet == nil else {
+            throw QualificationError("The independent native creation window did not open")
         }
         await task.value
         let elapsed = DispatchTime.now().uptimeNanoseconds - start
-        guard window.attachedSheet == nil, session.presentation.bamURL == nil,
+        guard controller.referenceCreation.window == nil, window.attachedSheet == nil, session.presentation.bamURL == nil,
               session.selectedReference == nil, FileManager.default.fileExists(atPath: output.path) else {
-            throw QualificationError("Native Save failed to publish and restore the original viewer")
+            throw QualificationError("Native Save failed to publish quietly without selecting the result")
         }
         try report(["creation_ns": elapsed])
     }
