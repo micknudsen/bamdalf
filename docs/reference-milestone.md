@@ -10,7 +10,8 @@ decisions. Product agreement does not select a storage engine or authorize
 feature implementation, issue publication, or merging.
 
 On 2026-11-21, the accepted creation decisions in
-[issue #70](https://github.com/micknudsen/bamdalf/issues/70) superseded R30
+[creation-window design](reference-creation-design.md), published in
+[issue #70](https://github.com/micknudsen/bamdalf/issues/70), superseded R30
 (filename-derived names) and R32 (modal generation and paused browsing).
 The [creation acceptance record](reference-creation-acceptance.md) maps C1–C13
 to the delivered named, nonmodal workflow and evidence. The original dated
@@ -403,10 +404,13 @@ formats. The mockup retains the complete filename in its tooltip. A recognized
 suffix alone does not establish that a file contains a valid reference bundle;
 R18's format validation still applies.
 
-Superseded 2026-11-21 by [persistent bundle naming #71](https://github.com/micknudsen/bamdalf/issues/71):
+Superseded 2026-11-21 by [C1: Stored bundle name](reference-creation-design.md#c1-stored-bundle-name),
+first delivered in [persistent bundle naming #71](https://github.com/micknudsen/bamdalf/issues/71):
 the reference field displays the required stored name independently of the file
-name, retaining all name characters. The current creation flow stores the FASTA
-basename without its final extension. The filename remains in the tooltip;
+name, retaining all name characters. That intermediate creation flow stored the
+FASTA basename without its final extension. The subsequent
+[creation form #72](https://github.com/micknudsen/bamdalf/issues/72) made that
+basename an editable suggestion and stored the user-chosen name. The filename remains in the tooltip;
 `.bref` remains the enforced file suffix. Old unnamed bundles require regeneration.
 
 ### R31: Reference field without a selected reference
@@ -421,6 +425,7 @@ does not select a reference; use **Open Reference…**.
 ### R32: Modal reference creation
 
 Accepted 2026-11-17. Superseded on 2026-11-21 by
+[C3: Browsing during generation](reference-creation-design.md#c3-browsing-during-generation), delivered in
 [safe concurrent creation](https://github.com/micknudsen/bamdalf/issues/73):
 the independent creation window permits browsing and source changes while
 protecting publication, cancellation, and close/quit cleanup. See the
