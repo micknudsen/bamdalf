@@ -11,6 +11,10 @@ A contiguous range of base positions on one named reference sequence. Bamdalf de
 A self-contained collection of reference sequences and their identity metadata,
 independent of the source files from which it was created.
 
+**Bundle name**:
+A user-chosen display name belonging to a reference bundle, independent of its
+filename. Renaming the file does not change the bundle name.
+
 **Base mismatch**:
 A difference between an aligned base and its reference base when both are
 unambiguous A/C/G/T nucleotides, compared without regard to letter case.

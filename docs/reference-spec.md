@@ -7,7 +7,10 @@ The [bundle format](reference-format.md) and [storage measurements](performance/
 record the subsequent storage decision and proposed qualification limits.
 
 The creation workflow below records the original milestone. On 2026-11-21,
-[issue #73](https://github.com/micknudsen/bamdalf/issues/73) superseded its modal
+the [creation-window design](reference-creation-design.md) and
+[engineering specification](reference-creation-spec.md) revised naming,
+validation, concurrency, and lifecycle behavior.
+[Issue #73](https://github.com/micknudsen/bamdalf/issues/73) superseded its modal
 pause with an application-owned creation window, continued browsing, and safe
 close/quit handling. The [native workflow guide](development.md) describes the
 delivered behavior. The [creation acceptance record](reference-creation-acceptance.md)
@@ -32,7 +35,8 @@ sequence MD5 values, and saves safely with modal progress and cancellation.
 Creation does not select the result. Users open bundles explicitly, browse
 reference-only regions or attach compatible BAMs, and see reference bases and
 mismatch highlighting when zoom permits. A rounded reference field beside the
-interval input identifies the selected bundle without its suffix.
+interval input identifies the selected bundle by its stored name, independently
+of its filename, under the superseding creation contract.
 
 ## User Stories
 
