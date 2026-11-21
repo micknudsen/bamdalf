@@ -3,10 +3,11 @@ import BamdalfKit
 
 @MainActor
 final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+    private let referenceCreation = ReferenceCreationController()
     private var viewer: ViewerWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        viewer = ViewerWindowController(session: ViewerSession())
+        viewer = ViewerWindowController(session: ViewerSession(), referenceCreation: referenceCreation)
         installMenus()
         viewer?.showWindow(nil)
         NSApplication.shared.activate(ignoringOtherApps: true)

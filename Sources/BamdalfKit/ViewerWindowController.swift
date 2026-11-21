@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class ViewerWindowController: NSWindowController, NSTextFieldDelegate, NSMenuItemValidation, NSWindowDelegate {
+    public let referenceCreation: ReferenceCreationController
     let session: ViewerSession
     private let message = WorkspaceMessage(labelWithString: "")
     private let referenceField = NSTextField()
@@ -28,13 +29,14 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     public typealias PresentReferencePanel = @MainActor (NSSavePanel, NSWindow, @escaping @MainActor (URL?) -> Void) -> Void
     let presentReferencePanel: PresentReferencePanel
 
-    public init(session: ViewerSession, presentReferencePanel: @escaping PresentReferencePanel = { panel, window, complete in
+    public init(session: ViewerSession, referenceCreation: ReferenceCreationController? = nil, presentReferencePanel: @escaping PresentReferencePanel = { panel, window, complete in
         panel.beginSheetModal(for: window) { response in
             let url = response == .OK ? panel.url : nil
             panel.orderOut(nil)
             complete(url)
         }
     }) {
+        self.referenceCreation = referenceCreation ?? ReferenceCreationController(presentPanel: presentReferencePanel)
         self.presentReferencePanel = presentReferencePanel
         self.session = session
         referenceRowHeight = referenceRow.heightAnchor.constraint(equalToConstant: 0)
@@ -242,7 +244,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         case #selector(closeReference(_:)):
             return canManageFiles && session.selectedReference != nil
         case #selector(createReference(_:)):
-            return canManageFiles
+            return referenceCreation.window != nil || canManageFiles
         case #selector(goToInterval(_:)):
             return session.presentation.intervalEntryAvailable && window?.attachedSheet == nil
         default:

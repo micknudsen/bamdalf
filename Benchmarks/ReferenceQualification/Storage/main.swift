@@ -53,8 +53,9 @@ struct ReferenceStorageQualification {
         }
         let destination = try ReferenceSaveDestination(confirmedURL: output)
         let start = DispatchTime.now().uptimeNanoseconds
-        guard let task = controller.saveReference(from: source, to: destination),
-              window.attachedSheet?.title == "Creating Reference" else {
+        controller.createReference(nil)
+        guard let task = controller.referenceCreation.saveReference(from: source, name: source.deletingPathExtension().lastPathComponent, to: destination),
+              window.attachedSheet?.title == "Create Reference" else {
             throw QualificationError("The native progress sheet did not open")
         }
         await task.value
