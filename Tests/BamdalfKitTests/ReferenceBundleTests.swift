@@ -9,9 +9,12 @@ struct ReferenceBundleTests {
         let source = files.directory.appendingPathComponent("source.fna")
         let destination = files.directory.appendingPathComponent("portable.bref")
         try Data(">chrA wrapped\r\naCgTRY\r\nswkMbdhVN\r\n>chrB\nT".utf8).write(to: source)
-        try ReferenceBundle.create(from: source, at: destination, creator: "bamdalf/test")
+        try ReferenceBundle.create(from: source, at: destination, name: "  Assembly / α.bref  ", creator: "bamdalf/test")
         try FileManager.default.removeItem(at: source)
-        let bundle = try ReferenceBundle(opening: destination)
+        let moved = files.directory.appendingPathComponent("renamed.bref")
+        try FileManager.default.moveItem(at: destination, to: moved)
+        let bundle = try ReferenceBundle(opening: moved)
+        #expect(bundle.name == "Assembly / α.bref")
         #expect(bundle.contigs.map(\.name) == ["chrA", "chrB"])
         #expect(bundle.contigs.map(\.length) == [15, 1])
         #expect(bundle.contigs.map(\.m5) == ["a00785ce69d2eaeb6da9a59cc69e47f1", "b9ece18c950afbfa6b0fdbfa4ff731d3"])
@@ -26,7 +29,7 @@ struct ReferenceBundleTests {
 
 extension ReferenceBundleTests {
     @Test(arguments: [
-        ("PRAGMA user_version=2", "version"),
+        ("PRAGMA user_version=3", "version"),
         ("PRAGMA application_id=123", "identity"),
         ("UPDATE metadata SET chunk_bytes=32768", "metadata"),
         ("UPDATE metadata SET source_name='../source.fa'", "metadata"),
@@ -58,7 +61,7 @@ private func makeBundle(in directory: URL, fasta: String = ">one\nATgC") throws 
     let source = directory.appendingPathComponent("example.fa")
     try Data(fasta.utf8).write(to: source)
     let file = directory.appendingPathComponent("example.bref")
-    try ReferenceBundle.create(from: source, at: file, creator: "bamdalf/test")
+    try ReferenceBundle.create(from: source, at: file, name: "Example", creator: "bamdalf/test")
     return file
 }
 
@@ -72,7 +75,7 @@ private func expectFailure(containing message: String, _ operation: () throws ->
 }
 
 private func changeFixture(_ url: URL, sql: String) throws {
-    // Edit a documented v1 file outside the production module, as an external writer could.
+    // Edit a documented v2 file outside the production module, as an external writer could.
     let sqlite = Process()
     sqlite.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
     sqlite.arguments = [url.path, sql]
@@ -169,7 +172,7 @@ extension ReferenceBundleTests {
         let badSuffix = file.deletingPathExtension().appendingPathExtension("fna")
         try FileManager.default.copyItem(at: file, to: badSuffix)
         expectFailure(containing: ".bref") { _ = try ReferenceBundle(opening: badSuffix) }
-        expectFailure(containing: ".bref") { try ReferenceBundle.create(from: badSuffix, at: badSuffix, creator: "bamdalf/test") }
+        expectFailure(containing: ".bref") { try ReferenceBundle.create(from: badSuffix, at: badSuffix, name: "Example", creator: "bamdalf/test") }
         let wal = files.directory.appendingPathComponent("wal.bref")
         try FileManager.default.copyItem(at: file, to: wal)
         try changeFixture(wal, sql: "PRAGMA journal_mode=WAL")
@@ -187,12 +190,12 @@ extension ReferenceBundleTests {
         let before = try Data(contentsOf: url)
         let source = files.directory.appendingPathComponent("example.fa")
         #expect(throws: CancellationError.self) {
-            try ReferenceBundle.create(from: source, at: url, creator: "bamdalf/test") { read, _ in
+            try ReferenceBundle.create(from: source, at: url, name: "Example", creator: "bamdalf/test") { read, _ in
                 if read > 0 { throw CancellationError() }
             }
         }
         #expect(throws: (any Error).self) {
-            try ReferenceBundle.create(from: source, at: url, creator: "bamdalf/test")
+            try ReferenceBundle.create(from: source, at: url, name: "Example", creator: "bamdalf/test")
         }
         #expect(try Data(contentsOf: url) == before)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
@@ -207,7 +210,7 @@ extension ReferenceBundleTests {
         try Data((">x\n" + String(repeating: "A", count: 2_000_000)).utf8).write(to: source)
         let url = files.directory.appendingPathComponent("changed.bref")
         expectFailure(containing: "size changed") {
-            try ReferenceBundle.create(from: source, at: url, creator: "bamdalf/test") { read, total in
+            try ReferenceBundle.create(from: source, at: url, name: "Example", creator: "bamdalf/test") { read, total in
                 if read > 0 && read < total {
                     let writer = try FileHandle(forWritingTo: source)
                     try writer.truncate(atOffset: UInt64(read))
@@ -228,7 +231,7 @@ extension ReferenceBundleTests {
         let source = files.directory.appendingPathComponent("example.fa")
         try Data(">replacement\ngTA".utf8).write(to: source)
         let confirmed = try ReferenceSaveDestination(confirmedURL: old)
-        try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test") { _, _ in
+        try ReferenceBundle.create(from: source, at: confirmed, name: "Example", creator: "bamdalf/test") { _, _ in
             let actual = try Data(contentsOf: old)
             #expect(actual == before)
         }
@@ -248,7 +251,7 @@ extension ReferenceBundleTests {
         let changed = Data("a different file at the confirmed location".utf8)
         try changed.write(to: destination, options: .atomic)
         #expect(throws: (any Error).self) {
-            try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test")
+            try ReferenceBundle.create(from: source, at: confirmed, name: "Example", creator: "bamdalf/test")
         }
         #expect(try Data(contentsOf: destination) == changed)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
@@ -293,7 +296,7 @@ extension ReferenceBundleTests {
         try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: destination.path)
         defer { try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: destination.path) }
         #expect(throws: (any Error).self) {
-            try ReferenceBundle.create(from: source, at: confirmed, creator: "bamdalf/test")
+            try ReferenceBundle.create(from: source, at: confirmed, name: "Example", creator: "bamdalf/test")
         }
         #expect(try Data(contentsOf: destination) == before)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
@@ -313,7 +316,7 @@ extension ReferenceBundleTests {
             let source = files.directory.appendingPathComponent("\(name).fa")
             try Data(">\(name)\nT".utf8).write(to: source)
             saves.append((name, Task.detached {
-                try ReferenceBundle.create(from: source, at: destination, creator: "bamdalf/test") { read, _ in
+                try ReferenceBundle.create(from: source, at: destination, name: "Example", creator: "bamdalf/test") { read, _ in
                     if read > 0 {
                         signal.yield()
                         release.wait()
@@ -334,5 +337,60 @@ extension ReferenceBundleTests {
         let bundle = try ReferenceBundle(opening: output)
         #expect(bundle.contigs.map(\.name) == winners)
         #expect(try await bundle.read(GenomicInterval(reference: winners[0], start: 1, end: 1)) == Data("T".utf8))
+    }
+}
+
+
+extension ReferenceBundleTests {
+    @Test(arguments: ["", " \n\t", String(repeating: "é", count: 2049)])
+    func invalidNamesPreserveTheConfirmedDestination(name: String) throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let output = try makeBundle(in: files.directory)
+        let original = try Data(contentsOf: output)
+        let confirmed = try ReferenceSaveDestination(confirmedURL: output)
+        let source = files.directory.appendingPathComponent("example.fa")
+        expectFailure(containing: "bundle name") {
+            try ReferenceBundle.create(from: source, at: confirmed, name: name, creator: "bamdalf/test")
+        }
+        #expect(try Data(contentsOf: output) == original)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["example.bref", "example.fa"])
+    }
+}
+
+
+extension ReferenceBundleTests {
+    @Test(arguments: [
+        "ALTER TABLE metadata DROP COLUMN bundle_name",
+        "DELETE FROM metadata",
+        "UPDATE metadata SET bundle_name=''",
+        "UPDATE metadata SET bundle_name=' ' || char(9) || char(10)",
+        "UPDATE metadata SET bundle_name=' padded '",
+        "UPDATE metadata SET bundle_name=zeroblob(4)",
+        "UPDATE metadata SET bundle_name=CAST(X'FF' AS TEXT)",
+        "UPDATE metadata SET bundle_name=hex(zeroblob(2049))",
+        "PRAGMA user_version=1; ALTER TABLE metadata DROP COLUMN bundle_name",
+        "PRAGMA user_version=999"
+    ])
+    func invalidOrObsoleteNamesRequireRegeneration(mutation: String) throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let file = try makeBundle(in: files.directory)
+        try changeFixture(file, sql: mutation)
+        expectFailure(containing: "Regenerate") { _ = try ReferenceBundle(opening: file) }
+    }
+}
+
+
+extension ReferenceBundleTests {
+    @Test func nameLimitCountsUTF8BytesAfterTrimming() throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let source = files.directory.appendingPathComponent("source.fa")
+        let output = files.directory.appendingPathComponent("named.bref")
+        try Data(">seq\nA".utf8).write(to: source)
+        let name = String(repeating: "é", count: 2048)
+        try ReferenceBundle.create(from: source, at: output, name: " \n" + name + "\t ", creator: "bamdalf/test")
+        #expect(try ReferenceBundle(opening: output).name == name)
     }
 }

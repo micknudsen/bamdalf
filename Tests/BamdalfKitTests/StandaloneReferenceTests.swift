@@ -3,11 +3,11 @@ import Foundation
 import Testing
 
 extension FixtureFiles {
-    func reference(_ filename: String, fasta: String) throws -> URL {
+    func reference(_ filename: String, name: String? = nil, fasta: String) throws -> URL {
         let input = directory.appendingPathComponent("source.fa")
         let output = directory.appendingPathComponent(filename)
         try Data(fasta.utf8).write(to: input)
-        try ReferenceBundle.create(from: input, at: output, creator: "Standalone reference test")
+        try ReferenceBundle.create(from: input, at: output, name: name ?? output.deletingPathExtension().lastPathComponent, creator: "Standalone reference test")
         try FileManager.default.removeItem(at: input)
         return output
     }

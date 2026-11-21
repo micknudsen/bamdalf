@@ -9,8 +9,8 @@ struct NativeStandaloneReferenceTests {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
-        let name = longName ? String(repeating: "long assembly ", count: 9) + ".bref.v1" : "GRCh38"
-        let url = try files.reference(name + ".bref", fasta: ">seq\naCGtn")
+        let name = longName ? String(repeating: "long assembly ", count: 9) + "/ α.bref" : "GRCh38.bref"
+        let url = try files.reference("different-filename.bref", name: name, fasta: ">seq\naCGtn")
         let session = ViewerSession()
         let (opened, signal) = AsyncStream<Void>.makeStream()
         let controller = ViewerWindowController(session: session) { panel, _, choose in
@@ -50,6 +50,16 @@ struct NativeStandaloneReferenceTests {
             #expect((field.intrinsicContentSize.width > field.frame.width) == longName)
             #expect(field.lineBreakMode == .byTruncatingTail)
         }
+        session.editInterval("seq:1-5")
+        await session.submitInterval()?.value
+        session.editInterval("retain this draft")
+        let before = session.presentation
+        await session.openReference(files.directory.appendingPathComponent("missing.bref"))
+        #expect(session.presentation.openError != nil)
+        #expect(field.stringValue == name && field.toolTip == url.lastPathComponent)
+        #expect(session.presentation.referenceURL == url && session.presentation.target == before.target)
+        #expect(session.presentation.referenceBases == before.referenceBases)
+        #expect(session.presentation.intervalText == "retain this draft")
         menu.performActionForItem(at: menu.index(of: close))
         #expect(field.stringValue == "No reference" && !field.isHidden)
         #expect(entry.isHidden && session.presentation.referenceURL == nil)

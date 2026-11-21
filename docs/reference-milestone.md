@@ -383,7 +383,7 @@ Use a rounded, read-only reference field with a file icon beside the interval
 input. Match the neighboring navigation controls' height and border treatment.
 This does not introduce a reference-selection button or menu.
 
-R30 defines the enforced suffix and its omission from the displayed name.
+R30 defines the enforced file suffix and the stored display name.
 
 ### R30: Reference-file suffix and display name
 
@@ -395,6 +395,12 @@ Earlier `.reference` and `.bamdalfref` examples were proposals, not accepted
 formats. The mockup retains the complete filename in its tooltip. A recognized
 suffix alone does not establish that a file contains a valid reference bundle;
 R18's format validation still applies.
+
+Superseded 2026-11-21 by [persistent bundle naming #71](https://github.com/micknudsen/bamdalf/issues/71):
+the reference field displays the required stored name independently of the file
+name, retaining all name characters. The current creation flow stores the FASTA
+basename without its final extension. The filename remains in the tooltip;
+`.bref` remains the enforced file suffix. Old unnamed bundles require regeneration.
 
 ### R31: Reference field without a selected reference
 

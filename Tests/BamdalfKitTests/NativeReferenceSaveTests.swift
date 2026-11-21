@@ -54,13 +54,14 @@ extension NativeReferenceSaveTests {
         defer { files.remove() }
         let input = files.directory.appendingPathComponent("source.fa")
         let output = files.directory.appendingPathComponent("reference.bref")
+        let moved = files.directory.appendingPathComponent("moved-again.bref")
         let bases = "aCG" + String(repeating: "A", count: 19_997)
         try Data((">tiny\n" + bases).utf8).write(to: input)
         try Data("old destination".utf8).write(to: output)
         let session = ViewerSession()
         let controller = ViewerWindowController(session: session) { panel, _, complete in
             if panel is NSOpenPanel {
-                complete(panel.allowedContentTypes.first?.preferredFilenameExtension == "bref" ? output : input)
+                complete(panel.allowedContentTypes.first?.preferredFilenameExtension == "bref" ? moved : input)
                 return
             }
             do {
@@ -86,12 +87,14 @@ extension NativeReferenceSaveTests {
         try #require(await end.next() != nil)
         #expect(session.presentation.referenceURL == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["reference.bref", "source.fa"])
+        #expect(try ReferenceBundle(opening: output).name == "source")
+        try FileManager.default.moveItem(at: output, to: moved)
         try FileManager.default.removeItem(at: input)
         let (opened, signal) = AsyncStream<Void>.makeStream()
         let render = session.onPresentationChange
         session.onPresentationChange = {
             render?()
-            if session.presentation.referenceURL == output && !session.presentation.isOpening { signal.yield() }
+            if session.presentation.referenceURL == moved && !session.presentation.isOpening { signal.yield() }
         }
         let open = try #require(menu.item(withTitle: "Open Reference…"))
         menu.performActionForItem(at: menu.index(of: open))
@@ -99,12 +102,15 @@ extension NativeReferenceSaveTests {
         _ = await opens.next()
         session.onPresentationChange = render
 
+        #expect(session.presentation.referenceName == "source")
         try await files.openedSession(fixture: "comparison", session: session)
         session.editInterval("tiny:1-77")
         await session.submitInterval()?.value
         let stored = try #require(session.presentation.referenceBases)
         #expect(stored.interval.start == 1 && stored.bases.starts(with: Data("aCG".utf8)))
         let workspace = try #require(window.contentView)
+        let field = try #require(workspace.subviews.compactMap { $0 as? NSTextField }.first { $0.accessibilityLabel() == "Selected reference" })
+        #expect(field.stringValue == "source" && field.toolTip == "moved-again.bref")
         workspace.layoutSubtreeIfNeeded()
         let scroll = try #require(workspace.subviews.compactMap { $0 as? NSScrollView }.first)
         let stack = try #require(scroll.documentView)

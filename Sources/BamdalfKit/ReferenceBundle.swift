@@ -17,9 +17,10 @@ public struct ReferenceProvenance: Sendable {
     public let createdUTC: String
 }
 
-/// A read-only v1 reference with exact, byte-sensitive names and 1-based inclusive intervals.
+/// A read-only v2 reference with exact, byte-sensitive names and 1-based inclusive intervals.
 public actor ReferenceBundle {
     public nonisolated let url: URL
+    public nonisolated let name: String
     public nonisolated let provenance: ReferenceProvenance
     public nonisolated let contigs: [ReferenceContig]
     nonisolated let fileIdentity: ReferenceFileIdentity
@@ -34,6 +35,7 @@ public actor ReferenceBundle {
         let db = try ReferenceDatabase(url)
         try db.execute("BEGIN")
         try ReferenceFormat.checkSchema(db)
+        name = try ReferenceFormat.name(db)
         provenance = try ReferenceFormat.provenance(db)
         let dictionary = try db.statement("""
             SELECT id, CASE WHEN length(CAST(name AS BLOB)) <= \(ReferenceFormat.fieldBytes) THEN name END, length,

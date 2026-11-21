@@ -61,14 +61,18 @@ explicit choice. Canceling or failing a replacement preserves the open session.
 An index failure identifies the selected file without trying another index.
 
 Use **File → Create Reference…** with or without a BAM. Choose a local,
-uncompressed FASTA and save a single `.bref`. The standard Save panel asks
+uncompressed FASTA and save a single `.bref`. The FASTA filename without its
+final extension supplies the stored bundle name and suggested output filename.
+Choosing another filename or moving the bundle later preserves its stored name.
+The standard Save panel asks
 before replacing an existing file. The progress sheet pauses navigation and
 offers **Cancel** while the FASTA imports. Cancellation or failure preserves
 the destination. Saving returns to the same viewer and interval draft.
 
 Use **File → Open Reference…** to browse a standalone `.bref`. Its contig
 dictionary supplies interval entry, pan, zoom, and pointer navigation. The
-rounded field shows the filename with its last `.bref` removed. The row
+rounded field shows the stored bundle name, with the filename in its tooltip.
+Older unnamed bundles must be regenerated from their FASTA. The row
 below the ruler shows case-preserving letters at eight points per base and
 colored cells down to one point. Wider views leave the row blank and skip the
 sequence read. Opening another reference keeps a valid target and clears an
@@ -514,16 +518,16 @@ measurements remain separate from timing-insensitive correctness assertions.
 
 ## Reference bundle interface
 
-`ReferenceBundle.create(from:at:creator:progress:)` imports a local,
+`ReferenceBundle.create(from:at:name:creator:progress:)` imports a local,
 uncompressed FASTA into a new `.bref`. Supply the application and version as
-the creator. Run creation on a background task. The optional callback reports
+the creator and a nonblank name (trimmed, at most 4,096 UTF-8 bytes). Run creation on a background task. The optional callback reports
 consumed and total input bytes and may throw to stop creation. Cancellation or
 failure cleans up staging and preserves an existing destination.
 
 `ReferenceBundle(opening:)` opens a read-only bundle and exposes its ordered
-contigs (name, length and SAM M5) and provenance immediately. Its actor-isolated
+contigs (name, length and SAM M5), stored `name`, and provenance immediately. Its actor-isolated
 `read(_:)` takes a 1-based inclusive `GenomicInterval` and returns
-case-preserving ASCII bases as `Data`. The [v1 format](reference-format.md)
+case-preserving ASCII bases as `Data`. The [v2 format](reference-format.md)
 defines validation, dictionary limits and bounded regional access.
 
 The [reference qualification report](performance/reference-qualification-2026-11-18.md)

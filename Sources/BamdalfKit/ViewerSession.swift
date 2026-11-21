@@ -30,6 +30,7 @@ public struct ViewerPresentation {
     public var windowTitle = "bamdalf"
     public var message = "No BAM file open"
     public var referenceURL: URL?
+    public var referenceName: String?
     public var referenceBases: ReferenceRegion?
     public var bamURL: URL?
     public var indexURL: URL?
@@ -185,6 +186,7 @@ public final class ViewerSession {
         next.indexURL = bam?.indexURL
         if let bam { next.windowTitle = "\(bam.url.lastPathComponent) — bamdalf" }
         next.referenceURL = selectedReference?.url
+        next.referenceName = selectedReference?.name
         next.references = selectedReference?.contigs.map { ReferenceSequence(name: $0.name, length: $0.length, m5: $0.m5) }
             ?? bam?.references ?? []
         if next.intervalEntryAvailable {

@@ -1,19 +1,23 @@
-# Reference bundle format v1
+# Reference bundle format v2
 
-A closed `.bref` is one SQLite database. Version 1 stores sequences as
+A closed `.bref` is one SQLite database. Version 2 stores sequences as
 case-preserving ASCII in 65,536-byte chunks. This format was selected from the
 [whole-human-reference measurements](performance/reference-storage-2026-11-18.md)
 for [issue #49](https://github.com/micknudsen/bamdalf/issues/49).
 
+Version 2 adds the required stored bundle name. Version 1 bundles must be
+regenerated from their FASTA; there is no migration or filename fallback.
+Bundle versions are independent of application release versions.
+
 ## Core tables and identity
 
-Use the SQLite application ID `0x42524546` (ASCII BREF), `user_version=1`,
+Use the SQLite application ID `0x42524546` (ASCII BREF), `user_version=2`,
 UTF-8 text and ordinary rowid tables. The required columns, in order, are shown
 below. Every field after the primary key is required (`NOT NULL`).
 
 | Table | Columns and rules |
 | --- | --- |
-| `metadata` | `id INTEGER PRIMARY KEY` with exactly one row numbered 1, `source_name TEXT` (source basename), `creator TEXT` (application and version), `created_utc TEXT` (ISO 8601 UTC timestamp), `chunk_bytes INTEGER` (65536) |
+| `metadata` | `id INTEGER PRIMARY KEY` with exactly one row numbered 1, `source_name TEXT` (source basename), `creator TEXT` (application and version), `created_utc TEXT` (ISO 8601 UTC timestamp), `chunk_bytes INTEGER` (65536), `bundle_name TEXT` (trimmed display name) |
 | `contigs` | `id INTEGER PRIMARY KEY` from 1 in source order, `name TEXT UNIQUE COLLATE BINARY`, `length INTEGER` in bases, `m5 TEXT` (32 lowercase hex digits), `first_chunk INTEGER` (inclusive positive chunk ID) |
 | `chunks` | `id INTEGER PRIMARY KEY`, `bases BLOB` (raw ASCII) |
 
@@ -24,10 +28,17 @@ an optional fractional second, and either `Z` or `+00:00`. For example,
 Store only the source basename, creator and time for provenance. Do not read
 a source path during opening or use it as sequence identity. Contig names
 are nonempty UTF-8, matched by their exact bytes. No normalization or
-case folding applies. The v1 dictionary bounds are 100,000 contigs, 4,096
+case folding applies. The v2 dictionary bounds are 100,000 contigs, 4,096
 UTF-8 bytes per name and 16 MiB of name bytes in total. Limit each provenance
 field to 4,096 UTF-8 bytes. The measured assembly uses 2,580 contigs. A writer
 diagnoses unsupported input before publication.
+
+Trim surrounding whitespace and newlines from the supplied bundle name. Require
+a nonblank UTF-8 name of at most 4,096 bytes after trimming. Opening requires
+that same bound, valid UTF-8 text and an already-trimmed nonblank name. Preserve
+its characters, including slashes and `.bref`; it is a display label, not a
+pathname or a sequence compatibility key. Renaming or moving the file does not
+change the stored name. The source basename remains separate provenance.
 
 Each contig owns consecutive chunk IDs in source order. The first begins at 1.
 A length `L > 0` needs `1 + (L - 1) / 65536` chunks (integer division).
@@ -49,7 +60,8 @@ case. [SAM specification, section 1.3.2](https://samtools.github.io/hts-specs/SA
 
 Open the file in ordinary SQLite read-only mode. Reject a foreign application
 ID, unsupported user version, non-rollback header, incomplete core schema or
-invalid metadata. Never create or repair a database while viewing. Validate
+invalid metadata. Obsolete or unsupported versions and invalid name metadata
+include guidance to regenerate the bundle. Never create or repair a database while viewing. Validate
 the required table/column types and integer primary keys. Bound SQLite row
 and metadata allocations *before* materializing field values. Check dictionary
 order, unique names, positive lengths, M5 syntax, consecutive declared chunk
@@ -88,11 +100,11 @@ check and the rename. For a fresh destination, exclusive rename rejects any
 file that appeared during the import. Readers must work
 in a nonwritable directory, without WAL, SHM, an external index or extraction.
 
-A v1 reader may ignore additional ordinary tables with no role in core
+A v2 reader may ignore additional ordinary tables with no role in core
 interpretation. Future annotation tables can refer to the contig primary key
 within this bundle and record their own provenance. Changed sequence encoding,
 chunk sizing, coordinate semantics, new required structures, or changed
 interpretation of existing fields requires a new user version. Reject that
 version before selecting it. A new schema must preserve core meaning to remain
-readable as v1. The production [reference-bundle interface](../Sources/BamdalfKit/ReferenceBundle.swift)
+readable as v2. The production [reference-bundle interface](../Sources/BamdalfKit/ReferenceBundle.swift)
 uses 1-based inclusive genomic intervals and converts to the file coordinates above.
