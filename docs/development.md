@@ -60,14 +60,26 @@ Use **File → Open BAM…** / **Command-O** to select a local BAM. The app disc
 explicit choice. Canceling or failing a replacement preserves the open session.
 An index failure identifies the selected file without trying another index.
 
-Use **File → Create Reference…** with or without a BAM. Choose a local,
-uncompressed FASTA and save a single `.bref`. The FASTA filename without its
-final extension supplies the stored bundle name and suggested output filename.
-Choosing another filename or moving the bundle later preserves its stored name.
-The standard Save panel asks
-before replacing an existing file. The progress sheet pauses navigation and
-offers **Cancel** while the FASTA imports. Cancellation or failure preserves
-the destination. Saving returns to the same viewer and interval draft.
+Use **File → Create Reference…** with or without a BAM to open one creation
+form. Enter **Bundle name** and a local, uncompressed **FASTA** path, or use
+**Browse…**. An untouched name follows the FASTA filename without its final
+extension; once edited, it stays unchanged, including an intentionally blank
+value. **Create bundle** validates both fields before opening native Save.
+The name is trimmed and limited to 4,096 UTF-8 bytes. Source contents are parsed
+only during generation. Validation errors appear beside their fields.
+
+Save suggests a safe `.bref` filename derived from the name and asks before
+replacing an existing file. Filename edits or later moves leave the stored name
+unchanged. Canceling Save retains the form. Repeating Create Reference focuses
+the same window; closing it while idle discards its inputs.
+
+Generation temporarily attaches the form to the viewer as a modal sheet, with
+progress and **Cancel**. This intermediate implementation retains the browsing
+pause pending [safe concurrent generation](https://github.com/micknudsen/bamdalf/issues/73).
+Inputs are frozen for the running operation. Cancellation or failure finishes
+cleanup, preserves existing destination bytes, and restores the populated form;
+errors appear there. Successful creation closes quietly without opening the
+bundle or changing viewer sources, navigation, or drafts. Reopening starts empty.
 
 Use **File → Open Reference…** to browse a standalone `.bref`. Its contig
 dictionary supplies interval entry, pan, zoom, and pointer navigation. The

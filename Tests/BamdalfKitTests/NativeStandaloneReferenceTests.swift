@@ -129,6 +129,34 @@ extension NativeStandaloneReferenceTests {
 }
 
 extension NativeStandaloneReferenceTests {
+    @Test func selectionAfterSaveApprovalStillProtectsTheDestination() async throws {
+        _ = NSApplication.shared
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let output = try files.reference("selected.bref", fasta: ">seq\nacgt")
+        let alias = files.directory.appendingPathComponent("alias.bref")
+        try FileManager.default.linkItem(at: output, to: alias)
+        let source = files.directory.appendingPathComponent("new.fa")
+        try Data(">new\nA".utf8).write(to: source)
+        let original = try Data(contentsOf: output)
+        let session = ViewerSession()
+        let controller = ViewerWindowController(session: session)
+        controller.showWindow(nil)
+        defer { controller.window?.close() }
+        controller.createReference(nil)
+        let form = try creationForm()
+        defer { form.close() }
+        let approval = try ReferenceSaveDestination(confirmedURL: alias)
+        await session.openReference(output)
+        let saving = controller.referenceCreation.saveReference(from: source, name: "replacement", to: approval)
+        #expect(saving == nil)
+        await saving?.value
+        #expect((try textField("Creation error", in: form)).stringValue.contains("open reference"))
+        #expect(try Data(contentsOf: output) == original)
+        #expect(try Data(contentsOf: alias) == original)
+        #expect(session.presentation.referenceURL == output)
+    }
+
     @Test(.timeLimit(.minutes(1))) func createCommandProtectsTheOpenBundleThroughAHardLink() async throws {
         _ = NSApplication.shared
         let files = try FixtureFiles()
@@ -158,6 +186,10 @@ extension NativeStandaloneReferenceTests {
         let menu = controller.makeFileMenu()
         let create = try #require(menu.item(withTitle: "Create Reference…"))
         menu.performActionForItem(at: menu.index(of: create))
+        let form = try creationForm()
+        defer { form.close() }
+        click(try button("Browse…", in: form))
+        click(try button("Create bundle", in: form))
         var events = validated.makeAsyncIterator()
         _ = await events.next()
         #expect(session.presentation.referenceURL == url)
