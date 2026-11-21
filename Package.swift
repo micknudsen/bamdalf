@@ -30,6 +30,8 @@ let package = Package(
                           exclude: ["run.py", "protocol.py", "summarize.py", "audit.py"], sources: ["main.swift"]),
         .executableTarget(name: "ReferenceStorageQualification", dependencies: ["BamdalfKit"],
                           path: "Benchmarks/ReferenceQualification/Storage"),
+        .executableTarget(name: "ReferenceConcurrentQualification", dependencies: ["BamdalfKit"],
+                          path: "Benchmarks/ReferenceQualification/Concurrent"),
         .testTarget(name: "BamdalfKitTests", dependencies: ["BamdalfKit"], resources: [.copy("Fixtures")]),
     ]
 )

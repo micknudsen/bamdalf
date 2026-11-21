@@ -95,6 +95,13 @@ exercise both source modes and lifecycle choices, and verify cancellation on
 both sides of publication. An isolated native child requires cleanup evidence
 from application termination without quitting the main test runner.
 
+The [named-creation acceptance record](reference-creation-acceptance.md) maps the
+confirmed stories and decisions to these tests and the portable File-menu
+scenario. That scenario removes the FASTA, moves the named bundle, verifies its
+sequence and displayed name, then rejects an obsolete unnamed bundle without
+disturbing the valid viewer. The [pre-1.0 compatibility policy](../CONTRIBUTING.md#pre-10-compatibility-policy)
+permits this format break and requires clear regeneration guidance.
+
 Use **File → Open Reference…** to browse a standalone `.bref`. Its contig
 dictionary supplies interval entry, pan, zoom, and pointer navigation. The
 rounded field shows the stored bundle name, with the filename in its tooltip.

@@ -212,13 +212,15 @@ extension NativeReferenceSaveTests {
         let input = files.directory.appendingPathComponent("source.fa")
         let output = files.directory.appendingPathComponent("reference.bref")
         let moved = files.directory.appendingPathComponent("moved-again.bref")
+        let obsolete = files.directory.appendingPathComponent("obsolete-unnamed.bref")
+        var referenceChoice = moved
         let bases = "aCG" + String(repeating: "A", count: 19_997)
         try Data((">tiny\n" + bases).utf8).write(to: input)
         try Data("old destination".utf8).write(to: output)
         let session = ViewerSession()
         let controller = ViewerWindowController(session: session) { panel, _, complete in
             if panel is NSOpenPanel {
-                complete(panel.allowedContentTypes.first?.preferredFilenameExtension == "bref" ? moved : input)
+                complete(panel.allowedContentTypes.first?.preferredFilenameExtension == "bref" ? referenceChoice : input)
                 return
             }
             do {
@@ -268,7 +270,9 @@ extension NativeReferenceSaveTests {
         session.editInterval("tiny:1-77")
         await session.submitInterval()?.value
         let stored = try #require(session.presentation.referenceBases)
-        #expect(stored.interval.start == 1 && stored.bases.starts(with: Data("aCG".utf8)))
+        #expect(stored.interval.start == 1 && stored.interval.end == 77)
+        #expect(String(decoding: stored.bases, as: UTF8.self) ==
+                "aCGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         let workspace = try #require(window.contentView)
         let field = try #require(workspace.subviews.compactMap { $0 as? NSTextField }.first { $0.accessibilityLabel() == "Selected reference" })
         #expect(field.stringValue == "My named reference" && field.toolTip == "moved-again.bref")
@@ -282,6 +286,35 @@ extension NativeReferenceSaveTests {
         let x = Int(13.5 * stack.bounds.width / 77)
         let colors = (4...13).compactMap { bitmap.colorAt(x: x, y: forward.row * 18 + $0)?.usingColorSpace(.deviceRGB) }
         #expect(colors.contains { $0.blueComponent > $0.redComponent + 0.3 && $0.blueComponent > $0.greenComponent + 0.2 })
+
+        // Model the documented v1 format, which has no independent stored name.
+        try FileManager.default.copyItem(at: moved, to: obsolete)
+        let sqlite = Process()
+        sqlite.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        sqlite.arguments = [obsolete.path, "PRAGMA user_version=1; ALTER TABLE metadata DROP COLUMN bundle_name"]
+        try sqlite.run()
+        sqlite.waitUntilExit()
+        try #require(sqlite.terminationStatus == 0)
+        session.editInterval("preserve this unfinished draft")
+        let before = session.presentation
+        referenceChoice = obsolete
+        menu.performActionForItem(at: menu.index(of: open))
+        while window.attachedSheet == nil { await Task.yield() }
+        let alert = try #require(window.attachedSheet)
+        defer { window.endSheet(alert, returnCode: .alertFirstButtonReturn) }
+        let labels = textLabels(in: try #require(alert.contentView))
+        #expect(labels.contains("Could not open obsolete-unnamed.bref"))
+        #expect(labels.contains { $0.contains("Regenerate") && $0.contains("FASTA") })
+        #expect(session.presentation.referenceURL == before.referenceURL)
+        #expect(session.presentation.referenceName == before.referenceName)
+        #expect(session.presentation.referenceBases == before.referenceBases)
+        #expect(session.presentation.bamURL == before.bamURL)
+        #expect(session.presentation.sessionID == before.sessionID)
+        #expect(session.presentation.target == before.target)
+        #expect(session.presentation.intervalText == before.intervalText)
+        #expect(session.presentation.alignments == before.alignments)
+        #expect(session.presentation.verticalOffset == before.verticalOffset)
+        #expect(field.stringValue == "My named reference" && field.toolTip == "moved-again.bref")
     }
 
     @Test func fileMenuOpensANativeFASTAChooserAndTheSavePanelEnforcesBref() async throws {
@@ -453,14 +486,18 @@ extension NativeReferenceSaveTests {
         #expect((try textField("Bundle name", in: form)).stringValue == "invalid input")
         #expect((try button("Create bundle", in: form)).isEnabled)
         let root = try #require(form.contentView)
-        func labels(in view: NSView) -> [String] {
-            view.subviews.compactMap { ($0 as? NSTextField)?.stringValue } + view.subviews.flatMap { labels(in: $0) }
-        }
-        let text = labels(in: root)
+        let text = textLabels(in: root)
         #expect(text.contains { $0.contains("Could not create existing.bref") })
         #expect(text.contains { $0.contains("‘!’ in one at base 2") })
         #expect(try Data(contentsOf: output) == originalBytes)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["existing.bref", "invalid.fa"])
+        try Data(">one\nAcgT".utf8).write(to: input)
+        let retry = try #require(controller.referenceCreation.saveReference(from: input, name: "invalid input", to: destination))
+        await retry.value
+        let bundle = try ReferenceBundle(opening: output)
+        #expect(bundle.name == "invalid input")
+        #expect(try await bundle.read(GenomicInterval(reference: "one", start: 1, end: 4)) == Data("AcgT".utf8))
+        #expect(controller.referenceCreation.window == nil)
     }
 }
 
@@ -488,4 +525,9 @@ func edit(_ field: NSTextField, to value: String) {
 @MainActor
 func click(_ button: NSButton) {
     #expect(button.sendAction(button.action, to: button.target))
+}
+
+@MainActor
+private func textLabels(in view: NSView) -> [String] {
+    view.subviews.compactMap { ($0 as? NSTextField)?.stringValue } + view.subviews.flatMap { textLabels(in: $0) }
 }

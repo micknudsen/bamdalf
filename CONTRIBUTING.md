@@ -4,6 +4,22 @@ Use US English and the terms in [GLOSSARY.md](GLOSSARY.md). The accepted product
 behavior is recorded in [docs/design.md](docs/design.md); implementation work is
 tracked under the [MVP specification](https://github.com/micknudsen/bamdalf/issues/1).
 
+## Pre-1.0 compatibility policy
+
+Accepted 2026-11-21. Until the first stable v1.0.0 release, prioritize the current
+product model over backward compatibility with earlier bamdalf versions and
+their generated artifacts. Breaking changes to bamdalf-owned formats are
+acceptable. Add migration code, legacy readers, or fallback behavior only when
+an explicit product requirement calls for compatibility; preserving earlier
+preview behavior alone is not a requirement.
+
+For incompatible reference bundles, use a clear rejection and ask the user to
+regenerate the bundle. In particular, bundles without the newly required stored
+name may become obsolete; no filename fallback or migration is required.
+This policy does not relax validation, safe saving, or support for the external
+input formats specified by the product design. Establish the stable compatibility
+contract when preparing v1.0.0; this policy does not define that future contract.
+
 ## Pull requests
 
 All contributions, including documentation and CI changes, go through a branch
