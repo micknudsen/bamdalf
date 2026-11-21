@@ -3,8 +3,7 @@ import UniformTypeIdentifiers
 
 extension ViewerWindowController {
     @objc public func createReference(_ sender: Any?) {
-        guard canManageFiles || referenceCreation.window != nil else { return }
-        referenceCreation.present(for: window, canStart: { [weak self] in self?.canManageFiles == true }, selectedReference: { [weak self] in self?.session.selectedReference })
+        referenceCreation.present(session: session)
     }
 
 }

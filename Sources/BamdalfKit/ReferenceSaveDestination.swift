@@ -5,6 +5,8 @@ import Foundation
 public struct ReferenceSaveDestination: Sendable {
     public let url: URL
     private let existing: ReferenceFileIdentity?
+    private var publication: ReferencePublication?
+    private var checkpoint: @Sendable (ReferencePublicationStage) -> Void = { _ in }
 
     init(freshURL: URL) throws {
         try ReferenceFormat.checkURL(freshURL)
@@ -21,33 +23,47 @@ public struct ReferenceSaveDestination: Sendable {
         }
     }
 
+    func coordinated(with publication: ReferencePublication,
+                     checkpoint: @escaping @Sendable (ReferencePublicationStage) -> Void) -> Self {
+        var copy = self
+        copy.publication = publication
+        copy.checkpoint = checkpoint
+        return copy
+    }
+
     func publish(_ candidate: URL) throws {
         try Task.checkCancellation()
-        guard let existing else {
-            guard renamex_np(candidate.path, url.path, UInt32(RENAME_EXCL)) == 0 else {
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-            return
-        }
+        checkpoint(.readyToPublish)
+        // Coordination can wait on other processes; do not hold the selection lock here.
         let coordinator = NSFileCoordinator()
         var coordinationError: NSError?
         var publicationError: Error?
+        var committed = false
         coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
             do {
-                try Task.checkCancellation()
-                guard try ReferenceFileIdentity.at(target) == existing,
-                      try target == url || ReferenceFileIdentity.at(url) == existing else {
-                    throw ReferenceBundleError("The destination changed after confirmation. Choose it again to save.")
+                let commit = {
+                    try Task.checkCancellation()
+                    guard try ReferenceFileIdentity.at(target) == existing,
+                          try target == url || ReferenceFileIdentity.at(url) == existing else {
+                        throw ReferenceBundleError("The destination changed after confirmation. Choose it again to save.")
+                    }
+                    let result = existing == nil
+                        ? renamex_np(candidate.path, target.path, UInt32(RENAME_EXCL))
+                        : rename(candidate.path, target.path)
+                    guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
                 }
-                guard rename(candidate.path, target.path) == 0 else {
-                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-                }
+                if let publication { try publication.publish(at: target, commit: commit) }
+                else { try commit() }
+                committed = true
             } catch {
                 publicationError = error
             }
         }
-        if let error = coordinationError ?? publicationError { throw error }
+        if committed { checkpoint(.published) }
+        else if let error = coordinationError ?? publicationError { throw error }
+        else { throw ReferenceBundleError("The destination could not be coordinated for saving. Try again.") }
     }
+
 }
 
 struct ReferenceFileIdentity: Equatable, Sendable {

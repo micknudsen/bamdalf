@@ -244,7 +244,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         case #selector(closeReference(_:)):
             return canManageFiles && session.selectedReference != nil
         case #selector(createReference(_:)):
-            return referenceCreation.window != nil || canManageFiles
+            return true
         case #selector(goToInterval(_:)):
             return session.presentation.intervalEntryAvailable && window?.attachedSheet == nil
         default:

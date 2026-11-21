@@ -6,6 +6,12 @@ See the [decision record](reference-milestone.md) for the design history.
 The [v1 format](reference-format.md) and [storage measurements](performance/reference-storage-2026-11-18.md)
 record the subsequent storage decision and proposed qualification limits.
 
+The creation workflow below records the original milestone. On 2026-11-21,
+[issue #73](https://github.com/micknudsen/bamdalf/issues/73) superseded its modal
+pause with an application-owned creation window, continued browsing, and safe
+close/quit handling. The [native workflow guide](development.md) describes the
+delivered behavior; the original user stories remain historical context.
+
 ## Problem Statement
 
 Users can navigate alignment geometry but cannot inspect the reference bases

@@ -64,6 +64,7 @@ public final class ViewerSession {
     }
     public var onPresentationChange: (@MainActor () -> Void)?
     public private(set) var selectedReference: ReferenceBundle?
+    let referenceAccess = ReferenceAccess()
     private var previewRead: Task<Void, Never>?
     private var previewDemand: GenomicInterval?
     private var failedPreviews: [GenomicInterval] = []
@@ -153,7 +154,7 @@ public final class ViewerSession {
             guard openingID == request, !Task.isCancelled else { return }
             if let bam { try bundle.validateCompatibility(with: bam) }
             try Task.checkCancellation()
-            selectedReference = bundle
+            try referenceAccess.select(bundle) { selectedReference = bundle }
             await showSources(keepingInterval: true, keepingRows: bam != nil)?.value
         } catch {
             guard openingID == request, !Task.isCancelled else { return }
@@ -164,7 +165,7 @@ public final class ViewerSession {
     public func closeReference() {
         guard selectedReference != nil else { return }
         openingID = UUID()
-        selectedReference = nil
+        try? referenceAccess.select(nil) { selectedReference = nil }
         _ = showSources(keepingInterval: bam != nil, keepingRows: bam != nil)
     }
 

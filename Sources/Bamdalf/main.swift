@@ -17,6 +17,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        referenceCreation.requestTermination { sender.reply(toApplicationShouldTerminate: $0) }
+    }
+
     private func installMenus() {
         let menu = NSMenu()
         let applicationItem = NSMenuItem()

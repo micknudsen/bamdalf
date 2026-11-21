@@ -11,18 +11,18 @@ struct NativeReferenceSaveTests {
         controller.showWindow(nil)
         defer { controller.window?.close() }
         controller.createReference(nil)
-        let form = try #require(NSApplication.shared.windows.first { $0.title == "Create Reference" && $0.isVisible })
+        let form = try #require(controller.referenceCreation.window)
         defer { form.close() }
         let name = try #require(form.contentView?.subviews.compactMap { $0 as? NSTextField }.first { $0.accessibilityLabel() == "Bundle name" })
         let path = try #require(form.contentView?.subviews.compactMap { $0 as? NSTextField }.first { $0.accessibilityLabel() == "FASTA" })
         #expect(name.stringValue.isEmpty && path.stringValue.isEmpty)
         name.stringValue = "draft"
         controller.createReference(nil)
-        #expect(NSApplication.shared.windows.filter { $0.title == "Create Reference" && $0.isVisible }.count == 1)
+        #expect(controller.referenceCreation.window === form)
         #expect(name.stringValue == "draft")
         form.close()
         controller.createReference(nil)
-        let reopened = try #require(NSApplication.shared.windows.first { $0.title == "Create Reference" && $0.isVisible })
+        let reopened = try #require(controller.referenceCreation.window)
         defer { reopened.close() }
         #expect(reopened !== form)
         #expect(reopened.contentView?.subviews.compactMap { $0 as? NSTextField }.first { $0.accessibilityLabel() == "Bundle name" }?.stringValue == "")
@@ -36,7 +36,7 @@ struct NativeReferenceSaveTests {
             complete(choice)
         }
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         defer { form.close() }
         let name = try textField("Bundle name", in: form)
         let path = try textField("FASTA", in: form)
@@ -73,7 +73,7 @@ struct NativeReferenceSaveTests {
             complete(nil)
         }
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         defer { form.close() }
         let name = try textField("Bundle name", in: form)
         let path = try textField("FASTA", in: form)
@@ -128,7 +128,7 @@ struct NativeReferenceSaveTests {
         controller.showWindow(nil)
         defer { controller.window?.close() }
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         edit(try textField("FASTA", in: form), to: input.path)
         edit(try textField("Bundle name", in: form), to: " Initial name ")
         click(try button("Create bundle", in: form))
@@ -138,7 +138,7 @@ struct NativeReferenceSaveTests {
         edit(try textField("Bundle name", in: form), to: "Later name")
         click(try button("Create bundle", in: form))
         controller.createReference(nil)
-        #expect(try creationForm() === form)
+        #expect(try creationForm(controller) === form)
         let (closed, signal) = AsyncStream<Void>.makeStream()
         let observer = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification,
                                                                object: form, queue: nil) { _ in signal.yield() }
@@ -152,10 +152,14 @@ struct NativeReferenceSaveTests {
         #expect(result.name == "Initial name")
         #expect(try await result.read(GenomicInterval(reference: "first", start: 1, end: 3)) == Data("AcG".utf8))
         controller.createReference(nil)
-        let reopened = try creationForm()
+        let reopened = try creationForm(controller)
         defer { reopened.close() }
         #expect((try textField("Bundle name", in: reopened)).stringValue.isEmpty)
         edit(try textField("FASTA", in: reopened), to: other.path)
+        #expect((try textField("Bundle name", in: reopened)).stringValue == "other")
+        confirm(output) // A late response from the previous window cannot start another import.
+        await Task.yield()
+        #expect(controller.referenceCreation.window === reopened)
         #expect((try textField("Bundle name", in: reopened)).stringValue == "other")
     }
 
@@ -182,10 +186,8 @@ struct NativeReferenceSaveTests {
         let approved = try ReferenceSaveDestination(confirmedURL: output)
         controller.createReference(nil)
         let saving = try #require(controller.referenceCreation.saveReference(from: input, name: "Chosen name", to: approved))
-        let progressSheet = try #require(window.attachedSheet)
-        #expect(progressSheet.title == "Create Reference")
-        controller.panRight(nil)
-        #expect(session.presentation.target == before.target)
+
+        #expect(window.attachedSheet == nil)
         await saving.value
 
         #expect(window.attachedSheet == nil)
@@ -232,13 +234,13 @@ extension NativeReferenceSaveTests {
         let window = try #require(controller.window)
         defer { window.close() }
         let (completion, continuation) = AsyncStream<Void>.makeStream()
-        let observer = NotificationCenter.default.addObserver(forName: NSWindow.didEndSheetNotification,
-                                                               object: window, queue: nil) { _ in continuation.yield() }
-        defer { NotificationCenter.default.removeObserver(observer) }
         let menu = controller.makeFileMenu()
         let create = try #require(menu.item(withTitle: "Create Reference…"))
         menu.performActionForItem(at: menu.index(of: create))
-        let form = try creationForm()
+        let form = try creationForm(controller)
+        let observer = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification,
+                                                               object: form, queue: nil) { _ in continuation.yield() }
+        defer { NotificationCenter.default.removeObserver(observer) }
         click(try button("Browse…", in: form))
         edit(try textField("Bundle name", in: form), to: "  My named reference  ")
         click(try button("Create bundle", in: form))
@@ -323,7 +325,7 @@ extension NativeReferenceSaveTests {
         let create = try #require(menu.item(withTitle: "Create Reference…"))
         #expect(create.isEnabled)
         menu.performActionForItem(at: menu.index(of: create))
-        let form = try creationForm()
+        let form = try creationForm(controller)
         defer { form.close() }
         click(try button("Browse…", in: form))
         let chooser = try #require(form.attachedSheet as? NSOpenPanel)
@@ -348,7 +350,7 @@ extension NativeReferenceSaveTests {
 
 extension NativeReferenceSaveTests {
     @Test(arguments: [false, true])
-    func cancelDuringImportKeepsTheConfirmedDestinationAndPausesBrowsing(withBAM: Bool) async throws {
+    func cancelDuringImportKeepsTheConfirmedDestinationAndAllowsBrowsing(withBAM: Bool) async throws {
         _ = NSApplication.shared
         let files = try FixtureFiles()
         defer { files.remove() }
@@ -383,12 +385,13 @@ extension NativeReferenceSaveTests {
             observation.invalidate()
         }
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         edit(try textField("Bundle name", in: form), to: "retained")
         edit(try textField("FASTA", in: form), to: input.path)
         let saving = try #require(controller.referenceCreation.saveReference(from: input, name: "retained", to: destination, progress: progress))
-        let sheet = try #require(window.attachedSheet)
-        let controls = try #require(sheet.contentView).subviews
+
+        #expect(window.attachedSheet == nil)
+        let controls = try #require(form.contentView).subviews
         let indicator = try #require(controls.compactMap { $0 as? NSProgressIndicator }.first)
         #expect(indicator.observedProgress === progress)
         let cancel = try #require(controls.compactMap { $0 as? NSButton }.first { $0.title == "Cancel" })
@@ -401,14 +404,17 @@ extension NativeReferenceSaveTests {
         #expect((try button("Create bundle", in: form)).isEnabled == false)
         #expect(controller.referenceCreation.saveReference(from: input, name: "duplicate", to: destination) == nil)
         controller.zoomIn(nil)
-        #expect(session.presentation.target == before.target)
+        if withBAM { #expect(session.presentation.target != before.target) }
+        let laterTarget = session.presentation.target
+        session.editInterval("later draft")
         #expect(try Data(contentsOf: output) == originalBytes)
         #expect(cancel.sendAction(cancel.action, to: cancel.target))
         release.signal()
         await saving.value
         #expect(window.attachedSheet == nil)
         #expect(session.presentation.bamURL == before.bamURL)
-        #expect(session.presentation.target == before.target)
+        #expect(session.presentation.target == laterTarget)
+        #expect(session.presentation.intervalText == "later draft")
         #expect(try Data(contentsOf: output) == originalBytes)
         #expect(try FileManager.default.contentsOfDirectory(atPath: files.directory.path).sorted() == ["existing.bref", "small.fa"])
         #expect(form.isVisible)
@@ -437,7 +443,7 @@ extension NativeReferenceSaveTests {
         defer { window.close() }
         let destination = try ReferenceSaveDestination(confirmedURL: output)
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         edit(try textField("Bundle name", in: form), to: "invalid input")
         edit(try textField("FASTA", in: form), to: input.path)
         let saving = try #require(controller.referenceCreation.saveReference(from: input, name: "invalid input", to: destination))
@@ -459,8 +465,8 @@ extension NativeReferenceSaveTests {
 }
 
 @MainActor
-func creationForm() throws -> NSWindow {
-    try #require(NSApplication.shared.windows.first { $0.title == "Create Reference" && $0.isVisible })
+func creationForm(_ controller: ViewerWindowController) throws -> NSWindow {
+    try #require(controller.referenceCreation.window)
 }
 
 @MainActor

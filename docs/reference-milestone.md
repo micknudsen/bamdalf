@@ -413,7 +413,13 @@ does not select a reference; use **Open Reference…**.
 
 ### R32: Modal reference creation
 
-Accepted 2026-11-17.
+Accepted 2026-11-17. Superseded on 2026-11-21 by
+[safe concurrent creation](https://github.com/micknudsen/bamdalf/issues/73):
+the independent creation window permits browsing and source changes while
+protecting publication, cancellation, and close/quit cleanup. See the
+[delivered workflow](development.md).
+
+The earlier decision is retained below as history.
 
 Use a modal progress dialog with **Cancel** during reference creation. Keep
 the application responsive by performing creation work off the UI thread,

@@ -73,13 +73,27 @@ replacing an existing file. Filename edits or later moves leave the stored name
 unchanged. Canceling Save retains the form. Repeating Create Reference focuses
 the same window; closing it while idle discards its inputs.
 
-Generation temporarily attaches the form to the viewer as a modal sheet, with
-progress and **Cancel**. This intermediate implementation retains the browsing
-pause pending [safe concurrent generation](https://github.com/micknudsen/bamdalf/issues/73).
-Inputs are frozen for the running operation. Cancellation or failure finishes
+Generation runs in the application-owned creation window with progress and
+**Cancel**. The viewer remains available for navigation and source changes;
+Browse and Save sheets belong to the creation window. Closing the viewer leaves
+generation alive. Inputs are frozen for the one running operation, including
+cleanup. Cancellation or failure finishes
 cleanup, preserves existing destination bytes, and restores the populated form;
 errors appear there. Successful creation closes quietly without opening the
 bundle or changing viewer sources, navigation, or drafts. Reopening starts empty.
+Closing during generation offers **Keep Creating** or **Cancel and Close**;
+quitting offers **Keep Creating** or **Cancel and Quit**. Cancellation finishes
+cleanup before closing or terminating, even after repeated requests.
+
+Final publication and reference-selection commits share a short critical section.
+The actual selected file identity protects aliases and renamed references opened
+during generation; the original destination approval still rejects changed files.
+A cancellation accepted before publication prevents it; once the atomic rename
+commits, the outcome remains success. Parsing, validation, and file-coordination
+waiting run off the UI thread. Deterministic native tests suspend real imports,
+exercise both source modes and lifecycle choices, and verify cancellation on
+both sides of publication. An isolated native child requires cleanup evidence
+from application termination without quitting the main test runner.
 
 Use **File → Open Reference…** to browse a standalone `.bref`. Its contig
 dictionary supplies interval entry, pan, zoom, and pointer navigation. The
