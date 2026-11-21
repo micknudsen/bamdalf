@@ -9,6 +9,13 @@ Product design confirmed by the user on 2026-11-18 (Q41). The
 decisions. Product agreement does not select a storage engine or authorize
 feature implementation, issue publication, or merging.
 
+On 2026-11-21, the accepted creation decisions in
+[issue #70](https://github.com/micknudsen/bamdalf/issues/70) superseded R30
+(filename-derived names) and R32 (modal generation and paused browsing).
+The [creation acceptance record](reference-creation-acceptance.md) maps C1–C13
+to the delivered named, nonmodal workflow and evidence. The original dated
+decisions below remain historical records.
+
 ## Accepted decisions
 
 ### R1: Milestone scope

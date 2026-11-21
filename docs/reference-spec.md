@@ -3,14 +3,17 @@
 The product design and test interfaces were confirmed on 2026-11-18.
 Published as [GitHub issue #48](https://github.com/micknudsen/bamdalf/issues/48).
 See the [decision record](reference-milestone.md) for the design history.
-The [v1 format](reference-format.md) and [storage measurements](performance/reference-storage-2026-11-18.md)
+The [bundle format](reference-format.md) and [storage measurements](performance/reference-storage-2026-11-18.md)
 record the subsequent storage decision and proposed qualification limits.
 
 The creation workflow below records the original milestone. On 2026-11-21,
 [issue #73](https://github.com/micknudsen/bamdalf/issues/73) superseded its modal
 pause with an application-owned creation window, continued browsing, and safe
 close/quit handling. The [native workflow guide](development.md) describes the
-delivered behavior; the original user stories remain historical context.
+delivered behavior. The [creation acceptance record](reference-creation-acceptance.md)
+maps the replacement naming, form, concurrency and lifetime contract to its
+evidence. The original user stories and modal descriptions below remain
+historical context, not the final creation contract.
 
 ## Problem Statement
 

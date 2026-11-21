@@ -7,7 +7,11 @@ for [issue #49](https://github.com/micknudsen/bamdalf/issues/49).
 
 Version 2 adds the required stored bundle name. Version 1 bundles must be
 regenerated from their FASTA; there is no migration or filename fallback.
-Bundle versions are independent of application release versions.
+Bundle versions are independent of application release versions. This is the
+accepted [pre-1.0 format break](../CONTRIBUTING.md#pre-10-compatibility-policy),
+not a compatibility reader or a change to supported external FASTA inputs.
+The [integrated acceptance record](reference-creation-acceptance.md) covers
+native creation, portability, and obsolete-bundle rejection.
 
 ## Core tables and identity
 
@@ -91,8 +95,14 @@ rollback journaling. Finish the transaction, close every writer handle, and
 reopen read-only for structural validation before publishing the single file.
 Keep task-owned journals in staging. Cancellation, parse/read errors or
 publication failure preserve an existing destination and clear only task-owned
-files. The production workflow protects the active file's identity through
-aliases and uses the platform's confirmed replacement flow. For an existing
+files. The production workflow uses the platform's confirmed replacement flow.
+While creation runs, browsing may select another reference. Final publication
+and reference-selection commits share a short critical section that rechecks
+the selected file's identity, including hard links, symbolic links and renamed
+paths. This prevents replacing a reference selected after Save approval.
+Cancellation accepted before atomic publication prevents it; a completed commit
+remains success. Parsing, validation and file-coordination waits stay outside
+that UI-shared critical section. For an existing
 destination, a coordinated write rechecks the device and inode before the
 atomic rename. Coordinated writers serialize this final step. A writer that
 bypasses macOS file coordination can still rename a path between the identity
