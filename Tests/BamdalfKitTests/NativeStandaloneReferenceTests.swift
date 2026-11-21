@@ -144,7 +144,7 @@ extension NativeStandaloneReferenceTests {
         controller.showWindow(nil)
         defer { controller.window?.close() }
         controller.createReference(nil)
-        let form = try creationForm()
+        let form = try creationForm(controller)
         defer { form.close() }
         let approval = try ReferenceSaveDestination(confirmedURL: alias)
         await session.openReference(output)
@@ -186,7 +186,7 @@ extension NativeStandaloneReferenceTests {
         let menu = controller.makeFileMenu()
         let create = try #require(menu.item(withTitle: "Create Reference…"))
         menu.performActionForItem(at: menu.index(of: create))
-        let form = try creationForm()
+        let form = try creationForm(controller)
         defer { form.close() }
         click(try button("Browse…", in: form))
         click(try button("Create bundle", in: form))

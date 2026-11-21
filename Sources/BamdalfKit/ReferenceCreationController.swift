@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// Owns one transient creation form. Generation remains modal in this slice.
+/// Application-owned form and worker lifetime, independent of the viewer window.
 @MainActor
 public final class ReferenceCreationController: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     private let name = NSTextField()
@@ -13,11 +13,15 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
     private let indicator = NSProgressIndicator()
     private let cancel = NSButton()
     private let generationError = NSTextField(wrappingLabelWithString: "")
-    private weak var viewerWindow: NSWindow?
     private var selectedReference: () -> ReferenceBundle? = { nil }
-    private var canStart: () -> Bool = { true }
+    private var referenceAccess = ReferenceAccess()
     private var operation: Task<Void, Never>?
     private var choosing = false
+    private var panelID: UUID?
+    private var canceling = false
+    private var closeAfterCleanup = false
+    private var closeAlert: NSAlert?
+    private var quitReply: ((Bool) -> Void)?
     private var editedName = false
     private let presentPanel: ViewerWindowController.PresentReferencePanel
 
@@ -33,11 +37,10 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    public func present(for viewerWindow: NSWindow?, canStart: @escaping () -> Bool, selectedReference: @escaping () -> ReferenceBundle?) {
+    public func present(session: ViewerSession) {
         if window == nil {
-            self.viewerWindow = viewerWindow
-            self.selectedReference = selectedReference
-            self.canStart = canStart
+            referenceAccess = session.referenceAccess
+            selectedReference = { [weak session] in session?.selectedReference }
         }
         showWindow(nil)
     }
@@ -128,9 +131,13 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         choosing = true
+        let request = UUID()
+        panelID = request
         presentPanel(panel, window) { [weak self] source in
-            self?.choosing = false
-            guard let self, let source else { return }
+            guard let self, self.window === window, self.panelID == request else { return }
+            self.panelID = nil
+            self.choosing = false
+            guard let source else { return }
             self.path.stringValue = source.path
             self.suggestName()
         }
@@ -158,17 +165,19 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
         let approval = ReferenceSaveApproval(protecting: selectedReference())
         panel.delegate = approval
         choosing = true
+        let request = UUID()
+        panelID = request
         presentPanel(panel, window) { [weak self] selected in
-            guard let self else { return }
+            guard let self, self.window === window, self.panelID == request else { return }
+            self.panelID = nil
             guard selected != nil, let destination = approval.destination else {
                 self.choosing = false
                 return
             }
-            // AppKit finishes removing the Save sheet before the form becomes
-            // the viewer's generation sheet. Retain the guard across this turn.
+            // AppKit finishes removing Save before another operation can start.
             Task { @MainActor in
-                self.choosing = false
                 guard self.window === window else { return }
+                self.choosing = false
                 self.saveReference(from: source, name: validatedName, to: destination)
             }
         }
@@ -177,15 +186,14 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
     /// Runs a confirmed Save with frozen inputs; the form stays unavailable until cleanup finishes.
     @discardableResult
     public func saveReference(from source: URL, name: String, to destination: ReferenceSaveDestination,
-                              progress: Progress = Progress(totalUnitCount: -1)) -> Task<Void, Never>? {
+                              progress: Progress = Progress(totalUnitCount: -1),
+                              publicationCheckpoint: @escaping @Sendable (ReferencePublicationStage) -> Void = { _ in }) -> Task<Void, Never>? {
         guard let window, !choosing, operation == nil, window.attachedSheet == nil else { return nil }
         generationError.stringValue = ""
+        canceling = false
+        closeAfterCleanup = false
         do {
-            guard canStart() else {
-                throw ReferenceBundleError("Wait for the viewer to finish opening a source, then try again.")
-            }
             // Recheck the live selection without renewing the original Save approval.
-            // The viewer sheet below prevents further source changes during import.
             _ = try ReferenceSaveDestination(confirmedURL: destination.url, protecting: selectedReference())
         } catch {
             generationError.stringValue = error.localizedDescription
@@ -194,24 +202,31 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
         indicator.observedProgress = progress
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let creator = version.map { "bamdalf/\($0)" } ?? "bamdalf"
+        let publication = ReferencePublication(access: referenceAccess)
+        let destination = destination.coordinated(with: publication, checkpoint: publicationCheckpoint)
         let worker = Task.detached(priority: .userInitiated) {
             try ReferenceBundle.create(from: source, at: destination, name: name, creator: creator) { read, total in
                 if read == 0 { progress.totalUnitCount = total }
                 progress.completedUnitCount = read
             }
         }
-        // Preserve the existing browsing pause until concurrent publication and
-        // close/quit protection are delivered by the next implementation slice.
-        window.orderOut(nil)
-        viewerWindow?.beginSheet(window)
         operation = Task { @MainActor in
             let result = await worker.result
-            window.sheetParent?.endSheet(window)
-            window.orderOut(nil)
             self.operation = nil
             self.cancelCreation = nil
+            if let alert = self.closeAlert {
+                self.closeAlert = nil
+                window.endSheet(alert.window, returnCode: .abort)
+            }
             self.indicator.observedProgress = nil
             self.updateControls()
+            if self.closeAfterCleanup || self.quitReply != nil {
+                window.close()
+                let reply = self.quitReply
+                self.quitReply = nil
+                reply?(true)
+                return
+            }
             switch result {
             case .success:
                 window.close()
@@ -222,7 +237,7 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
                 window.makeKeyAndOrderFront(nil)
             }
         }
-        cancelCreation = { worker.cancel() }
+        cancelCreation = { if publication.cancel() { worker.cancel() } }
         updateControls()
         return operation
     }
@@ -230,6 +245,8 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
     private var cancelCreation: (() -> Void)?
 
     @objc private func cancelImport(_ sender: Any?) {
+        guard operation != nil, !canceling else { return }
+        canceling = true
         cancel.isEnabled = false
         cancelCreation?()
     }
@@ -246,7 +263,47 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
         cancel.isEnabled = running
     }
 
-    public func windowShouldClose(_ sender: NSWindow) -> Bool { operation == nil && !choosing }
+    /// The application delegate forwards termination here. The reply is delivered
+    /// only after the real worker's result includes staging cleanup.
+    public func requestTermination(reply: @escaping (Bool) -> Void) -> NSApplication.TerminateReply {
+        guard operation != nil else { return .terminateNow }
+        guard quitReply == nil else { return .terminateLater }
+        quitReply = reply
+        if closeAfterCleanup { return .terminateLater }
+        if let alert = closeAlert {
+            alert.buttons[1].title = "Cancel and Quit"
+        } else if let window {
+            presentCancellationChoice(for: window)
+        }
+        return .terminateLater
+    }
+
+    public func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard operation != nil else { return !choosing }
+        if !closeAfterCleanup, closeAlert == nil { presentCancellationChoice(for: sender) }
+        return false
+    }
+
+    private func presentCancellationChoice(for window: NSWindow) {
+        let alert = NSAlert()
+        alert.messageText = "Reference creation is running"
+        alert.informativeText = "Cancellation waits for cleanup of incomplete output."
+        alert.addButton(withTitle: "Keep Creating")
+        alert.addButton(withTitle: quitReply == nil ? "Cancel and Close" : "Cancel and Quit")
+        closeAlert = alert
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, self.closeAlert === alert else { return }
+            self.closeAlert = nil
+            if response == .alertSecondButtonReturn {
+                self.closeAfterCleanup = true
+                self.cancelImport(nil)
+            } else {
+                let reply = self.quitReply
+                self.quitReply = nil
+                reply?(false)
+            }
+        }
+    }
 
     private func sourceURL() throws -> URL {
         let entered = path.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -287,5 +344,9 @@ public final class ReferenceCreationController: NSWindowController, NSWindowDele
         return (result.isEmpty ? "Reference" : result) + ".bref"
     }
 
-    public func windowWillClose(_ notification: Notification) { window = nil }
+    public func windowWillClose(_ notification: Notification) {
+        panelID = nil
+        choosing = false
+        window = nil
+    }
 }
