@@ -4,27 +4,28 @@ import Foundation
 
 extension ReferenceBundle {
     /// Creates a fully validated bundle at a fresh destination. Progress reports consumed and total FASTA bytes.
-    public static func create(from source: URL, at destination: URL, creator: String,
+    public static func create(from source: URL, at destination: URL, name: String, creator: String,
                               progress: @Sendable (Int64, Int64) throws -> Void = { _, _ in }) throws {
-        try create(from: source, at: ReferenceSaveDestination(freshURL: destination), creator: creator, progress: progress)
+        try create(from: source, at: ReferenceSaveDestination(freshURL: destination), name: name, creator: creator, progress: progress)
     }
 
     /// Publishes to a destination confirmed through the Save workflow.
-    public static func create(from source: URL, at destination: ReferenceSaveDestination, creator: String,
+    public static func create(from source: URL, at destination: ReferenceSaveDestination, name: String, creator: String,
                               progress: @Sendable (Int64, Int64) throws -> Void = { _, _ in }) throws {
         guard source.isFileURL else { throw ReferenceBundleError("Choose a local uncompressed FASTA file.") }
+        let name = try ReferenceFormat.validatedName(name)
         let files = FileManager.default
         let staging = destination.url.deletingLastPathComponent().appendingPathComponent(".bamdalf-\(UUID().uuidString)")
         try files.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? files.removeItem(at: staging) }
         let candidate = staging.appendingPathComponent("reference.bref")
-        try writeBundle(fromFASTA: source, to: candidate, creator: creator, progress: progress)
+        try writeBundle(fromFASTA: source, to: candidate, name: name, creator: creator, progress: progress)
         _ = try ReferenceBundle(opening: candidate)
         try destination.publish(candidate)
     }
 }
 
-private func writeBundle(fromFASTA source: URL, to candidate: URL, creator: String,
+private func writeBundle(fromFASTA source: URL, to candidate: URL, name: String, creator: String,
                         progress: (Int64, Int64) throws -> Void) throws {
     guard !creator.isEmpty, creator.utf8.count <= ReferenceFormat.fieldBytes,
           source.lastPathComponent.utf8.count <= ReferenceFormat.fieldBytes else {
@@ -41,18 +42,19 @@ private func writeBundle(fromFASTA source: URL, to candidate: URL, creator: Stri
         PRAGMA synchronous=FULL;
         BEGIN;
         PRAGMA application_id=0x42524546;
-        PRAGMA user_version=1;
+        PRAGMA user_version=2;
         CREATE TABLE metadata (id INTEGER PRIMARY KEY, source_name TEXT NOT NULL, creator TEXT NOT NULL,
-            created_utc TEXT NOT NULL, chunk_bytes INTEGER NOT NULL);
+            created_utc TEXT NOT NULL, chunk_bytes INTEGER NOT NULL, bundle_name TEXT NOT NULL);
         CREATE TABLE contigs (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE BINARY,
             length INTEGER NOT NULL, m5 TEXT NOT NULL, first_chunk INTEGER NOT NULL);
         CREATE TABLE chunks (id INTEGER PRIMARY KEY, bases BLOB NOT NULL);
         """)
-    let metadata = try db.statement("INSERT INTO metadata VALUES (1, ?, ?, ?, ?)")
+    let metadata = try db.statement("INSERT INTO metadata VALUES (1, ?, ?, ?, ?, ?)")
     try metadata.bind(source.lastPathComponent, at: 1)
     try metadata.bind(creator, at: 2)
     try metadata.bind(ISO8601DateFormatter().string(from: Date()), at: 3)
     try metadata.bind(Int64(ReferenceFormat.chunkBytes), at: 4)
+    try metadata.bind(name, at: 5)
     try metadata.insert()
     let writer = try FASTARecords(db)
     try writer.importRecords(from: file, totalBytes: Int64(total), progress: progress)

@@ -31,19 +31,20 @@ enum ReferenceFormat {
         guard try db.scalarInteger("PRAGMA application_id") == 0x42524546 else {
             throw ReferenceBundleError("Unrecognized reference bundle identity.")
         }
-        guard try db.scalarInteger("PRAGMA user_version") == 1 else {
-            throw ReferenceBundleError("Unsupported reference bundle version.")
+        guard try db.scalarInteger("PRAGMA user_version") == 2 else {
+            throw ReferenceBundleError("Unsupported reference bundle version. Regenerate the bundle from its FASTA.")
         }
         let encoding = try db.statement("PRAGMA encoding")
         guard try encoding.next(), try encoding.text(0) == "UTF-8" else {
             throw ReferenceBundleError("Unsupported reference database encoding.")
         }
         try checkTable(db, name: "metadata", fields: [("source_name", "TEXT"), ("creator", "TEXT"),
-                                                      ("created_utc", "TEXT"), ("chunk_bytes", "INTEGER")])
+                                                      ("created_utc", "TEXT"), ("chunk_bytes", "INTEGER"),
+                                                      ("bundle_name", "TEXT")])
         try checkTable(db, name: "contigs", fields: [("name", "TEXT"), ("length", "INTEGER"),
                                                      ("m5", "TEXT"), ("first_chunk", "INTEGER")])
         try checkTable(db, name: "chunks", fields: [("bases", "BLOB")])
-        // v1 requires a full unique binary key on name, not a partial or compound index.
+        // v2 requires a full unique binary key on name, not a partial or compound index.
         let uniqueNames = try db.scalarInteger("""
             SELECT 1 FROM pragma_index_list('contigs') AS i
             WHERE i.[unique] = 1 AND i.partial = 0
@@ -61,13 +62,38 @@ enum ReferenceFormat {
             WHERE schema='main' AND type='table' AND wr=0 AND ncol=\(fields.count + 1)
               AND NOT EXISTS (SELECT 1 FROM pragma_index_list('\(name)') WHERE origin='pk')
             """)
-        let error = ReferenceBundleError("Invalid reference schema for \(name).")
+        let error = ReferenceBundleError("Invalid reference schema for \(name). Regenerate the bundle from its FASTA.")
         guard ordinary == 1 else { throw error }
         let columns = try db.statement("SELECT name, type, [notnull], pk, hidden FROM pragma_table_xinfo('\(name)') ORDER BY cid")
         for (i, field) in ([("id", "INTEGER")] + fields).enumerated() {
             guard try columns.next(), try columns.text(0) == field.0, try columns.text(1).uppercased() == field.1,
                   try columns.integer(3) == (i == 0 ? 1 : 0), try columns.integer(4) == 0,
                   try i == 0 || columns.integer(2) == 1 else { throw error }
+        }
+    }
+
+    static func validatedName(_ name: String) throws -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw ReferenceBundleError("Enter a nonblank bundle name.") }
+        guard trimmed.utf8.count <= fieldBytes else {
+            throw ReferenceBundleError("The bundle name exceeds the 4,096-byte UTF-8 limit.")
+        }
+        return trimmed
+    }
+
+    static func name(_ db: ReferenceDatabase) throws -> String {
+        let invalidName = ReferenceBundleError("Invalid or missing bundle name. Regenerate the bundle from its FASTA.")
+        let row = try db.statement("""
+            SELECT CASE WHEN length(CAST(bundle_name AS BLOB)) <= \(fieldBytes) THEN bundle_name END
+            FROM metadata WHERE id = 1
+            """)
+        guard try row.next() else { throw invalidName }
+        do {
+            let name = try row.text(0)
+            guard try validatedName(name).utf8.elementsEqual(name.utf8) else { throw invalidName }
+            return name
+        } catch {
+            throw invalidName
         }
     }
 

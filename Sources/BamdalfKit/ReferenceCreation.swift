@@ -44,7 +44,7 @@ extension ViewerWindowController {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let creator = version.map { "bamdalf/\($0)" } ?? "bamdalf"
         let worker = Task.detached(priority: .userInitiated) {
-            try ReferenceBundle.create(from: source, at: destination, creator: creator) { read, total in
+            try ReferenceBundle.create(from: source, at: destination, name: source.deletingPathExtension().lastPathComponent, creator: creator) { read, total in
                 if read == 0 { progress.totalUnitCount = total }
                 progress.completedUnitCount = read
             }

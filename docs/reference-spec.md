@@ -146,7 +146,9 @@ interval input identifies the selected bundle without its suffix.
   rows/scroll and a BAM-valid interval; otherwise it returns to interval entry.
   With neither source left, return to the empty viewer state.
 - Match the reviewed rounded reference field to neighboring control height and
-  border treatment. Use the bundle name without `.bref`, or **No reference**.
+  border treatment. Use the stored bundle name unchanged, or **No reference**. The
+  [persistent-name increment #71](https://github.com/micknudsen/bamdalf/issues/71)
+  supersedes filename-derived naming; retain the filename tooltip.
   Validate native truncation and sizing at the minimum window width. The local
   mockup is design evidence, not a native screenshot or rendering test.
 - The fixed reference row uses the soft-clip nucleotide palette. At eight or

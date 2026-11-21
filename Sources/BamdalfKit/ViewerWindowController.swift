@@ -354,7 +354,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         let width = presentation.target.map { $0.end - $0.start + 1 } ?? 0
         zoomInButton.isEnabled = canNavigate && width > 1
         zoomOutButton.isEnabled = canNavigate && width > 0 && width < (referenceLength ?? 0)
-        let name = presentation.referenceURL?.deletingPathExtension().lastPathComponent ?? "No reference"
+        let name = presentation.referenceName ?? "No reference"
         if !referenceField.stringValue.utf8.elementsEqual(name.utf8) { referenceField.stringValue = name }
         referenceField.toolTip = presentation.referenceURL?.lastPathComponent
         window?.title = presentation.windowTitle
