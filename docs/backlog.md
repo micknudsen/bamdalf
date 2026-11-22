@@ -1,9 +1,13 @@
 # Future functionality
 
-Updated 2026-11-18. These items are outside the agreed first milestone. Unless
-noted below, they are not prioritized, specified, or authorized for
-implementation. The current scope and decision identifiers are recorded in
-[design.md](design.md).
+Updated 2026-11-22. The items below remain open for future development.
+Their order does not imply priority or approval for implementation. Decision
+identifiers refer to the [first milestone design](design.md).
+
+The viewer already displays reference bases and highlights mismatches in
+aligned reads. The [reference viewer qualification](performance/reference-qualification-2026-11-18.md)
+records the results. The [creation acceptance record](reference-creation-acceptance.md)
+documents the subsequent delivery of named bundles and background FASTA import.
 
 The superseded cursor, selection, and focus rules and the withdrawn drag-cancellation proposal are not deferred features or backlog commitments.
 
@@ -11,10 +15,6 @@ The superseded cursor, selection, and focus rules and the withdrawn drag-cancell
 
 ### Data and sequencing workflows
 
-- Reference-base display and mismatch highlighting (Q1) are now the next
-  milestone's [confirmed product design](reference-milestone.md), with a
-  [engineering specification](reference-spec.md). Implementation is not
-  yet authorized or delivered.
 - Coverage, read inspection, and additional tracks remain deferred (Q1).
 - Reference-associated annotations, potentially imported from GTF, are a future
   extension of the reference bundle; loading/rendering them is outside the
