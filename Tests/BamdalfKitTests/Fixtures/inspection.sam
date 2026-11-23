@@ -1,5 +1,6 @@
 @HD	VN:1.6	SO:coordinate
 @SQ	SN:tiny	LN:2000
+@SQ	SN:other_reference	LN:800
 sample0	0	tiny	100	0	1M	*	0	0	A	*
 sample1	16	tiny	100	0	1M	*	0	0	A	!
 sample2	0	tiny	100	0	1M	*	0	0	A	!
@@ -141,4 +142,14 @@ event-clip	0	tiny	401	0	1S1M	*	0	0	TC	*
 event-internal	0	tiny	410	0	1M1I1P1I1M	*	0	0	ATTC	*
 event-leading	0	tiny	411	0	3I1M	*	0	0	TTTG	*
 event-insertion-only	0	tiny	421	0	3I	*	0	0	TTT	*
+resolution-0	0	tiny	500	0	1M	*	0	0	C	*
+resolution-1	0	tiny	500	0	1M	*	0	0	C	*
+resolution-2	0	tiny	500	0	1M	*	0	0	C	*
+resolution-3	0	tiny	500	0	1M	*	0	0	C	*
+resolution-4	0	tiny	500	0	1M	*	0	0	C	*
+resolution-5	0	tiny	500	0	1M	*	0	0	C	*
+resolution-6	0	tiny	500	0	1M	*	0	0	C	*
+resolution-7	0	tiny	500	0	1M	*	0	0	C	*
+resolution-8	0	tiny	500	0	1M	*	0	0	=	*
+resolution-9	0	tiny	500	0	1M	*	0	0	=	*
 event-last	0	tiny	2000	0	1M2I	*	0	0	ATT	*

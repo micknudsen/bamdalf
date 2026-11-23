@@ -24,6 +24,12 @@ visit another contig, the panel keeps the coordinate and counts and shows
 **outside current view**. Click another base to inspect it, or use **Close**
 to clear the selection and return the space to the pileup.
 
+Opening, replacing, or closing a reference updates the selected position in
+place, even offscreen. An unambiguous reference base resolves stored `=`
+observations into A, C, G, or T while preserving base depth. Opening a
+different BAM clears the selection. Canceling or failing to open it keeps
+the original counts.
+
 Use **File → Open Reference…** to browse a `.bref` reference bundle on its own
 or alongside a compatible BAM. Zoom in to see reference bases below the ruler
 and mismatches highlighted in aligned reads. On `master`, **File → Create
