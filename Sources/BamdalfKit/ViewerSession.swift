@@ -75,7 +75,7 @@ public final class ViewerSession {
     private(set) var inspection: PileupInspection? {
         didSet { onPresentationChange?() }
     }
-    private var inspectionTask: Task<Void, Never>?
+    private(set) var inspectionTask: Task<Void, Never>?
     private var openingID = UUID()
     private var scrollGeneration: UInt64 = 0
     private var lastSuccessful: ViewerPresentation?

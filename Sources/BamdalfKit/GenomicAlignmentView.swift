@@ -45,10 +45,15 @@ final class GenomicAlignmentView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("Use init(frame:)") }
 
+    func cancelPendingClick() {
+        pendingClick?.cancel()
+        pendingClick = nil
+        clickPosition = nil
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard canNavigate?() == true, bounds.width > 0 else { return }
-        pendingClick?.cancel()
-        clickPosition = nil
+        cancelPendingClick()
         let x = convert(event.locationInWindow, from: nil).x
         if event.modifierFlags.contains(.option) {
             zoomAt?(.out, Double(x / bounds.width))

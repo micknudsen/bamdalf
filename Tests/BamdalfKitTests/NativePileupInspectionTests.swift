@@ -1,5 +1,5 @@
 import AppKit
-import BamdalfKit
+@testable import BamdalfKit
 import Testing
 
 @MainActor
@@ -23,7 +23,11 @@ struct NativePileupInspectionTests {
         #expect(viewer.scroll.frame.height < original.height)
         let button = try viewer.closeButton()
         #expect(button.convert(button.bounds, to: viewer.workspace).maxY <= viewer.scroll.frame.minY)
-        button.performClick(nil)
+        // Closing the panel also cancels a click still awaiting double-click recognition.
+        try viewer.click(101)
+        button.sendAction(button.action, to: button.target)
+        try await viewer.finishGesture()
+        #expect(!viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSButton)?.title == "Close" })
         #expect(viewer.scroll.frame == original)
         #expect(viewer.scroll.contentView.bounds.origin.y == offset)
         #expect(viewer.session.presentation.target?.formatted == "tiny:81-120")
@@ -139,11 +143,13 @@ struct NativePileupInspectionTests {
         await gate.waitFor(1)
         try viewer.click(100)
         try await viewer.expectPanel("tiny:100", "Loading…")
+        await gate.waitFor(100)
+        let older = try #require(session.inspectionTask)
         try viewer.click(200)
         let amb = "Base depth 10   A 8 (80%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Ambiguous 2 (20%)"
         try await viewer.expectPanel("tiny:200", amb)
         await gate.release(100)
-        try await viewer.finishGesture()
+        await older.value
         try await viewer.expectPanel("tiny:200", amb)
         try viewer.click(299)
         try await viewer.expectPanel("tiny:299", "Counts unavailable")
@@ -151,11 +157,14 @@ struct NativePileupInspectionTests {
         try await viewer.expectPanel("tiny:298", "Base depth 0   A 0   C 0   G 0   T 0")
         try viewer.click(300)
         try await viewer.expectPanel("tiny:300", "Loading…")
-        try viewer.closeButton().performClick(nil)
+        await gate.waitFor(300)
+        let closing = try #require(session.inspectionTask)
+        let close = try viewer.closeButton()
+        close.sendAction(close.action, to: close.target)
         await gate.release(300)
+        await closing.value
         await gate.release(1)
         await viewport?.value
-        try await viewer.finishGesture()
         #expect(!viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSButton)?.title == "Close" })
     }
 

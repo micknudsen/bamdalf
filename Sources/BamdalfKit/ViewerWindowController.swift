@@ -355,7 +355,10 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         presentOpenResult()
     }
 
-    @objc private func closeInspection() { session.closeInspection() }
+    @objc private func closeInspection() {
+        alignmentStack.cancelPendingClick()
+        session.closeInspection()
+    }
 
     private func render() {
         guard !isRendering else { return }
