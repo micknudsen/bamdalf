@@ -72,6 +72,10 @@ public final class ViewerSession {
     private var viewportWidth = 0.0
     private let loadReferenceRegion: @Sendable (ReferenceBundle, GenomicInterval) async throws -> Data
     private var bam: BAMFile?
+    private(set) var inspection: PileupInspection? {
+        didSet { onPresentationChange?() }
+    }
+    private var inspectionTask: Task<Void, Never>?
     private var openingID = UUID()
     private var scrollGeneration: UInt64 = 0
     private var lastSuccessful: ViewerPresentation?
@@ -141,6 +145,48 @@ public final class ViewerSession {
         try await bundle.read(interval)
     }
 
+    func closeInspection() {
+        inspectionTask?.cancel()
+        inspectionTask = nil
+        inspection = nil
+    }
+
+    func inspect(_ position: GenomicInterval) {
+        guard let bam, bam.references.contig(named: position.reference) != nil else { return }
+        inspectionTask?.cancel()
+        var selected = PileupInspection(position: position)
+        if let region = presentation.referenceBases, region.interval.hasSameReference(as: position),
+           region.interval.start <= position.start, position.start <= region.interval.end {
+            selected.reference = region.bases[Int(position.start - region.interval.start)]
+        }
+        inspection = selected
+        let reference = selectedReference
+        inspectionTask = Task {
+            do {
+                if let reference, selected.reference == nil {
+                    let bases = try await loadReferenceRegion(reference, position)
+                    try Task.checkCancellation()
+                    selected.reference = bases.first
+                    inspection = selected
+                }
+                let available = regionalData.available(for: position)
+                let records: [Alignment]
+                if available.missing.isEmpty {
+                    records = available.records
+                } else {
+                    let loaded = try await loadRegion(bam, position)
+                    try Task.checkCancellation()
+                    records = RegionalData.eligible(loaded, for: position)
+                }
+                selected.status = .ready(BaseCounts(records: records, position: position.start, reference: selected.reference))
+            } catch {
+                selected.status = .unavailable
+            }
+            guard !Task.isCancelled, self.bam === bam, selectedReference === reference else { return }
+            inspection = selected
+        }
+    }
+
     public func openReference(_ url: URL?) async {
         guard let url else { return }
         let request = UUID()
@@ -170,6 +216,7 @@ public final class ViewerSession {
     }
 
     private func showSources(keepingInterval: Bool, keepingRows: Bool) -> Task<Void, Never>? {
+        closeInspection()
         let prior = dragOrigin ?? presentation
         stopPreviewRead()
         failedPreviews.removeAll()

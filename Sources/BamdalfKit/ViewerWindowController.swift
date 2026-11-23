@@ -20,6 +20,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
     private let samplingWarning = SamplingWarningButton()
     private var regionalAlert: (id: UUID, alert: NSAlert)?
     private let alignmentScroll = NSScrollView()
+    private let inspector = PileupInspectorView(frame: .zero)
+    private let closedBottom: NSLayoutConstraint
+    private let openBottom: NSLayoutConstraint
     private let alignmentStack = GenomicAlignmentView(frame: .zero)
     private var isRendering = false
     private var isScrolling = false
@@ -52,6 +55,15 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         window.center()
 
         let workspace = NSView()
+        inspector.translatesAutoresizingMaskIntoConstraints = false
+        workspace.addSubview(inspector)
+        closedBottom = alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor)
+        openBottom = alignmentScroll.bottomAnchor.constraint(equalTo: inspector.topAnchor)
+        NSLayoutConstraint.activate([
+            inspector.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 16),
+            inspector.trailingAnchor.constraint(equalTo: workspace.trailingAnchor, constant: -16),
+            inspector.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
+        ])
         message.font = .systemFont(ofSize: 15)
         message.textColor = .secondaryLabelColor
         message.translatesAutoresizingMaskIntoConstraints = false
@@ -178,7 +190,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             ruler.leadingAnchor.constraint(equalTo: alignmentScroll.contentView.leadingAnchor),
             ruler.trailingAnchor.constraint(equalTo: alignmentScroll.contentView.trailingAnchor),
             alignmentScroll.topAnchor.constraint(equalTo: referenceRow.bottomAnchor, constant: 4),
-            alignmentScroll.bottomAnchor.constraint(equalTo: workspace.bottomAnchor),
+            closedBottom,
         ])
         workspace.addSubview(alignmentScroll, positioned: .below, relativeTo: message)
         window.contentView = workspace
@@ -192,6 +204,9 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
             return self.session.presentation.target != nil && !self.session.presentation.isOpening
                 && self.window?.attachedSheet == nil
         }
+        inspector.closeButton.target = self
+        inspector.closeButton.action = #selector(closeInspection)
+        alignmentStack.inspect = { [weak session] in session?.inspect($0) }
         alignmentStack.beginDrag = { [weak session] in session?.beginAlignmentDrag() }
         alignmentStack.previewDrag = { [weak session] in session?.previewAlignmentDrag(horizontalFraction: $0) }
         alignmentStack.endDrag = { [weak session] in session?.endAlignmentDrag() }
@@ -340,6 +355,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         presentOpenResult()
     }
 
+    @objc private func closeInspection() { session.closeInspection() }
+
     private func render() {
         guard !isRendering else { return }
         isRendering = true
@@ -385,6 +402,12 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         ruler.isHidden = presentation.target == nil
         alignmentScroll.isHidden = presentation.target == nil
         alignmentScroll.hasVerticalScroller = presentation.bamURL != nil
+        inspector.show(session.inspection)
+        if closedBottom.isActive != (session.inspection == nil) {
+            closedBottom.isActive = false
+            openBottom.isActive = session.inspection != nil
+            closedBottom.isActive = session.inspection == nil
+        }
         window?.contentView?.layoutSubtreeIfNeeded()
         let size = alignmentScroll.contentSize
         alignmentStack.frame = NSRect(x: 0, y: 0, width: size.width,

@@ -14,7 +14,9 @@ The superseded cursor, selection, and focus rules and the withdrawn drag-cancell
 ## Confirmed product design
 
 The [coverage and base counts design](coverage-and-base-counts-design.md)
-defines the single-position inspector. Implementation is pending.
+defines the single-position inspector. Its first slice shows base depth and
+base counts. Separate event counts, the selected-column marker, and updates
+across source changes remain in the [inspector milestone](https://github.com/micknudsen/bamdalf/issues/82).
 
 ## Deferred features
 

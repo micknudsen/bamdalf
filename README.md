@@ -15,6 +15,12 @@ base, or Option-click to zoom out. Nearby pans reuse loaded data and preserve
 retained rows and vertical scrolling. Views wider than 10,000 bases show the
 ruler and prompt you to zoom in to see alignments.
 
+At one screen point per base or closer, click a pileup column to see its base
+depth and A, C, G, T counts below the alignments. Counts include all eligible
+records before display downsampling. The panel also shows ambiguous bases and
+unresolved `=` observations when present. **Close** returns the space to the
+pileup.
+
 Use **File → Open Reference…** to browse a `.bref` reference bundle on its own
 or alongside a compatible BAM. Zoom in to see reference bases below the ruler
 and mismatches highlighted in aligned reads. On `master`, **File → Create
