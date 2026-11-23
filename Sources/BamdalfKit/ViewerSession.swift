@@ -152,7 +152,10 @@ public final class ViewerSession {
     }
 
     func inspect(_ position: GenomicInterval) {
-        guard let bam, bam.references.contig(named: position.reference) != nil else { return }
+        guard let bam, let contig = bam.references.contig(named: position.reference) else { return }
+        // A leading insertion on an alignment starting at the next base supports this boundary.
+        let query = GenomicInterval(reference: position.reference, start: position.start,
+                                    end: min(position.start + 1, contig.length))
         inspectionTask?.cancel()
         var selected = PileupInspection(position: position)
         if let region = presentation.referenceBases, region.interval.hasSameReference(as: position),
@@ -169,14 +172,14 @@ public final class ViewerSession {
                     selected.reference = bases.first
                     inspection = selected
                 }
-                let available = regionalData.available(for: position)
+                let available = regionalData.available(for: query)
                 let records: [Alignment]
                 if available.missing.isEmpty {
                     records = available.records
                 } else {
-                    let loaded = try await loadRegion(bam, position)
+                    let loaded = try await loadRegion(bam, query)
                     try Task.checkCancellation()
-                    records = RegionalData.eligible(loaded, for: position)
+                    records = RegionalData.eligible(loaded, for: query)
                 }
                 selected.status = .ready(BaseCounts(records: records, position: position.start, reference: selected.reference))
             } catch {
