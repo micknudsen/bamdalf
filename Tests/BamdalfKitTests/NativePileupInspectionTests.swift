@@ -43,21 +43,16 @@ struct NativePileupInspectionTests {
         // With a paired reference, switching BAMs keeps this viewport. Only the selection disappears.
         await viewer.session.openReference(ambiguous)
         try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
-        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
-        func hasMarker() throws -> Bool {
-            let image = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
-            return (0..<image.pixelsWide).contains { (image.colorAt(x: $0, y: 11)?.alphaComponent ?? 0) > 0.1 }
-        }
         let replacement = files.sources.appendingPathComponent("opening.bam")
         await viewer.session.openBAM(replacement)
         await viewer.session.chooseIndex(nil)
         try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
-        #expect(try hasMarker())
+        #expect(try !viewer.rulerMarkerPixels().isEmpty)
         await viewer.session.openBAM(files.directory.appendingPathComponent("missing.bam"))
         try #require(viewer.session.presentation.openError != nil)
         viewer.session.dismissOpenError()
         try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
-        #expect(try hasMarker())
+        #expect(try !viewer.rulerMarkerPixels().isEmpty)
         // A press that began on the outgoing BAM cannot finish as a selection on its replacement.
         viewer.stack.mouseDown(with: try viewer.event(.leftMouseDown, position: 501))
         try await files.openedSession(fixture: "opening", indexFormat: index, session: viewer.session)
@@ -66,7 +61,7 @@ struct NativePileupInspectionTests {
         await stack.pendingClick?.value
         #expect(viewer.session.presentation.target?.formatted == "tiny:481-520")
         #expect(!viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSButton)?.title == "Close" })
-        #expect(try !hasMarker())
+        #expect(try viewer.rulerMarkerPixels().isEmpty)
     }
 
     @Test
@@ -225,11 +220,8 @@ struct NativePileupInspectionTests {
         let second = "Base depth 1   A 0 (0%)   C 0 (0%)   G 1 (100%)   T 0 (0%)"
         await viewer.navigate("tiny:91-128")
         try #require(viewer.stack.bounds.width == 608)
-        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
-
         func expectMarker(at center: Int?) throws {
-            let bitmap = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
-            let pixels = (0..<608).filter { (bitmap.colorAt(x: $0, y: 11)?.alphaComponent ?? 0) > 0.1 }
+            let pixels = try viewer.rulerMarkerPixels()
             if let center {
                 #expect(pixels.contains(center) && pixels.allSatisfy { abs($0 - center) <= 5 })
             } else {
@@ -582,6 +574,12 @@ private struct InspectionWindow {
     func visibleViews(in view: NSView) -> [NSView] {
         guard !view.isHidden else { return [] }
         return [view] + view.subviews.flatMap { visibleViews(in: $0) }
+    }
+
+    func rulerMarkerPixels() throws -> [Int] {
+        let ruler = try #require(visibleViews(in: workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
+        let image = try renderTrackBitmap(in: ruler, window: window, height: 20)
+        return (0..<image.pixelsWide).filter { (image.colorAt(x: $0, y: 11)?.alphaComponent ?? 0) > 0.1 }
     }
 
     func hasLabel(_ text: String) -> Bool {
