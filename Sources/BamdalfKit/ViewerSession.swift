@@ -153,16 +153,21 @@ public final class ViewerSession {
     }
 
     func inspect(_ position: GenomicInterval) {
+        var referenceBase: UInt8?
+        if let region = presentation.referenceBases, region.interval.hasSameReference(as: position),
+           region.interval.start <= position.start, position.start <= region.interval.end {
+            referenceBase = region.bases[Int(position.start - region.interval.start)]
+        }
+        inspect(position, referenceBase: referenceBase)
+    }
+
+    private func inspect(_ position: GenomicInterval, referenceBase: UInt8?) {
         guard let bam, let contig = bam.references.contig(named: position.reference) else { return }
         // A leading insertion on an alignment starting at the next base supports this boundary.
         let query = GenomicInterval(reference: position.reference, start: position.start,
                                     end: min(position.start + 1, contig.length))
         inspectionTask?.cancel()
-        var selected = PileupInspection(position: position)
-        if let region = presentation.referenceBases, region.interval.hasSameReference(as: position),
-           region.interval.start <= position.start, position.start <= region.interval.end {
-            selected.reference = region.bases[Int(position.start - region.interval.start)]
-        }
+        var selected = PileupInspection(position: position, reference: referenceBase)
         inspection = selected
         let reference = selectedReference
         inspectionTask = Task {
@@ -220,7 +225,10 @@ public final class ViewerSession {
     }
 
     private func showSources(keepingInterval: Bool, keepingRows: Bool) -> Task<Void, Never>? {
-        closeInspection()
+        if let position = inspection?.position {
+            // The visible reference bases still belong to the previous source.
+            inspect(position, referenceBase: nil)
+        }
         let prior = dragOrigin ?? presentation
         stopPreviewRead()
         failedPreviews.removeAll()
@@ -955,6 +963,7 @@ public final class ViewerSession {
             try Task.checkCancellation()
             blockedPrefetch = []
             stoppedPrefetch = false
+            closeInspection()
             bam = file
             sampling.seed = samplingSeed()
             regionalData = RegionalData(historicalLimit: prefetch.maximumBytes == 0 ? 8 : nil)

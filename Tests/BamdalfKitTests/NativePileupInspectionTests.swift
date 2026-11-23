@@ -5,6 +5,118 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct NativePileupInspectionTests {
+    private func inspectionReference(_ base: String) -> String {
+        ">tiny\n" + String(repeating: base, count: 2_000) + "\n>other_reference\n" + String(repeating: "A", count: 800)
+    }
+
+    @Test(arguments: ["bai", "csi"])
+    func activeSourcesOwnTheCountsThroughoutInspection(index: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let viewer = try await InspectionWindow(files: files, index: index)
+        defer { viewer.window.close() }
+        await viewer.navigate("tiny:81-120")
+        try #require(viewer.session.presentation.alignments.count == 20)
+        try viewer.click(100)
+        try await viewer.expectPanel("tiny:100", "Base depth 100   A 90 (90%)   C 0 (0%)   G 0 (0%)   T 10 (10%)")
+        await viewer.navigate("tiny:390-510")
+        try viewer.click(400)
+        try await viewer.expectPanel("tiny:400", "Base depth 8   A 8 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Deletions 2   Reference skips 3")
+        try viewer.click(500)
+        let unresolved = "Base depth 10   A 0 (0%)   C 8 (80%)   G 0 (0%)   T 0 (0%)   Unresolved = 2 (20%)"
+        try await viewer.expectPanel("tiny:500", unresolved)
+        await viewer.navigate("other_reference:1-40")
+        let lower = try files.reference("lower.bref", fasta: inspectionReference("c"))
+        let ambiguous = try files.reference("ambiguous.bref", fasta: inspectionReference("R"))
+        await viewer.session.openReference(lower)
+        try await viewer.expectPanel("tiny:500 · Reference c", "Base depth 10   A 0 (0%)   C 10 (100%)   G 0 (0%)   T 0 (0%)")
+        #expect(viewer.hasLabel("outside current view"))
+        await viewer.session.openReference(ambiguous)
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        #expect(viewer.hasLabel("outside current view"))
+        viewer.controller.closeReference(nil)
+        try await viewer.expectPanel("tiny:500", unresolved)
+        #expect(viewer.hasLabel("outside current view"))
+        await viewer.navigate("tiny:481-520")
+        #expect(!viewer.hasLabel("outside current view"))
+
+        // With a paired reference, switching BAMs keeps this viewport. Only the selection disappears.
+        await viewer.session.openReference(ambiguous)
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
+        func hasMarker() throws -> Bool {
+            let image = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
+            return (0..<image.pixelsWide).contains { (image.colorAt(x: $0, y: 11)?.alphaComponent ?? 0) > 0.1 }
+        }
+        let replacement = files.sources.appendingPathComponent("opening.bam")
+        await viewer.session.openBAM(replacement)
+        await viewer.session.chooseIndex(nil)
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        #expect(try hasMarker())
+        await viewer.session.openBAM(files.directory.appendingPathComponent("missing.bam"))
+        try #require(viewer.session.presentation.openError != nil)
+        viewer.session.dismissOpenError()
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        #expect(try hasMarker())
+        // A press that began on the outgoing BAM cannot finish as a selection on its replacement.
+        viewer.stack.mouseDown(with: try viewer.event(.leftMouseDown, position: 501))
+        try await files.openedSession(fixture: "opening", indexFormat: index, session: viewer.session)
+        viewer.stack.mouseUp(with: try viewer.event(.leftMouseUp, position: 501))
+        let stack = try #require(viewer.stack as? GenomicAlignmentView)
+        await stack.pendingClick?.value
+        #expect(viewer.session.presentation.target?.formatted == "tiny:481-520")
+        #expect(!viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSButton)?.title == "Close" })
+        #expect(try !hasMarker())
+    }
+
+    @Test
+    func pendingOffscreenCountsCannotOutliveTheirReferenceOrBAM() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let lower = try files.reference("lower.bref", fasta: inspectionReference("c"))
+        let ambiguous = try files.reference("ambiguous.bref", fasta: inspectionReference("R"))
+        let gate = RegionGate()
+        let session = ViewerSession(prefetch: .disabled, loadReferenceRegion: { bundle, interval in
+            let bases = try await bundle.read(interval)
+            if interval.start == 500 && interval.end == 500 {
+                _ = await gate.pauseIfArmed(500)
+            }
+            return bases
+        })
+        let viewer = try await InspectionWindow(files: files, session: session)
+        defer { viewer.window.close() }
+        await viewer.navigate("tiny:481-520")
+        try viewer.click(500)
+        let unresolved = "Base depth 10   A 0 (0%)   C 8 (80%)   G 0 (0%)   T 0 (0%)   Unresolved = 2 (20%)"
+        try await viewer.expectPanel("tiny:500", unresolved)
+        await viewer.navigate("other_reference:1-40")
+
+        await gate.arm(500)
+        await session.openReference(lower)
+        try await viewer.expectPanel("tiny:500", "Loading…")
+        await gate.waitFor(500)
+        let oldReference = try #require(session.inspectionTask)
+        await session.openReference(ambiguous)
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        await gate.release(500)
+        await oldReference.value
+        try await viewer.expectPanel("tiny:500 · Reference R", unresolved)
+        #expect(viewer.hasLabel("outside current view"))
+
+        await gate.arm(500)
+        await session.openReference(lower)
+        try await viewer.expectPanel("tiny:500", "Loading…")
+        await gate.waitFor(500)
+        let oldBAM = try #require(session.inspectionTask)
+        try await files.openedSession(fixture: "opening", session: session)
+        await gate.release(500)
+        await oldBAM.value
+        #expect(!viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSButton)?.title == "Close" })
+        await viewer.navigate("tiny:481-520")
+        try viewer.click(500)
+        try await viewer.expectPanel("tiny:500 · Reference c", "Base depth 0   A 0   C 0   G 0   T 0")
+    }
+
     @Test(arguments: [false, true])
     func selectedColumnMarksTheRulerAndOutlinesReadableTracks(withReference: Bool) async throws {
         let files = try FixtureFiles()
@@ -217,7 +329,7 @@ struct NativePileupInspectionTests {
         try await viewer.expectPanel("tiny:200", "Base depth 10   A 8 (80%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Ambiguous 2 (20%)")
         try viewer.click(300)
         try await viewer.expectPanel("tiny:300", "Base depth 5   A 1 (20%)   C 1 (20%)   G 1 (20%)   T 1 (20%)   Unresolved = 1 (20%)")
-        let reference = try files.reference("counts.bref", fasta: ">tiny\n" + String(repeating: "c", count: 2_000))
+        let reference = try files.reference("counts.bref", fasta: inspectionReference("c"))
         await viewer.session.openReference(reference)
         // A mismatch, another read body, and the empty pileup area reach the same base.
         for y in [CGFloat(8), 26, 160] {
@@ -296,7 +408,7 @@ struct NativePileupInspectionTests {
         defer { files.remove() }
         let viewer = try await InspectionWindow(files: files)
         defer { viewer.window.close() }
-        let reference = try files.reference("extra.bref", fasta: ">tiny\n" + String(repeating: "R", count: 2_000) + "\n>extra\nACGT")
+        let reference = try files.reference("extra.bref", fasta: inspectionReference("R") + "\n>extra\nACGT")
         await viewer.session.openReference(reference)
         let width = Int(viewer.stack.bounds.width)
         await viewer.navigate("tiny:1-\(width)")
@@ -470,6 +582,10 @@ private struct InspectionWindow {
     func visibleViews(in view: NSView) -> [NSView] {
         guard !view.isHidden else { return [] }
         return [view] + view.subviews.flatMap { visibleViews(in: $0) }
+    }
+
+    func hasLabel(_ text: String) -> Bool {
+        visibleViews(in: workspace).contains { ($0 as? NSTextField)?.stringValue == text }
     }
 
     func expectPanel(_ heading: String, _ detail: String) async throws {

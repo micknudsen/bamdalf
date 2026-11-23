@@ -5,6 +5,10 @@ final class GenomicAlignmentView: NSView {
     static let rowHeight: CGFloat = 18
     var presentation = ViewerPresentation() {
         didSet {
+            if presentation.sessionID != oldValue.sessionID {
+                cancelPendingClick()
+                dragStart = nil
+            }
             prepareDifferences(previous: oldValue)
             if !isScrolling { needsDisplay = true }
         }
