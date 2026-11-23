@@ -309,29 +309,34 @@ extension ReferenceBundleTests {
         defer { files.remove() }
         let output = try makeBundle(in: files.directory)
         let destination = try ReferenceSaveDestination(confirmedURL: output)
-        let (ready, signal) = AsyncStream<Void>.makeStream()
-        let release = DispatchSemaphore(value: 0)
-        var saves: [(String, Task<Void, Error>)] = []
-        for name in ["first", "second"] {
+        let ready = DispatchGroup()
+        let sources = try ["first", "second"].map { name in
             let source = files.directory.appendingPathComponent("\(name).fa")
             try Data(">\(name)\nT".utf8).write(to: source)
-            saves.append((name, Task.detached {
-                try ReferenceBundle.create(from: source, at: destination, name: "Example", creator: "bamdalf/test") { read, _ in
-                    if read > 0 {
-                        signal.yield()
-                        release.wait()
+            ready.enter()
+            return source
+        }
+        let (results, completed) = AsyncStream<(URL, Result<Void, Error>)>.makeStream()
+        for source in sources {
+            // These imports deliberately block at a barrier. Keep Swift's cooperative
+            // workers free so either import can reach the barrier on a small CI runner.
+            DispatchQueue.global().async {
+                let result = Result {
+                    try ReferenceBundle.create(from: source, at: destination, name: "Example", creator: "bamdalf/test") { read, _ in
+                        guard read > 0 else { return }
+                        ready.leave()
+                        try #require(ready.wait(timeout: .now() + 10) == .success)
                     }
                 }
-            }))
+                completed.yield((source, result))
+            }
         }
-        var imports = ready.makeAsyncIterator()
-        _ = await imports.next()
-        _ = await imports.next()
-        release.signal()
-        release.signal()
         var winners: [String] = []
-        for (name, save) in saves {
-            if case .success = await save.result { winners.append(name) }
+        for await (source, result) in results.prefix(sources.count) {
+            switch result {
+            case .success: winners.append(source.deletingPathExtension().lastPathComponent)
+            case .failure(let error): #expect(error.localizedDescription.contains("changed after confirmation"))
+            }
         }
         try #require(winners.count == 1)
         let bundle = try ReferenceBundle(opening: output)
