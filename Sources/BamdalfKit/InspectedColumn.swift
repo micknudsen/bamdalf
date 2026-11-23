@@ -19,13 +19,13 @@ struct InspectedColumn {
     }
 
     @MainActor
-    func drawOutline(in bounds: NSRect) {
+    func drawOutline(in bounds: NSRect, behindBases: Bool) {
         let left = leading * bounds.width
         let right = trailing * bounds.width
-        // Place the edges outside narrow cells to keep their mismatch color visible.
-        let inset: CGFloat = right - left < 4 ? -1 : 0
+        // At narrow scales, paint under the cells so the neighboring mismatch colors survive.
+        guard behindBases == (right - left < 4) else { return }
         NSColor.controlAccentColor.setFill()
-        for x in [left + inset, right - inset - 1] {
+        for x in [left, max(left, right - 1)] {
             NSRect(x: x, y: bounds.minY, width: 1, height: bounds.height).fill()
         }
     }

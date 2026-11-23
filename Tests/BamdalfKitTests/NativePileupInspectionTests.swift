@@ -54,6 +54,33 @@ struct NativePileupInspectionTests {
     }
 
     @Test
+    func onePointColumnsKeepConsecutiveMismatchAndReferenceColors() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession()
+        let viewer = try InspectionWindow(session: session)
+        defer { viewer.window.close() }
+        let reference = try files.reference("threshold.bref", fasta: ">tiny\n" + String(repeating: "t", count: 2000)
+                                            + "\n>other_reference\n" + String(repeating: "a", count: 800))
+        await session.openReference(reference)
+        await viewer.navigate("tiny:1-608")
+        try #require(viewer.stack.bounds.width == 608)
+        let referenceRow = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Reference sequence" })
+        let tracks = [viewer.stack, referenceRow]
+        let before = try tracks.map { try renderAlignmentBitmap(in: $0, window: viewer.window) }
+        // Positions 101–103 are consecutive A, C and G mismatches against reference t.
+        try #require(before[0].colorAt(x: 100, y: 8) != before[0].colorAt(x: 101, y: 8))
+        try #require(before[0].colorAt(x: 101, y: 8) != before[0].colorAt(x: 102, y: 8))
+        try viewer.click(102)
+        try await viewer.expectPanel("tiny:102 · Reference t", "Base depth 1   A 0 (0%)   C 1 (100%)   G 0 (0%)   T 0 (0%)")
+        for (track, original) in zip(tracks, before) {
+            let marked = try renderAlignmentBitmap(in: track, window: viewer.window)
+            #expect((100...102).allSatisfy { marked.colorAt(x: $0, y: 8) == original.colorAt(x: $0, y: 8) })
+            #expect((100...102).contains { marked.colorAt(x: $0, y: 1) != original.colorAt(x: $0, y: 1) })
+        }
+    }
+
+    @Test
     func markerFollowsNavigationAndThePanelRetainsItsBAMCoordinate() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
@@ -98,11 +125,11 @@ struct NativePileupInspectionTests {
         #expect(!isOutside())
 
         try viewer.click(102)
+        let firstClick = try #require((viewer.stack as? GenomicAlignmentView)?.pendingClick)
         try viewer.click(102, count: 2)
-        try await viewer.finishGesture()
+        await firstClick.value
         try expectMarker(at: 272) // tiny:93-111, 32 points per base.
         try viewer.click(102, modifiers: .option)
-        try await viewer.finishGesture()
         try expectMarker(at: 296) // tiny:83-120, 16 points per base.
         try await viewer.expectPanel("tiny:101", first)
 

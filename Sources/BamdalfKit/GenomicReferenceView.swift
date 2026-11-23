@@ -81,7 +81,8 @@ final class GenomicReferenceView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
-        defer { presentation.inspectedColumn?.drawOutline(in: bounds) }
+        presentation.inspectedColumn?.drawOutline(in: bounds, behindBases: true)
+        defer { presentation.inspectedColumn?.drawOutline(in: bounds, behindBases: false) }
         guard let target = presentation.target, let region = presentation.referenceBases,
               region.interval.reference.utf8.elementsEqual(target.reference.utf8) else { return }
         guard let scale = target.referenceScale(in: bounds.width) else { return }
