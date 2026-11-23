@@ -30,6 +30,9 @@ final class GenomicAlignmentView: NSView {
     var previewDrag: ((Double) -> Void)?
     var endDrag: (() -> Void)?
     var zoomAt: ((ZoomDirection, Double) -> Void)?
+    var inspect: ((GenomicInterval) -> Void)?
+    private var pendingClick: Task<Void, Never>?
+    private var clickPosition: GenomicInterval?
     private var dragStart: CGFloat?
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { true }
@@ -42,8 +45,15 @@ final class GenomicAlignmentView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("Use init(frame:)") }
 
+    func cancelPendingClick() {
+        pendingClick?.cancel()
+        pendingClick = nil
+        clickPosition = nil
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard canNavigate?() == true, bounds.width > 0 else { return }
+        cancelPendingClick()
         let x = convert(event.locationInWindow, from: nil).x
         if event.modifierFlags.contains(.option) {
             zoomAt?(.out, Double(x / bounds.width))
@@ -53,21 +63,40 @@ final class GenomicAlignmentView: NSView {
             zoomAt?(.in, Double(x / bounds.width))
             return
         }
+        if event.clickCount == 1, event.modifierFlags.intersection([.shift, .control, .command, .option, .function]).isEmpty,
+           let target = presentation.target, let scale = target.referenceScale(in: bounds.width),
+           x >= 0, x < bounds.width {
+            let base = target.start + Int64(x / scale)
+            clickPosition = GenomicInterval(reference: target.reference, start: base, end: base)
+        }
         dragStart = x
         beginDrag?()
     }
 
     override func mouseDragged(with event: NSEvent) {
+        clickPosition = nil
         guard canNavigate?() == true, let start = dragStart, bounds.width > 0 else { return }
         let x = convert(event.locationInWindow, from: nil).x
         previewDrag?(Double((x - start) / bounds.width))
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard dragStart != nil else { return }
+        guard let start = dragStart else { return }
+        let position = clickPosition
+        let releasedAtStart = convert(event.locationInWindow, from: nil).x == start
+        let source = presentation.sessionID
+        let target = presentation.target
         mouseDragged(with: event)
         dragStart = nil
         endDrag?()
+        guard let position, releasedAtStart else { return }
+        // AppKit delivers a double click's first down/up as a single click.
+        pendingClick = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(NSEvent.doubleClickInterval))
+            guard !Task.isCancelled, let self, canNavigate?() == true,
+                  presentation.sessionID == source, presentation.target == target else { return }
+            inspect?(position)
+        }
     }
 
     /// Retain comparison cells only for the selected, vertically visible rows of one loaded region.
