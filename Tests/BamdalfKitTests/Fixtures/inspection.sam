@@ -140,4 +140,5 @@ event-a-7	0	tiny	400	0	1M	*	0	0	A	*
 event-clip	0	tiny	401	0	1S1M	*	0	0	TC	*
 event-internal	0	tiny	410	0	1M1I1P1I1M	*	0	0	ATTC	*
 event-leading	0	tiny	411	0	3I1M	*	0	0	TTTG	*
+event-insertion-only	0	tiny	421	0	3I	*	0	0	TTT	*
 event-last	0	tiny	2000	0	1M2I	*	0	0	ATT	*

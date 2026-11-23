@@ -36,7 +36,7 @@ struct RegionalData {
         func isActive(_ entry: Entry) -> Bool {
             guard entry.interval.hasSameReference(as: activeTarget) else { return false }
             return (entry.interval.start <= activeTarget.end && entry.interval.end >= activeTarget.start)
-                || entry.records.contains { $0.referenceStart <= activeTarget.end && $0.referenceEnd >= activeTarget.start }
+                || entry.records.contains { $0.overlapsQuery(activeTarget) }
         }
         var historicalCount = entries.filter { !isActive($0) }.count
         entries.removeAll { entry in
@@ -141,7 +141,7 @@ struct RegionalData {
     static func eligible(_ records: [Alignment], for target: GenomicInterval) -> [Alignment] {
         var seen: Set<UInt64> = []
         var result: [Alignment] = []
-        for record in records where record.referenceStart <= target.end && record.referenceEnd >= target.start {
+        for record in records where record.overlapsQuery(target) {
             if seen.insert(record.id).inserted { result.append(record) }
         }
         return result
@@ -159,7 +159,7 @@ struct RegionalData {
         var seen: Set<UInt64> = []
         var visible: [Alignment] = []
         for entry in entries where entry.interval.hasSameReference(as: viewport) {
-            for record in entry.records where record.referenceStart <= required.end && record.referenceEnd >= required.start {
+            for record in entry.records where record.overlapsQuery(required) {
                 if seen.insert(record.id).inserted && record.overlapsViewport(viewport) {
                     visible.append(record)
                 }

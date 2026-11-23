@@ -92,7 +92,7 @@ struct NativePileupInspectionTests {
         // so inspection must find the alignment that starts with an insertion at 411.
         await viewer.navigate("tiny:120-160")
         await gate.arm(1)
-        session.editInterval("tiny:390-420")
+        session.editInterval("tiny:390-425")
         let viewport = session.submitInterval()
         await gate.waitFor(1)
         defer { Task { await gate.release(1) } }
@@ -107,6 +107,11 @@ struct NativePileupInspectionTests {
         try await viewer.expectPanel("tiny:410", at410)
         try viewer.click(411)
         try await viewer.expectPanel("tiny:411", "Base depth 2   A 0 (0%)   C 1 (50%)   G 1 (50%)   T 0 (0%)")
+        // A mapped insertion-only CIGAR supports its boundary without supplying a base on either side.
+        try viewer.click(420)
+        try await viewer.expectPanel("tiny:420", "Base depth 0   A 0   C 0   G 0   T 0   Insertion after this base 1")
+        try viewer.click(421)
+        try await viewer.expectPanel("tiny:421", "Base depth 0   A 0   C 0   G 0   T 0")
         await viewer.navigate("tiny:1,990-2,000")
         try viewer.click(2_000)
         try await viewer.expectPanel("tiny:2,000", "Base depth 1   A 1 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Insertion after this base 1")
