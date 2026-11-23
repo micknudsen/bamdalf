@@ -1,6 +1,6 @@
 # Future functionality
 
-Updated 2026-11-22. The items below remain open for future development.
+Updated 2026-11-23. The items below remain open for future development.
 Their order does not imply priority or approval for implementation. Decision
 identifiers refer to the [first milestone design](design.md).
 
@@ -11,11 +11,16 @@ documents the subsequent delivery of named bundles and background FASTA import.
 
 The superseded cursor, selection, and focus rules and the withdrawn drag-cancellation proposal are not deferred features or backlog commitments.
 
+## Confirmed product design
+
+The [coverage and base counts design](coverage-and-base-counts-design.md)
+defines the single-position inspector. Implementation is pending.
+
 ## Deferred features
 
 ### Data and sequencing workflows
 
-- Coverage, read inspection, and additional tracks remain deferred (Q1).
+- An interval-wide coverage track, individual read inspection, and additional tracks remain deferred (Q1).
 - Reference-associated annotations, potentially imported from GTF, are a future
   extension of the reference bundle; loading/rendering them is outside the
   reference milestone.
