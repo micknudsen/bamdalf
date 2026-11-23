@@ -81,6 +81,29 @@ struct NativePileupInspectionTests {
     }
 
     @Test
+    func selectedColumnTracksTheClipWidthWhenAppKitTilesTheScroller() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let viewer = try await InspectionWindow(files: files)
+        defer { viewer.window.close() }
+        await viewer.navigate("tiny:81-120")
+        try viewer.click(100)
+        try await viewer.expectPanel("tiny:100", "Base depth 100   A 90 (90%)   C 0 (0%)   G 0 (0%)   T 10 (10%)")
+        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
+        let originalWidth = viewer.scroll.contentView.bounds.width
+        viewer.scroll.scrollerStyle = .legacy
+        viewer.workspace.layoutSubtreeIfNeeded()
+        let width = viewer.scroll.contentView.bounds.width
+        try #require(width < originalWidth)
+        #expect(viewer.stack.bounds.width == width)
+        #expect(ruler.bounds.width == width)
+        // Base 100 spans fractions 19/40 to 20/40 of the tiled viewport.
+        let stack = try renderAlignmentBitmap(in: viewer.stack, window: viewer.window)
+        let edge = Int(ceil(width * 19 / 40))
+        #expect(stack.colorAt(x: edge, y: 1) != stack.colorAt(x: edge - 2, y: 1))
+    }
+
+    @Test
     func markerFollowsNavigationAndThePanelRetainsItsBAMCoordinate() async throws {
         let files = try FixtureFiles()
         defer { files.remove() }
