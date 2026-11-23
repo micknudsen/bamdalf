@@ -55,10 +55,66 @@ struct NativePileupInspectionTests {
         }
         // At 302 only '=' is aligned. A deletion, reference skip and drawn clip span it.
         try viewer.click(302)
-        try await viewer.expectPanel("tiny:302 · Reference c", "Base depth 1   A 0 (0%)   C 1 (100%)   G 0 (0%)   T 0 (0%)")
+        try await viewer.expectPanel("tiny:302 · Reference c", "Base depth 1   A 0 (0%)   C 1 (100%)   G 0 (0%)   T 0 (0%)   Deletions 1   Reference skips 1")
         // At 303 four stored bases accompany missing SEQ and an insertion.
         try viewer.click(303)
-        try await viewer.expectPanel("tiny:303 · Reference c", "Base depth 4   A 1 (25%)   C 1 (25%)   G 1 (25%)   T 1 (25%)")
+        try await viewer.expectPanel("tiny:303 · Reference c", "Base depth 4   A 1 (25%)   C 1 (25%)   G 1 (25%)   T 1 (25%)   Sequence unavailable 1   Insertion after this base 1")
+    }
+
+    @Test(arguments: ["bai", "csi"])
+    func gapsAndMissingSequenceStayOutsideBaseDepth(index: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let viewer = try await InspectionWindow(files: files, index: index)
+        defer { viewer.window.close() }
+        await viewer.navigate("tiny:390-410")
+        // A missing sequence still supplies its CIGAR deletion. A clipped T also crosses 400.
+        try viewer.click(400)
+        try await viewer.expectPanel("tiny:400", "Base depth 8   A 8 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Deletions 2   Reference skips 3")
+        try viewer.click(402)
+        try await viewer.expectPanel("tiny:402", "Base depth 0   A 0   C 0   G 0   T 0   Deletions 2")
+        try viewer.click(399)
+        try await viewer.expectPanel("tiny:399", "Base depth 4   A 4 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Sequence unavailable 1")
+    }
+
+    @Test(arguments: ["bai", "csi"])
+    func insertionsCountSupportingAlignmentsAtTheFollowingBoundary(index: String) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let gate = RegionGate()
+        let session = ViewerSession(prefetch: .disabled, loadRegion: { file, interval in
+            _ = await gate.pauseIfArmed(1)
+            return try await file.alignments(in: interval)
+        })
+        let viewer = try await InspectionWindow(files: files, index: index, session: session)
+        defer { viewer.window.close() }
+        // The 250-base tail margin fills the cache through 410. Hold the next viewport load
+        // so inspection must find the alignment that starts with an insertion at 411.
+        await viewer.navigate("tiny:120-160")
+        await gate.arm(1)
+        session.editInterval("tiny:390-425")
+        let viewport = session.submitInterval()
+        await gate.waitFor(1)
+        defer { Task { await gate.release(1) } }
+        let at410 = "Base depth 1   A 1 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Insertion after this base 2"
+        try viewer.click(410)
+        try await viewer.expectPanel("tiny:410", at410)
+        await gate.release(1)
+        await viewport?.value
+        try viewer.click(409)
+        try await viewer.expectPanel("tiny:409", "Base depth 0   A 0   C 0   G 0   T 0")
+        try viewer.click(410)
+        try await viewer.expectPanel("tiny:410", at410)
+        try viewer.click(411)
+        try await viewer.expectPanel("tiny:411", "Base depth 2   A 0 (0%)   C 1 (50%)   G 1 (50%)   T 0 (0%)")
+        // A mapped insertion-only CIGAR supports its boundary without supplying a base on either side.
+        try viewer.click(420)
+        try await viewer.expectPanel("tiny:420", "Base depth 0   A 0   C 0   G 0   T 0   Insertion after this base 1")
+        try viewer.click(421)
+        try await viewer.expectPanel("tiny:421", "Base depth 0   A 0   C 0   G 0   T 0")
+        await viewer.navigate("tiny:1,990-2,000")
+        try viewer.click(2_000)
+        try await viewer.expectPanel("tiny:2,000", "Base depth 1   A 1 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Insertion after this base 1")
     }
 
     @Test
@@ -73,7 +129,7 @@ struct NativePileupInspectionTests {
         await viewer.navigate("tiny:1-\(width)")
         try viewer.click(302)
         let heading = "tiny:302 · Reference R"
-        let detail = "Base depth 1   A 0 (0%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Unresolved = 1 (100%)"
+        let detail = "Base depth 1   A 0 (0%)   C 0 (0%)   G 0 (0%)   T 0 (0%)   Unresolved = 1 (100%)   Deletions 1   Reference skips 1"
         try await viewer.expectPanel(heading, detail)
         await viewer.navigate("tiny:1-\(width + 1)")
         try viewer.click(100)
@@ -129,7 +185,7 @@ struct NativePileupInspectionTests {
         let gate = RegionGate()
         let session = ViewerSession(prefetch: .disabled, loadRegion: { file, interval in
             let records = try await file.alignments(in: interval)
-            if interval.start != interval.end || [100, 300].contains(interval.start) {
+            if [1, 100, 300].contains(interval.start) {
                 await gate.pause(interval.start)
             }
             if interval.start == 299 { throw RegionalLoadError(interval: interval, message: "Controlled failure") }

@@ -5,20 +5,42 @@ struct BaseCounts {
     private var ambiguous = 0
     private var unresolved = 0
 
+    private var deletions = 0
+    private var skips = 0
+    private var unavailable = 0
+    private var insertions = 0
+
     init(records: [Alignment], position: Int64, reference: UInt8?) {
         for record in records {
-            guard let segment = record.segments.first(where: {
-                $0.kind == .aligned && $0.start <= position && position < $0.end
-            }), var sequence = segment.sequence else { continue }
-            let symbol = sequence.withUTF8 { $0[Int(position - segment.start)] }
-            let base = (symbol == 61 ? reference : symbol).flatMap { CanonicalBase($0) }
-            if let base {
-                canonical[base, default: 0] += 1
-            } else if symbol == 61 {
-                unresolved += 1
-            } else {
-                ambiguous += 1
+            // Padded CIGARs can contain multiple insertion operations at the same boundary.
+            if record.segments.contains(where: { $0.kind == .insertion && $0.start - 1 == position }) {
+                insertions += 1
             }
+            for segment in record.segments where segment.start <= position && position < segment.end {
+                switch segment.kind {
+                case .aligned:
+                    guard var sequence = segment.sequence else {
+                        unavailable += 1
+                        continue
+                    }
+                    let symbol = sequence.withUTF8 { $0[Int(position - segment.start)] }
+                    countBase(symbol, reference: reference)
+                case .deletion: deletions += 1
+                case .skip: skips += 1
+                case .softClip, .insertion: break
+                }
+            }
+        }
+    }
+
+    private mutating func countBase(_ symbol: UInt8, reference: UInt8?) {
+        let base = (symbol == 61 ? reference : symbol).flatMap { CanonicalBase($0) }
+        if let base {
+            canonical[base, default: 0] += 1
+        } else if symbol == 61 {
+            unresolved += 1
+        } else {
+            ambiguous += 1
         }
     }
 
@@ -35,6 +57,10 @@ struct BaseCounts {
         }
         if ambiguous > 0 { fields.append(category("Ambiguous", ambiguous)) }
         if unresolved > 0 { fields.append(category("Unresolved =", unresolved)) }
+        if deletions > 0 { fields.append("Deletions \(deletions)") }
+        if skips > 0 { fields.append("Reference skips \(skips)") }
+        if unavailable > 0 { fields.append("Sequence unavailable \(unavailable)") }
+        if insertions > 0 { fields.append("Insertion after this base \(insertions)") }
         return fields.joined(separator: "   ")
     }
 }

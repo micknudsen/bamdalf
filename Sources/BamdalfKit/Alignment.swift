@@ -23,8 +23,15 @@ public struct Alignment: Equatable, Sendable, Identifiable {
     public var drawnStart: Int64 { segments.lazy.map(\.start).min() ?? referenceStart }
     public var drawnEnd: Int64 { (segments.lazy.map(\.end).max() ?? (referenceEnd + 1)) - 1 }
 
+    // BAM indexes treat a mapped record consuming zero reference bases as one base at POS.
+    var indexedEnd: Int64 { max(referenceStart, referenceEnd) }
+
+    func overlapsQuery(_ target: GenomicInterval) -> Bool {
+        referenceStart <= target.end && indexedEnd >= target.start
+    }
+
     func overlapsViewport(_ target: GenomicInterval) -> Bool {
-        drawnStart <= target.end && drawnEnd >= target.start
+        referenceStart <= referenceEnd && drawnStart <= target.end && drawnEnd >= target.start
     }
 
     /// Conservative app-owned storage accounting, not process RSS. Twice the

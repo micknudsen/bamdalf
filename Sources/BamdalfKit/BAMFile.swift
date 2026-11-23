@@ -139,19 +139,19 @@ public actor BAMFile {
             guard sequenceLength == 0 || queryOffset == sequenceLength else {
                 throw RegionalLoadError(interval: interval, message: "CIGAR and sequence lengths differ for \(name).")
             }
-            guard start >= 1, reference - 1 <= referenceLength else {
+            let alignment = Alignment(id: bamdalf_record_id(query), name: name, readGroup: readGroup.map { String(cString: $0) },
+                                      cigar: cigar, isReverse: flags & 16 != 0, referenceStart: start,
+                                      referenceEnd: reference - 1, segments: segments)
+            guard start >= 1, alignment.indexedEnd <= referenceLength else {
                 throw RegionalLoadError(interval: interval, message: "Alignment \(name) exceeds the reference bounds.")
             }
-            if reference > start && start <= interval.end && reference > interval.start {
-                let alignment = Alignment(id: bamdalf_record_id(query), name: name, readGroup: readGroup.map { String(cString: $0) }, cigar: cigar, isReverse: flags & 16 != 0,
-                                          referenceStart: start, referenceEnd: reference - 1, segments: segments)
-                if let budget {
-                    let bytes = alignment.estimatedStorageBytes
-                    guard bytes <= budget.maximumBytes - retainedBytes else { throw RegionalQueryBudgetExceeded() }
-                    retainedBytes += bytes
-                }
-                result.append(alignment)
+            guard alignment.overlapsQuery(interval) else { continue }
+            if let budget {
+                let bytes = alignment.estimatedStorageBytes
+                guard bytes <= budget.maximumBytes - retainedBytes else { throw RegionalQueryBudgetExceeded() }
+                retainedBytes += bytes
             }
+            result.append(alignment)
         }
     }
 
