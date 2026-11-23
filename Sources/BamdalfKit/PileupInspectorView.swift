@@ -19,7 +19,7 @@ final class PileupInspectorView: NSView {
             heading.trailingAnchor.constraint(lessThanOrEqualTo: closeButton.leadingAnchor, constant: -8),
             heading.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             closeButton.trailingAnchor.constraint(equalTo: trailingAnchor),
-            closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+            closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 8),
             detail.leadingAnchor.constraint(equalTo: leadingAnchor),
             detail.trailingAnchor.constraint(equalTo: trailingAnchor),
             detail.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 2),
