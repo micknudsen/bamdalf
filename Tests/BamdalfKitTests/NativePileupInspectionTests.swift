@@ -5,6 +5,129 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct NativePileupInspectionTests {
+    @Test(arguments: [false, true])
+    func selectedColumnMarksTheRulerAndOutlinesReadableTracks(withReference: Bool) async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let session = try await files.openedSession()
+        let viewer = try InspectionWindow(session: session)
+        defer { viewer.window.close() }
+        if withReference {
+            let reference = try files.reference("two.bref", fasta: ">tiny\n" + String(repeating: "c", count: 2000)
+                                                + "\n>other_reference\n" + String(repeating: "a", count: 800))
+            await session.openReference(reference)
+        }
+        await viewer.navigate("tiny:91-128")
+        try #require(viewer.stack.bounds.width == 608) // 16 points per base; base 101 spans x = 160..<176.
+        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
+        var tracks = [viewer.stack]
+        if withReference {
+            tracks.append(try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Reference sequence" }))
+        }
+        let before = try tracks.map { try renderAlignmentBitmap(in: $0, window: viewer.window) }
+        let rulerBefore = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
+        try viewer.click(101)
+        try await viewer.expectPanel(withReference ? "tiny:101 · Reference c" : "tiny:101",
+                                     "Base depth 1   A 1 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)")
+        let rulerAfter = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
+        // The region beneath the ruler baseline contains only the selection marker.
+        let marker = (0..<608).filter { rulerBefore.colorAt(x: $0, y: 11) != rulerAfter.colorAt(x: $0, y: 11) }
+        #expect(marker.contains(168) && marker.allSatisfy { (162...174).contains($0) })
+        for (track, original) in zip(tracks, before) {
+            let marked = try renderAlignmentBitmap(in: track, window: viewer.window)
+            for y in [1, 8, track === viewer.stack ? 35 : 16] {
+                let changes = (0..<608).filter { original.colorAt(x: $0, y: y) != marked.colorAt(x: $0, y: y) }
+                #expect(changes.contains { (159...161).contains($0) } && changes.contains { (174...176).contains($0) })
+                #expect(changes.allSatisfy { (159...161).contains($0) || (174...176).contains($0) })
+            }
+            // Every interior pixel, including the base glyph and mismatch color, survives selection.
+            for y in 3..<15 {
+                #expect((162..<174).allSatisfy { original.colorAt(x: $0, y: y) == marked.colorAt(x: $0, y: y) })
+            }
+        }
+        let close = try viewer.closeButton()
+        close.sendAction(close.action, to: close.target)
+        for (track, original) in zip(tracks, before) {
+            let restored = try renderAlignmentBitmap(in: track, window: viewer.window)
+            #expect(restored.representation(using: .png, properties: [:]) == original.representation(using: .png, properties: [:]))
+        }
+    }
+
+    @Test
+    func markerFollowsNavigationAndThePanelRetainsItsBAMCoordinate() async throws {
+        let files = try FixtureFiles()
+        defer { files.remove() }
+        let viewer = try InspectionWindow(session: await files.openedSession())
+        defer { viewer.window.close() }
+        let first = "Base depth 1   A 1 (100%)   C 0 (0%)   G 0 (0%)   T 0 (0%)"
+        let second = "Base depth 1   A 0 (0%)   C 0 (0%)   G 1 (100%)   T 0 (0%)"
+        await viewer.navigate("tiny:91-128")
+        try #require(viewer.stack.bounds.width == 608)
+        let ruler = try #require(viewer.visibleViews(in: viewer.workspace).first { $0.accessibilityLabel() == "Genomic ruler" })
+
+        func expectMarker(at center: Int?) throws {
+            let bitmap = try renderTrackBitmap(in: ruler, window: viewer.window, height: 20)
+            let pixels = (0..<608).filter { (bitmap.colorAt(x: $0, y: 11)?.alphaComponent ?? 0) > 0.1 }
+            if let center {
+                #expect(pixels.contains(center) && pixels.allSatisfy { abs($0 - center) <= 5 })
+            } else {
+                #expect(pixels.isEmpty)
+            }
+        }
+        func isOutside() -> Bool {
+            viewer.visibleViews(in: viewer.workspace).contains { ($0 as? NSTextField)?.stringValue == "outside current view" }
+        }
+        try viewer.click(101)
+        try await viewer.expectPanel("tiny:101", first)
+        try expectMarker(at: 168)
+        // While the pointer is held four points from mouse-down, the integral target
+        // remains unchanged but the selected column has moved a quarter of a base.
+        viewer.stack.mouseDown(with: try viewer.event(.leftMouseDown, position: 120))
+        viewer.stack.mouseDragged(with: try viewer.event(.leftMouseDragged, position: 120, xOffset: 4))
+        try expectMarker(at: 172)
+        viewer.stack.mouseUp(with: try viewer.event(.leftMouseUp, position: 120, xOffset: 4))
+        try expectMarker(at: 168)
+        try viewer.drag(from: 120, to: 117) // The viewport advances three bases.
+        try expectMarker(at: 120)
+        try viewer.drag(from: 120, to: 100)
+        try expectMarker(at: nil)
+        #expect(isOutside())
+        try await viewer.expectPanel("tiny:101", first)
+        try viewer.drag(from: 120, to: 140)
+        try expectMarker(at: 120)
+        #expect(!isOutside())
+
+        try viewer.click(102)
+        try viewer.click(102, count: 2)
+        try await viewer.finishGesture()
+        try expectMarker(at: 272) // tiny:93-111, 32 points per base.
+        try viewer.click(102, modifiers: .option)
+        try await viewer.finishGesture()
+        try expectMarker(at: 296) // tiny:83-120, 16 points per base.
+        try await viewer.expectPanel("tiny:101", first)
+
+        await viewer.navigate("other_reference:1-500")
+        try await viewer.expectPanel("tiny:101", first)
+        try expectMarker(at: nil)
+        #expect(isOutside())
+        await viewer.navigate("tiny:91-128")
+        try expectMarker(at: 168)
+        #expect(!isOutside())
+
+        await viewer.navigate("other_reference:191-228")
+        try viewer.click(201)
+        try await viewer.expectPanel("other_reference:201", second)
+        try expectMarker(at: 168)
+        #expect(!isOutside())
+        let close = try viewer.closeButton()
+        close.sendAction(close.action, to: close.target)
+        try expectMarker(at: nil)
+        #expect(!viewer.visibleViews(in: viewer.workspace).contains(close))
+        try viewer.click(202)
+        try await viewer.expectPanel("other_reference:202", first)
+        try expectMarker(at: 184)
+    }
+
     @Test(arguments: ["bai", "csi"])
     func panelUsesCompleteDepthBeforeSampling(index: String) async throws {
         let files = try FixtureFiles()
@@ -276,11 +399,11 @@ private struct InspectionWindow {
         stack.mouseUp(with: up)
     }
 
-    func event(_ type: NSEvent.EventType, position: Int64, y: CGFloat = 8, count: Int = 1,
+    func event(_ type: NSEvent.EventType, position: Int64, xOffset: CGFloat = 0, y: CGFloat = 8, count: Int = 1,
                modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
         let target = try #require(session.presentation.target)
         let x = (CGFloat(position - target.start) + 0.5) * stack.bounds.width / CGFloat(target.end - target.start + 1)
-        let point = stack.convert(NSPoint(x: x, y: scroll.contentView.bounds.minY + y), to: nil)
+        let point = stack.convert(NSPoint(x: x + xOffset, y: scroll.contentView.bounds.minY + y), to: nil)
         return try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: modifiers,
             timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
             eventNumber: 1, clickCount: count, pressure: 1))

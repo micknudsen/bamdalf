@@ -18,8 +18,11 @@ ruler and prompt you to zoom in to see alignments.
 At one screen point per base or closer, click a pileup column to see its base
 depth and A, C, G, T counts below the alignments. Counts include all eligible
 records before display downsampling. The panel also shows ambiguous bases and
-unresolved `=` observations when present. **Close** returns the space to the
-pileup.
+unresolved `=` observations when present. A ruler marker and thin outline
+follow the selected base as you pan or zoom. If you leave the interval or
+visit another contig, the panel keeps the coordinate and counts and shows
+**outside current view**. Click another base to inspect it, or use **Close**
+to clear the selection and return the space to the pileup.
 
 Use **File → Open Reference…** to browse a `.bref` reference bundle on its own
 or alongside a compatible BAM. Zoom in to see reference bases below the ruler

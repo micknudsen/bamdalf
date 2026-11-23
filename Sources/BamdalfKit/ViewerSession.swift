@@ -37,6 +37,7 @@ public struct ViewerPresentation {
     public var references: [ReferenceSequence] = []
     public var intervalText = ""
     public var target: GenomicInterval?
+    var inspectedColumn: InspectedColumn?
     public var previewOffsetInBases = 0.0
     fileprivate var validationError: IntervalValidationError?
     public var intervalError: String? {

@@ -204,6 +204,7 @@ final class GenomicAlignmentView: NSView {
                 }
             }
         }
+        presentation.inspectedColumn?.drawOutline(in: bounds)
     }
 
     private static func drawOutline(in rect: NSRect, pointed: Bool, reverse: Bool) {

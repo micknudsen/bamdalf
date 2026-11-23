@@ -364,7 +364,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         guard !isRendering else { return }
         isRendering = true
         defer { isRendering = false }
-        let presentation = session.presentation
+        var presentation = session.presentation
+        presentation.inspectedColumn = InspectedColumn(session.inspection?.position, in: presentation)
         if isScrolling {
             alignmentStack.updateScrollOffset(presentation.verticalOffset)
             return
@@ -405,7 +406,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         ruler.isHidden = presentation.target == nil
         alignmentScroll.isHidden = presentation.target == nil
         alignmentScroll.hasVerticalScroller = presentation.bamURL != nil
-        inspector.show(session.inspection)
+        inspector.show(session.inspection, columnVisible: presentation.inspectedColumn != nil)
         if closedBottom.isActive != (session.inspection == nil) {
             closedBottom.isActive = false
             openBottom.isActive = session.inspection != nil
