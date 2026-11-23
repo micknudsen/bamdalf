@@ -180,6 +180,7 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         alignmentScroll.hasHorizontalScroller = false
         alignmentScroll.autohidesScrollers = true
         alignmentScroll.scrollerStyle = .overlay
+        alignmentStack.autoresizingMask = [.width]
         alignmentScroll.documentView = alignmentStack
         alignmentScroll.contentView.postsBoundsChangedNotifications = true
         alignmentScroll.translatesAutoresizingMaskIntoConstraints = false
@@ -364,7 +365,8 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         guard !isRendering else { return }
         isRendering = true
         defer { isRendering = false }
-        let presentation = session.presentation
+        var presentation = session.presentation
+        presentation.inspectedColumn = InspectedColumn(session.inspection?.position, in: presentation)
         if isScrolling {
             alignmentStack.updateScrollOffset(presentation.verticalOffset)
             return
@@ -405,14 +407,14 @@ public final class ViewerWindowController: NSWindowController, NSTextFieldDelega
         ruler.isHidden = presentation.target == nil
         alignmentScroll.isHidden = presentation.target == nil
         alignmentScroll.hasVerticalScroller = presentation.bamURL != nil
-        inspector.show(session.inspection)
+        inspector.show(session.inspection, columnVisible: presentation.inspectedColumn != nil)
         if closedBottom.isActive != (session.inspection == nil) {
             closedBottom.isActive = false
             openBottom.isActive = session.inspection != nil
             closedBottom.isActive = session.inspection == nil
         }
         window?.contentView?.layoutSubtreeIfNeeded()
-        let size = alignmentScroll.contentSize
+        let size = alignmentScroll.contentView.bounds.size
         alignmentStack.frame = NSRect(x: 0, y: 0, width: size.width,
                                       height: max(CGFloat(presentation.rowCount) * GenomicAlignmentView.rowHeight,
                                                   size.height + CGFloat(presentation.verticalOffset)))

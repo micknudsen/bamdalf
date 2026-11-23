@@ -66,5 +66,14 @@ final class GenomicRulerView: NSView {
             line.line(to: NSPoint(x: x, y: 20))
         }
         line.stroke()
+        if let center = presentation.inspectedColumn?.center(in: bounds.width) {
+            NSColor.controlAccentColor.setFill()
+            let marker = NSBezierPath()
+            marker.move(to: NSPoint(x: center, y: 3))
+            marker.line(to: NSPoint(x: center - 4, y: 12))
+            marker.line(to: NSPoint(x: center + 4, y: 12))
+            marker.close()
+            marker.fill()
+        }
     }
 }

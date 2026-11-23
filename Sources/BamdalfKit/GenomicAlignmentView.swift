@@ -31,7 +31,7 @@ final class GenomicAlignmentView: NSView {
     var endDrag: (() -> Void)?
     var zoomAt: ((ZoomDirection, Double) -> Void)?
     var inspect: ((GenomicInterval) -> Void)?
-    private var pendingClick: Task<Void, Never>?
+    private(set) var pendingClick: Task<Void, Never>?
     private var clickPosition: GenomicInterval?
     private var dragStart: CGFloat?
     override var isFlipped: Bool { true }
@@ -122,6 +122,7 @@ final class GenomicAlignmentView: NSView {
         NSColor.textBackgroundColor.setFill()
         dirtyRect.fill()
         guard let target = presentation.target else { return }
+        presentation.inspectedColumn?.drawOutline(in: bounds, behindBases: true)
         let scale = bounds.width / CGFloat(target.end - target.start + 1)
         for alignment in presentation.alignments {
             let bodyY = Self.bodyY(for: alignment.row)
@@ -204,6 +205,7 @@ final class GenomicAlignmentView: NSView {
                 }
             }
         }
+        presentation.inspectedColumn?.drawOutline(in: bounds, behindBases: false)
     }
 
     private static func drawOutline(in rect: NSRect, pointed: Bool, reverse: Bool) {
