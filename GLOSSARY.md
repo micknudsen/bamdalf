@@ -23,6 +23,20 @@ unambiguous A/C/G/T nucleotides, compared without regard to letter case.
 A comparison for which an ambiguous base prevents establishing a definite
 match or mismatch between the alignment and the reference.
 
+**Ambiguous base count**:
+The number of qualifying aligned read bases at one reference position that carry
+an ambiguity code, such as `N` or `R`. Each contributes one to base depth.
+
+**Unresolved `=` count**:
+The number of qualifying aligned `=` symbols in read sequences at one position
+whose nucleotide identity remains unknown because the reference base is
+ambiguous or no reference is open. Each contributes one to base depth.
+
+**Sequence unavailable count**:
+The number of eligible alignments whose CIGAR places a query base at the
+selected position but whose read sequence is absent. These alignments are
+counted outside base depth at that position.
+
 **BAM index**:
 A companion data structure mapping genomic regions to file locations in a coordinate-sorted BAM.
 
@@ -38,6 +52,10 @@ _Avoid_: Read, when referring specifically to one alignment record.
 
 **Downsampling**:
 Selecting a subset of otherwise eligible alignments for display. The intentional omissions are distinct from alignment data that has not yet finished loading.
+
+**Base depth**:
+The number of qualifying aligned base observations at one reference position.
+Overlapping mates can each contribute a base. Deletions and reference skips have separate counts.
 
 **Query template**:
 The originating sequenced fragment whose segments can yield mate and supplementary alignment records.
@@ -66,8 +84,15 @@ _Avoid_: Mate alignment, when referring to the segment itself.
 **Insertion (`I`)**:
 An alignment operation containing query bases with no corresponding reference bases. Its length contributes to query consumption but not to the alignment's reference span.
 
+**Insertion after this base**:
+The number of eligible alignments with an insertion immediately after a given
+reference base. Each alignment contributes once regardless of insertion length.
+
 **Deletion (`D`)**:
 An alignment operation spanning reference bases with no corresponding query bases. Its length contributes to the alignment's reference span but not to query consumption.
+
+**Reference skip (`N`)**:
+A CIGAR operation that advances across a skipped region of the reference without consuming query bases.
 
 **Soft clipping (`S`)**:
 Unaligned bases at an end of an alignment that are retained in the record's query sequence when that sequence is present. Soft clipping contributes to query consumption but not to the aligned reference span.
