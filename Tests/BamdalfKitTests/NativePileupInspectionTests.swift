@@ -83,7 +83,7 @@ struct NativePileupInspectionTests {
         defer { files.remove() }
         let gate = RegionGate()
         let session = ViewerSession(prefetch: .disabled, loadRegion: { file, interval in
-            if interval.end - interval.start > 1 { _ = await gate.pauseIfArmed(1) }
+            _ = await gate.pauseIfArmed(1)
             return try await file.alignments(in: interval)
         })
         let viewer = try await InspectionWindow(files: files, index: index, session: session)
@@ -180,7 +180,7 @@ struct NativePileupInspectionTests {
         let gate = RegionGate()
         let session = ViewerSession(prefetch: .disabled, loadRegion: { file, interval in
             let records = try await file.alignments(in: interval)
-            if interval.end - interval.start > 1 || [100, 300].contains(interval.start) {
+            if [1, 100, 300].contains(interval.start) {
                 await gate.pause(interval.start)
             }
             if interval.start == 299 { throw RegionalLoadError(interval: interval, message: "Controlled failure") }
